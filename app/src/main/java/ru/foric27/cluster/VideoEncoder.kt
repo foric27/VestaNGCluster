@@ -24,11 +24,13 @@ import java.nio.FloatBuffer
 import java.util.Locale
 
 /**
- * Выводит целевую activity на VirtualDisplay, затем композит кадр через OpenGL в Surface энкодера.
+ * Выводит целевую activity на `VirtualDisplay`, а затем композит кадр через OpenGL
+ * в `Surface` энкодера.
  *
- * Это позволяет независимо от содержимого activity принудительно закрасить нижнюю область кадра чёрным
- * прямо перед подачей кадра в MediaCodec. Значение fps в конфигурации используется как верхняя
- * граница кодека, а фактический FPS остаётся динамическим и определяется реальными обновлениями UI.
+ * Такой подход позволяет независимо от содержимого activity принудительно
+ * закрашивать нижнюю область кадра чёрным прямо перед подачей в `MediaCodec`.
+ * Значение FPS в конфигурации используется как верхняя граница для кодека,
+ * а фактический FPS остаётся динамическим и определяется реальными обновлениями UI.
  */
 class VideoEncoder(
     private val context: Context,
@@ -579,8 +581,8 @@ class VideoEncoder(
             textureMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix")
             GLES20.glViewport(0, 0, width, height)
 
-            // Освобождаем текущий контекст с потока инициализации.
-            // Далее drawFrame() будет привязывать его на codecHandler-потоке перед updateTexImage().
+            // Освобождаем EGL-контекст на потоке инициализации.
+            // Дальше drawFrame будет привязывать его на codecHandler-потоке перед updateTexImage().
             EGL14.eglMakeCurrent(
                 eglDisplay,
                 EGL14.EGL_NO_SURFACE,

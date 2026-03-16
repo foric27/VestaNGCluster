@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Foreground-сервис, который кодирует изображение в H.264 и отправляет его по UDP.
+ * Сервис переднего плана, который кодирует изображение в H.264 и отправляет его по UDP.
  */
 class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
@@ -821,9 +821,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         }
                     }
                 }
-                // Для режима dynamic FPS отсутствие новых видеокадров само по себе не считается ошибкой:
-                // при статичной картинке activity на VirtualDisplay кодек может долго не выдавать output.
-                // Восстановление здесь выполняется только по route/probe и по явным ошибкам сокета/энкодера.
+                // Для режима Dynamic FPS отсутствие новых видеокадров само по себе не считается ошибкой:
+                // при статичной картинке на VirtualDisplay кодек может долго не отдавать выходные буферы.
+                // Восстановление здесь выполняется только по проверке маршрута, probe и явным ошибкам сокета или энкодера.
             }
         }, "ConnectivityWatchdog").also { it.start() }
     }

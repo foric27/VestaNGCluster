@@ -3,17 +3,19 @@ package ru.foric27.cluster
 import java.nio.ByteBuffer
 
 /**
- * Приведение H.264 потока к AnnexB (00 00 00 01 start codes).
+ * Приводит H.264-поток к формату Annex B с префиксами `00 00 00 01`.
  *
- * На разных устройствах MediaCodec может отдавать:
- *  - AnnexB (уже со start-code),
- *  - AVCC (length-prefixed NAL, как в mp4).
+ * В зависимости от устройства `MediaCodec` может возвращать:
+ * - готовый Annex B;
+ * - AVCC с префиксом длины NAL-блока;
+ * - «сырой» NAL-блок без стартового префикса.
  *
- * Python/ffmpeg приёмники чаще ожидают AnnexB.
+ * Приёмники в этом проекте ожидают именно Annex B, поэтому вся нормализация
+ * сосредоточена в одном месте.
  */
 object H264AnnexBUtil {
 
-    private val SC4 = byteArrayOf(0, 0, 0, 1)
+    private val startCode4 = byteArrayOf(0, 0, 0, 1)
 
     fun looksLikeAnnexB(data: ByteArray?): Boolean {
         if (data == null || data.size < 4) return false
@@ -27,30 +29,32 @@ object H264AnnexBUtil {
     }
 
     /**
-     * Нормализует данные в AnnexB:
-     *  - если уже AnnexB — возвращает как есть;
-     *  - если похоже на AVCC (length-prefixed) — конвертирует в AnnexB;
-     *  - иначе считает, что это «сырой» NAL без start-code и добавляет 00 00 00 01.
+     * Нормализует входные данные к Annex B.
+     *
+     * Если буфер уже содержит стартовые префиксы, он возвращается как есть.
+     * Если буфер похож на AVCC, длины NAL-блоков заменяются на `00 00 00 01`.
+     * В остальных случаях буфер считается одиночным NAL-блоком без префикса.
      */
     fun normalizeToAnnexB(input: ByteArray?): ByteArray? {
         if (input == null || input.isEmpty()) return input
         if (looksLikeAnnexB(input)) return input
 
-        // AVCC single/multi-NAL: 4-byte length prefix
+        // AVCC с одним или несколькими NAL-блоками.
         if (looksLikeAvcc(input)) {
             return avccToAnnexB(input)
         }
 
-        // raw NAL without start-code
+        // Одиночный NAL-блок без стартового префикса.
         val out = ByteArray(4 + input.size)
-        System.arraycopy(SC4, 0, out, 0, 4)
+        System.arraycopy(startCode4, 0, out, 0, 4)
         System.arraycopy(input, 0, out, 4, input.size)
         return out
     }
 
     /**
-     * Конвертирует AVCC (4-byte length) в AnnexB.
-     * Если формат неизвестен/битый — вернёт исходный массив.
+     * Конвертирует AVCC с 4-байтовым префиксом длины в Annex B.
+     *
+     * Если буфер не похож на AVCC или повреждён, возвращается исходный массив.
      */
     fun avccToAnnexB(avcc: ByteArray?): ByteArray? {
         if (avcc == null || avcc.size < 4) return avcc
@@ -60,7 +64,7 @@ object H264AnnexBUtil {
             return avcc
         }
 
-        // 1) Посчитаем итоговый размер
+        // Сначала считаем итоговый размер выходного буфера.
         var pos = 0
         var outSize = 0
         while (pos + 4 <= avcc.size) {
@@ -79,7 +83,7 @@ object H264AnnexBUtil {
             pos += 4
             if (n <= 0 || pos + n > avcc.size) return avcc
 
-            System.arraycopy(SC4, 0, out, w, 4)
+            System.arraycopy(startCode4, 0, out, w, 4)
             w += 4
 
             System.arraycopy(avcc, pos, out, w, n)
@@ -90,7 +94,9 @@ object H264AnnexBUtil {
     }
 
     /**
-     * Собирает SPS/PPS в AnnexB. Если csd буферы уже содержат start codes — оставляем как есть.
+     * Собирает SPS/PPS в виде буфера Annex B.
+     *
+     * Если `csd-0` и `csd-1` уже содержат стартовые префиксы, они сохраняются без изменений.
      */
     fun buildConfigAnnexB(csd0: ByteBuffer?, csd1: ByteBuffer?): ByteArray? {
         var b0 = if (csd0 != null && csd0.remaining() > 0) toByteArray(csd0) else null
