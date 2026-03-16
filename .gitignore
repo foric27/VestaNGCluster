@@ -13,6 +13,7 @@ out/
 bin/
 .tools/
 AGENTS.md
+keystore.properties
 *.apk
 *.ap_
 *.aab

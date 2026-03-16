@@ -2,6 +2,21 @@ plugins {
     id 'com.android.application'
 }
 
+def signingProps = new Properties()
+def signingPropsFile = rootProject.file('keystore.properties')
+if (signingPropsFile.exists()) {
+    signingPropsFile.withReader('UTF-8') { signingProps.load(it) }
+}
+
+def releaseStoreFile = System.getenv('ANDROID_KEYSTORE_FILE') ?: signingProps.getProperty('storeFile')
+def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: signingProps.getProperty('storePassword')
+def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS') ?: signingProps.getProperty('keyAlias')
+def releaseKeyPassword = System.getenv('ANDROID_KEY_PASSWORD') ?: signingProps.getProperty('keyPassword')
+if (releaseStoreFile != null) {
+    releaseStoreFile = releaseStoreFile.replace('\\', '/')
+}
+def releaseSigningReady = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it != null && !it.toString().trim().isEmpty() }
+
 android {
     namespace 'ru.foric27.cluster'
     compileSdk 36
@@ -14,9 +29,23 @@ android {
         versionName '1.0.0-product'
     }
 
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
