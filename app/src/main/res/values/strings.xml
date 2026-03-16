@@ -1,0 +1,45 @@
+<resources>
+    <string name="app_name">Vesta NG Cluster</string>
+
+    <string name="status_starting_headline">Трансляция запускается</string>
+    <string name="status_starting_subline">Подготовка потока.</string>
+    <string name="status_recovering_headline">Идёт восстановление стрима</string>
+    <string name="status_recovering_subline">Автовосстановление после ошибки.</string>
+    <string name="status_running_headline">Трансляция активна</string>
+    <string name="status_running_subline">Вывод идёт на дисплей №%1$d.</string>
+    <string name="status_running_subline_no_display">Поток активен.</string>
+
+    <string name="stream_mode_title">Режим</string>
+    <string name="stream_mode_nav">Навигатор</string>
+    <string name="stream_mode_med">Медиа</string>
+    <string name="stream_mode_abs">ABS</string>
+    <string name="stream_mode_apply_ok_fmt">Режим %1$s сохранён</string>
+    <string name="stream_mode_apply_fail_fmt">Не удалось применить режим %1$s напрямую. Локальное сохранение выполнено.</string>
+    <string name="msg_vdsp_ready">VDSP готов</string>
+    <string name="msg_root_required">Нужно дать приложению права root (su)</string>
+    <string name="msg_output_app_not_found_fmt">Приложение для вывода не найдено: %1$s</string>
+    <string name="msg_yandex_navigator_not_found_fmt">Яндекс Навигатор не найден: %1$s</string>
+    <string name="msg_output_app_launch_failed_fmt">Не удалось запустить приложение вывода: %1$s</string>
+
+    <string name="ftp_title">FTP обновление</string>
+    <string name="ftp_state_running">FTP активен</string>
+    <string name="ftp_state_inactive">FTP не активен</string>
+    <string name="ftp_file_found_fmt">Файл найден: %1$s</string>
+    <string name="ftp_file_not_found">Файл не найден</string>
+    <string name="app_version_fmt">Версия: %1$s (%2$d)</string>
+    <string name="developer_telegram">Telegram разработчика: @foric27</string>
+    <string name="developer_telegram_link">https://t.me/foric27</string>
+
+    <string name="inline_notice_title_warning">Уведомления</string>
+    <string name="inline_notice_title_info">Состояние</string>
+    <string name="inline_notice_dismiss">Скрыть</string>
+    <string name="developer_title">Для разработчиков</string>
+    <string name="developer_back">Назад</string>
+    <string name="developer_hint">Экран открывается по многократному нажатию на версию приложения.</string>
+    <string name="developer_autosave_hint">Все значения применяются сразу после завершения редактирования поля. При необходимости автоматически перезапускается только нужная часть приложения.</string>
+    <string name="developer_bool_hint">Допустимо: true или false.</string>
+    <string name="developer_applied_stream_fmt">%1$s сохранено. Перезапускаю трансляцию.</string>
+    <string name="developer_applied_ftp_fmt">%1$s сохранено. Перезапускаю FTP.</string>
+    <string name="developer_reset_all">Сбросить по умолчанию</string>
+    <string name="developer_reset_success">Настройки разработчика сброшены. Поток перезапускается.</string>
+</resources>
