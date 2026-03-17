@@ -69,9 +69,9 @@ class DeveloperActivity : AppCompatActivity() {
         runtimeInputs.clear()
         runtimeCheckboxes.clear()
 
-        val sections = linkedMapOf<String, MutableList<RuntimeConfig.FieldSpec>>()
+        val sections = linkedMapOf<Int, MutableList<RuntimeConfig.FieldSpec>>()
         RuntimeConfig.getFieldSpecs().forEach { spec ->
-            sections.getOrPut(spec.section) { mutableListOf() }.add(spec)
+            sections.getOrPut(spec.sectionResId) { mutableListOf() }.add(spec)
         }
 
         val sectionList = sections.entries.toList()
@@ -88,7 +88,7 @@ class DeveloperActivity : AppCompatActivity() {
         }
     }
 
-    private fun createSectionCard(sectionTitle: String, fields: List<RuntimeConfig.FieldSpec>): MaterialCardView {
+    private fun createSectionCard(sectionTitleResId: Int, fields: List<RuntimeConfig.FieldSpec>): MaterialCardView {
         val card = MaterialCardView(this).apply {
             radius = 20.dp.toFloat()
             cardElevation = 0f
@@ -103,7 +103,7 @@ class DeveloperActivity : AppCompatActivity() {
         }
 
         val titleView = TextView(this).apply {
-            text = sectionTitle
+            text = getString(sectionTitleResId)
             setTextColor(getColor(R.color.text_primary))
             textSize = 18f
             setTypeface(typeface, Typeface.BOLD)
@@ -135,7 +135,7 @@ class DeveloperActivity : AppCompatActivity() {
 
     private fun createTextInputField(spec: RuntimeConfig.FieldSpec): TextInputLayout {
         val layout = TextInputLayout(this).apply {
-            hint = spec.title
+            hint = RuntimeConfig.getFieldTitle(this@DeveloperActivity, spec)
             helperText = helperTextFor(spec)
             boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
             setBoxBackgroundColor(getColor(R.color.surface_dark_3))
@@ -176,7 +176,7 @@ class DeveloperActivity : AppCompatActivity() {
         }
 
         val titleView = TextView(this).apply {
-            text = spec.title
+            text = RuntimeConfig.getFieldTitle(this@DeveloperActivity, spec)
             setTextColor(getColor(R.color.text_primary))
             textSize = 16f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -267,31 +267,35 @@ class DeveloperActivity : AppCompatActivity() {
     }
 
     private fun handleAppliedChange(spec: RuntimeConfig.FieldSpec) {
+        val title = RuntimeConfig.getFieldTitle(this, spec)
         when (applyTargetFor(spec)) {
             ApplyTarget.FTP -> {
                 UdpStreamService.refreshFtpCompat(this)
-                binding.developerStatusText.text = getString(R.string.developer_applied_ftp_fmt, spec.title)
+                binding.developerStatusText.text = getString(R.string.developer_applied_ftp_fmt, title)
             }
+
             ApplyTarget.STREAM -> {
                 RootNetUtil.clearCaches()
                 UdpStreamService.restartServiceCompat(this)
-                binding.developerStatusText.text = getString(R.string.developer_applied_stream_fmt, spec.title)
+                binding.developerStatusText.text = getString(R.string.developer_applied_stream_fmt, title)
             }
         }
     }
 
     private fun applyTargetFor(spec: RuntimeConfig.FieldSpec): ApplyTarget {
-        if (spec.section != "FTP обновление") {
-            return ApplyTarget.STREAM
-        }
-        return when (spec.title) {
-            "Опрос внутренней памяти, мс", "Повторный запуск FTP, мс" -> ApplyTarget.STREAM
-            else -> ApplyTarget.FTP
+        return if (RuntimeConfig.isFtpOnlyField(spec)) {
+            ApplyTarget.FTP
+        } else {
+            ApplyTarget.STREAM
         }
     }
 
     private fun helperTextFor(spec: RuntimeConfig.FieldSpec): String? {
-        return null
+        return if (spec.type == RuntimeConfig.ValueType.BOOLEAN) {
+            getString(R.string.developer_bool_hint)
+        } else {
+            null
+        }
     }
 
     private fun inputTypeFor(type: RuntimeConfig.ValueType): Int {

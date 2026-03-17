@@ -9,9 +9,6 @@ import android.util.Log
 
 /**
  * Пользовательские настройки UI, которые влияют на штатный cluster-stream.
- *
- * Храним:
- * - режим видеопотока комбинации приборов;
  */
 object AppSettings {
 
@@ -83,7 +80,11 @@ object AppSettings {
 
     fun applySelectedMode(context: Context, mode: UiStreamMode): ApplyModeResult {
         val prefSaved = saveSelectedMode(context, mode)
-        var source = if (prefSaved) context.getString(R.string.app_settings_source_shared_prefs) else context.getString(R.string.app_settings_source_memory)
+        var source = if (prefSaved) {
+            context.getString(R.string.app_settings_source_shared_prefs)
+        } else {
+            context.getString(R.string.app_settings_source_memory)
+        }
         var details = if (prefSaved) {
             context.getString(R.string.app_settings_details_saved_in_prefs)
         } else {
@@ -96,7 +97,11 @@ object AppSettings {
                 ok = true,
                 savedLocally = prefSaved,
                 mode = mode,
-                source = if (prefSaved) "${context.getString(R.string.app_settings_source_shared_prefs)} + Settings.Global" else "Settings.Global",
+                source = if (prefSaved) {
+                    context.getString(R.string.app_settings_source_shared_prefs_and_global)
+                } else {
+                    context.getString(R.string.app_settings_source_settings_global)
+                },
                 details = directWrite.details,
             )
         }
@@ -154,16 +159,28 @@ object AppSettings {
                     details = context.getString(
                         R.string.app_settings_details_global_put_result_fmt,
                         directOk.toString(),
-                        readBack?.prefValue ?: "null",
+                        readBack?.prefValue ?: context.getString(R.string.common_null),
                     ),
                 )
             }
         } catch (se: SecurityException) {
             Log.w(TAG, "Нет прав на прямую запись в Settings.Global", se)
-            SettingsWriteResult(false, context.getString(R.string.app_settings_details_no_global_write_permission_fmt, se.message ?: "unknown"))
+            SettingsWriteResult(
+                false,
+                context.getString(
+                    R.string.app_settings_details_no_global_write_permission_fmt,
+                    se.message ?: context.getString(R.string.common_unknown),
+                ),
+            )
         } catch (t: Throwable) {
             Log.w(TAG, "Ошибка прямой записи режима в Settings.Global", t)
-            SettingsWriteResult(false, context.getString(R.string.app_settings_details_direct_write_error_fmt, t.message ?: t.javaClass.simpleName))
+            SettingsWriteResult(
+                false,
+                context.getString(
+                    R.string.app_settings_details_direct_write_error_fmt,
+                    t.message ?: t.javaClass.simpleName,
+                ),
+            )
         }
     }
 

@@ -1,0 +1,16 @@
+<resources>
+    <dimen name="screen_content_padding">20dp</dimen>
+    <dimen name="screen_section_spacing">16dp</dimen>
+    <dimen name="screen_block_spacing">20dp</dimen>
+    <dimen name="screen_footer_spacing">24dp</dimen>
+    <dimen name="screen_card_padding">16dp</dimen>
+    <dimen name="screen_notice_spacing">10dp</dimen>
+    <dimen name="screen_title_size">28sp</dimen>
+    <dimen name="screen_headline_size">22sp</dimen>
+    <dimen name="screen_body_size">14sp</dimen>
+    <dimen name="screen_subline_size">15sp</dimen>
+    <dimen name="screen_caption_size">12sp</dimen>
+    <dimen name="screen_footer_text_size">13sp</dimen>
+    <dimen name="screen_link_text_size">14sp</dimen>
+    <dimen name="developer_title_size">24sp</dimen>
+</resources>

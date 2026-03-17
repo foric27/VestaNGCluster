@@ -22,8 +22,8 @@ object RuntimeConfig {
 
     data class FieldSpec(
         val key: String,
-        val section: String,
-        val title: String,
+        val sectionResId: Int,
+        val titleResId: Int,
         val type: ValueType,
         val defaultValue: String,
     )
@@ -105,72 +105,72 @@ object RuntimeConfig {
     }
 
     private val fieldSpecs: List<FieldSpec> = listOf(
-        FieldSpec(Keys.TARGET_ACTION_MAIN, "Целевое приложение", "Action MAIN", ValueType.STRING, ProductConfig.TargetApp.ACTION_MAIN),
-        FieldSpec(Keys.TARGET_CATEGORY_CLUSTER_NAVIGATION, "Целевое приложение", "Категория cluster navigation", ValueType.STRING, ProductConfig.TargetApp.CATEGORY_CLUSTER_NAVIGATION),
-        FieldSpec(Keys.TARGET_PACKAGE_NAME, "Целевое приложение", "Имя пакета", ValueType.STRING, ProductConfig.TargetApp.PACKAGE_NAME),
-        FieldSpec(Keys.TARGET_CLUSTER_COMPONENT, "Целевое приложение", "Cluster component", ValueType.STRING, ProductConfig.TargetApp.CLUSTER_COMPONENT),
+        FieldSpec(Keys.TARGET_ACTION_MAIN, R.string.runtime_section_target_app, R.string.runtime_field_target_action_main, ValueType.STRING, ProductConfig.TargetApp.ACTION_MAIN),
+        FieldSpec(Keys.TARGET_CATEGORY_CLUSTER_NAVIGATION, R.string.runtime_section_target_app, R.string.runtime_field_target_category_cluster_navigation, ValueType.STRING, ProductConfig.TargetApp.CATEGORY_CLUSTER_NAVIGATION),
+        FieldSpec(Keys.TARGET_PACKAGE_NAME, R.string.runtime_section_target_app, R.string.runtime_field_target_package_name, ValueType.STRING, ProductConfig.TargetApp.PACKAGE_NAME),
+        FieldSpec(Keys.TARGET_CLUSTER_COMPONENT, R.string.runtime_section_target_app, R.string.runtime_field_target_cluster_component, ValueType.STRING, ProductConfig.TargetApp.CLUSTER_COMPONENT),
 
-        FieldSpec(Keys.VISIBLE_LEFT, "Видимая область", "LEFT", ValueType.INT, ProductConfig.VisibleArea.LEFT.toString()),
-        FieldSpec(Keys.VISIBLE_TOP, "Видимая область", "TOP", ValueType.INT, ProductConfig.VisibleArea.TOP.toString()),
-        FieldSpec(Keys.VISIBLE_RIGHT, "Видимая область", "RIGHT", ValueType.INT, ProductConfig.VisibleArea.RIGHT.toString()),
-        FieldSpec(Keys.VISIBLE_BOTTOM, "Видимая область", "BOTTOM", ValueType.INT, ProductConfig.VisibleArea.BOTTOM.toString()),
+        FieldSpec(Keys.VISIBLE_LEFT, R.string.runtime_section_visible_area, R.string.runtime_field_visible_left, ValueType.INT, ProductConfig.VisibleArea.LEFT.toString()),
+        FieldSpec(Keys.VISIBLE_TOP, R.string.runtime_section_visible_area, R.string.runtime_field_visible_top, ValueType.INT, ProductConfig.VisibleArea.TOP.toString()),
+        FieldSpec(Keys.VISIBLE_RIGHT, R.string.runtime_section_visible_area, R.string.runtime_field_visible_right, ValueType.INT, ProductConfig.VisibleArea.RIGHT.toString()),
+        FieldSpec(Keys.VISIBLE_BOTTOM, R.string.runtime_section_visible_area, R.string.runtime_field_visible_bottom, ValueType.INT, ProductConfig.VisibleArea.BOTTOM.toString()),
 
-        FieldSpec(Keys.VIDEO_WIDTH, "Видео", "Ширина кадра", ValueType.INT, ProductConfig.Video.WIDTH.toString()),
-        FieldSpec(Keys.VIDEO_HEIGHT, "Видео", "Высота кадра", ValueType.INT, ProductConfig.Video.HEIGHT.toString()),
-        FieldSpec(Keys.VIDEO_FPS_LIMIT, "Видео", "FPS", ValueType.INT, ProductConfig.Video.FPS_LIMIT.toString()),
-        FieldSpec(Keys.VIDEO_DYNAMIC_FPS, "Видео", "Динамический FPS", ValueType.BOOLEAN, ProductConfig.Video.DYNAMIC_FPS.toString()),
-        FieldSpec(Keys.VIDEO_DEFAULT_DPI, "Видео", "DPI", ValueType.INT, ProductConfig.Video.DEFAULT_DPI.toString()),
-        FieldSpec(Keys.VIDEO_BITRATE, "Видео", "Битрейт", ValueType.INT, ProductConfig.Video.BITRATE.toString()),
-        FieldSpec(Keys.VIDEO_IFRAME_INTERVAL_SEC, "Видео", "I-frame interval, сек", ValueType.INT, ProductConfig.Video.IFRAME_INTERVAL_SEC.toString()),
-        FieldSpec(Keys.VIDEO_BLACK_BOTTOM_PX, "Видео", "Чёрная маска снизу, px", ValueType.INT, ProductConfig.Video.BLACK_BOTTOM_PX.toString()),
+        FieldSpec(Keys.VIDEO_WIDTH, R.string.runtime_section_video, R.string.runtime_field_video_width, ValueType.INT, ProductConfig.Video.WIDTH.toString()),
+        FieldSpec(Keys.VIDEO_HEIGHT, R.string.runtime_section_video, R.string.runtime_field_video_height, ValueType.INT, ProductConfig.Video.HEIGHT.toString()),
+        FieldSpec(Keys.VIDEO_FPS_LIMIT, R.string.runtime_section_video, R.string.runtime_field_video_fps_limit, ValueType.INT, ProductConfig.Video.FPS_LIMIT.toString()),
+        FieldSpec(Keys.VIDEO_DYNAMIC_FPS, R.string.runtime_section_video, R.string.runtime_field_video_dynamic_fps, ValueType.BOOLEAN, ProductConfig.Video.DYNAMIC_FPS.toString()),
+        FieldSpec(Keys.VIDEO_DEFAULT_DPI, R.string.runtime_section_video, R.string.runtime_field_video_default_dpi, ValueType.INT, ProductConfig.Video.DEFAULT_DPI.toString()),
+        FieldSpec(Keys.VIDEO_BITRATE, R.string.runtime_section_video, R.string.runtime_field_video_bitrate, ValueType.INT, ProductConfig.Video.BITRATE.toString()),
+        FieldSpec(Keys.VIDEO_IFRAME_INTERVAL_SEC, R.string.runtime_section_video, R.string.runtime_field_video_iframe_interval_sec, ValueType.INT, ProductConfig.Video.IFRAME_INTERVAL_SEC.toString()),
+        FieldSpec(Keys.VIDEO_BLACK_BOTTOM_PX, R.string.runtime_section_video, R.string.runtime_field_video_black_bottom_px, ValueType.INT, ProductConfig.Video.BLACK_BOTTOM_PX.toString()),
 
-        FieldSpec(Keys.NETWORK_TARGET_IP, "Сеть", "Target IP", ValueType.STRING, ProductConfig.Network.TARGET_IP),
-        FieldSpec(Keys.NETWORK_VIDEO_PORT, "Сеть", "Видео UDP-порт", ValueType.INT, ProductConfig.Network.VIDEO_PORT.toString()),
-        FieldSpec(Keys.NETWORK_STATUS_PORT, "Сеть", "Status UDP-порт", ValueType.INT, ProductConfig.Network.STATUS_PORT.toString()),
-        FieldSpec(Keys.NETWORK_USE_ROOT_NET, "Сеть", "Использовать root-сеть", ValueType.BOOLEAN, ProductConfig.Network.USE_ROOT_NET.toString()),
-        FieldSpec(Keys.NETWORK_LOCAL_CIDR, "Сеть", "Локальный CIDR", ValueType.STRING, ProductConfig.Network.LOCAL_CIDR),
-        FieldSpec(Keys.NETWORK_GATEWAY, "Сеть", "Gateway", ValueType.STRING, ProductConfig.Network.GATEWAY),
-        FieldSpec(Keys.NETWORK_BIND_IP, "Сеть", "Bind IP", ValueType.STRING, ProductConfig.Network.BIND_IP),
-        FieldSpec(Keys.NETWORK_UDP_MAX_PAYLOAD_BYTES, "Сеть", "UDP max payload", ValueType.INT, ProductConfig.Network.UDP_MAX_PAYLOAD_BYTES.toString()),
-        FieldSpec(Keys.NETWORK_UDP_PACING_MAX_BPS, "Сеть", "UDP pacing max bps", ValueType.INT, ProductConfig.Network.UDP_PACING_MAX_BPS.toString()),
+        FieldSpec(Keys.NETWORK_TARGET_IP, R.string.runtime_section_network, R.string.runtime_field_network_target_ip, ValueType.STRING, ProductConfig.Network.TARGET_IP),
+        FieldSpec(Keys.NETWORK_VIDEO_PORT, R.string.runtime_section_network, R.string.runtime_field_network_video_port, ValueType.INT, ProductConfig.Network.VIDEO_PORT.toString()),
+        FieldSpec(Keys.NETWORK_STATUS_PORT, R.string.runtime_section_network, R.string.runtime_field_network_status_port, ValueType.INT, ProductConfig.Network.STATUS_PORT.toString()),
+        FieldSpec(Keys.NETWORK_USE_ROOT_NET, R.string.runtime_section_network, R.string.runtime_field_network_use_root_net, ValueType.BOOLEAN, ProductConfig.Network.USE_ROOT_NET.toString()),
+        FieldSpec(Keys.NETWORK_LOCAL_CIDR, R.string.runtime_section_network, R.string.runtime_field_network_local_cidr, ValueType.STRING, ProductConfig.Network.LOCAL_CIDR),
+        FieldSpec(Keys.NETWORK_GATEWAY, R.string.runtime_section_network, R.string.runtime_field_network_gateway, ValueType.STRING, ProductConfig.Network.GATEWAY),
+        FieldSpec(Keys.NETWORK_BIND_IP, R.string.runtime_section_network, R.string.runtime_field_network_bind_ip, ValueType.STRING, ProductConfig.Network.BIND_IP),
+        FieldSpec(Keys.NETWORK_UDP_MAX_PAYLOAD_BYTES, R.string.runtime_section_network, R.string.runtime_field_network_udp_max_payload_bytes, ValueType.INT, ProductConfig.Network.UDP_MAX_PAYLOAD_BYTES.toString()),
+        FieldSpec(Keys.NETWORK_UDP_PACING_MAX_BPS, R.string.runtime_section_network, R.string.runtime_field_network_udp_pacing_max_bps, ValueType.INT, ProductConfig.Network.UDP_PACING_MAX_BPS.toString()),
 
-        FieldSpec(Keys.ROOT_IFACE, "Root и интерфейс", "Имя root-интерфейса", ValueType.STRING, ProductConfig.Root.IFACE),
-        FieldSpec(Keys.ROOT_IFACE_CACHE_TTL_MS, "Root и интерфейс", "Кеш интерфейса, мс", ValueType.LONG, ProductConfig.Root.IFACE_CACHE_TTL_MS.toString()),
-        FieldSpec(Keys.ROOT_ROUTE_CACHE_TTL_MS, "Root и интерфейс", "Кеш маршрута, мс", ValueType.LONG, ProductConfig.Root.ROUTE_CACHE_TTL_MS.toString()),
-        FieldSpec(Keys.ROOT_SU_TIMEOUT_MS, "Root и интерфейс", "Таймаут su, мс", ValueType.LONG, ProductConfig.Root.SU_TIMEOUT_MS.toString()),
+        FieldSpec(Keys.ROOT_IFACE, R.string.runtime_section_root, R.string.runtime_field_root_iface, ValueType.STRING, ProductConfig.Root.IFACE),
+        FieldSpec(Keys.ROOT_IFACE_CACHE_TTL_MS, R.string.runtime_section_root, R.string.runtime_field_root_iface_cache_ttl_ms, ValueType.LONG, ProductConfig.Root.IFACE_CACHE_TTL_MS.toString()),
+        FieldSpec(Keys.ROOT_ROUTE_CACHE_TTL_MS, R.string.runtime_section_root, R.string.runtime_field_root_route_cache_ttl_ms, ValueType.LONG, ProductConfig.Root.ROUTE_CACHE_TTL_MS.toString()),
+        FieldSpec(Keys.ROOT_SU_TIMEOUT_MS, R.string.runtime_section_root, R.string.runtime_field_root_su_timeout_ms, ValueType.LONG, ProductConfig.Root.SU_TIMEOUT_MS.toString()),
 
-        FieldSpec(Keys.FTP_UPDATE_ZIP_NAME, "FTP обновление", "Имя архива обновления", ValueType.STRING, ProductConfig.UpdateFtp.UPDATE_ZIP_NAME),
-        FieldSpec(Keys.FTP_UPDATE_SIG_NAME, "FTP обновление", "Имя файла подписи", ValueType.STRING, ProductConfig.UpdateFtp.UPDATE_SIG_NAME),
-        FieldSpec(Keys.FTP_PORT, "FTP обновление", "FTP control-port", ValueType.INT, ProductConfig.UpdateFtp.PORT.toString()),
-        FieldSpec(Keys.FTP_PASSIVE_PORT_START, "FTP обновление", "Пассивный порт: начало", ValueType.INT, ProductConfig.UpdateFtp.PASSIVE_PORT_START.toString()),
-        FieldSpec(Keys.FTP_PASSIVE_PORT_END, "FTP обновление", "Пассивный порт: конец", ValueType.INT, ProductConfig.UpdateFtp.PASSIVE_PORT_END.toString()),
-        FieldSpec(Keys.FTP_USER, "FTP обновление", "FTP пользователь", ValueType.STRING, ProductConfig.UpdateFtp.USER),
-        FieldSpec(Keys.FTP_PASSWORD, "FTP обновление", "FTP пароль", ValueType.STRING, ProductConfig.UpdateFtp.PASSWORD),
-        FieldSpec(Keys.FTP_ROOT_DIR_NAME, "FTP обновление", "Имя FTP root", ValueType.STRING, ProductConfig.UpdateFtp.ROOT_DIR_NAME),
-        FieldSpec(Keys.FTP_INTERNAL_POLL_PERIOD_MS, "FTP обновление", "Опрос внутренней памяти, мс", ValueType.LONG, ProductConfig.UpdateFtp.INTERNAL_POLL_PERIOD_MS.toString()),
-        FieldSpec(Keys.FTP_RETRY_DELAY_MS, "FTP обновление", "Повторный запуск FTP, мс", ValueType.LONG, ProductConfig.UpdateFtp.RETRY_DELAY_MS.toString()),
+        FieldSpec(Keys.FTP_UPDATE_ZIP_NAME, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_update_zip_name, ValueType.STRING, ProductConfig.UpdateFtp.UPDATE_ZIP_NAME),
+        FieldSpec(Keys.FTP_UPDATE_SIG_NAME, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_update_sig_name, ValueType.STRING, ProductConfig.UpdateFtp.UPDATE_SIG_NAME),
+        FieldSpec(Keys.FTP_PORT, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_port, ValueType.INT, ProductConfig.UpdateFtp.PORT.toString()),
+        FieldSpec(Keys.FTP_PASSIVE_PORT_START, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_passive_port_start, ValueType.INT, ProductConfig.UpdateFtp.PASSIVE_PORT_START.toString()),
+        FieldSpec(Keys.FTP_PASSIVE_PORT_END, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_passive_port_end, ValueType.INT, ProductConfig.UpdateFtp.PASSIVE_PORT_END.toString()),
+        FieldSpec(Keys.FTP_USER, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_user, ValueType.STRING, ProductConfig.UpdateFtp.USER),
+        FieldSpec(Keys.FTP_PASSWORD, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_password, ValueType.STRING, ProductConfig.UpdateFtp.PASSWORD),
+        FieldSpec(Keys.FTP_ROOT_DIR_NAME, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_root_dir_name, ValueType.STRING, ProductConfig.UpdateFtp.ROOT_DIR_NAME),
+        FieldSpec(Keys.FTP_INTERNAL_POLL_PERIOD_MS, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_internal_poll_period_ms, ValueType.LONG, ProductConfig.UpdateFtp.INTERNAL_POLL_PERIOD_MS.toString()),
+        FieldSpec(Keys.FTP_RETRY_DELAY_MS, R.string.runtime_section_ftp_update, R.string.runtime_field_ftp_retry_delay_ms, ValueType.LONG, ProductConfig.UpdateFtp.RETRY_DELAY_MS.toString()),
 
-        FieldSpec(Keys.SERVICE_NOTIFICATION_ID, "Сервис", "ID уведомления", ValueType.INT, ProductConfig.Service.NOTIFICATION_ID.toString()),
-        FieldSpec(Keys.SERVICE_NOTIFICATION_CHANNEL_ID, "Сервис", "ID канала уведомлений", ValueType.STRING, ProductConfig.Service.NOTIFICATION_CHANNEL_ID),
-        FieldSpec(Keys.SERVICE_NOTIFICATION_CHANNEL_NAME, "Сервис", "Имя канала уведомлений", ValueType.STRING, ProductConfig.Service.NOTIFICATION_CHANNEL_NAME),
-        FieldSpec(Keys.SERVICE_RESTART_BACKOFF_START_MS, "Сервис", "Начальный backoff, мс", ValueType.LONG, ProductConfig.Service.RESTART_BACKOFF_START_MS.toString()),
-        FieldSpec(Keys.SERVICE_RESTART_BACKOFF_MAX_MS, "Сервис", "Максимальный backoff, мс", ValueType.LONG, ProductConfig.Service.RESTART_BACKOFF_MAX_MS.toString()),
-        FieldSpec(Keys.SERVICE_RECOVERY_DELAY_MS, "Сервис", "Service recovery, мс", ValueType.LONG, ProductConfig.Service.SERVICE_RECOVERY_DELAY_MS.toString()),
-        FieldSpec(Keys.SERVICE_TASK_REMOVED_RECOVERY_DELAY_MS, "Сервис", "Task removed recovery, мс", ValueType.LONG, ProductConfig.Service.TASK_REMOVED_RECOVERY_DELAY_MS.toString()),
-        FieldSpec(Keys.SERVICE_RECOVERY_REQUEST_CODE, "Сервис", "Request code recovery", ValueType.INT, ProductConfig.Service.SERVICE_RECOVERY_REQUEST_CODE.toString()),
-        FieldSpec(Keys.SERVICE_RESTART_REQUEST_DEBOUNCE_MS, "Сервис", "Debounce рестарта, мс", ValueType.LONG, ProductConfig.Service.RESTART_REQUEST_DEBOUNCE_MS.toString()),
-        FieldSpec(Keys.SERVICE_ROUTE_WAIT_TIMEOUT_MS, "Сервис", "Ожидание маршрута, мс", ValueType.LONG, ProductConfig.Service.ROUTE_WAIT_TIMEOUT_MS.toString()),
-        FieldSpec(Keys.SERVICE_ROUTE_WAIT_STEP_MS, "Сервис", "Шаг ожидания маршрута, мс", ValueType.LONG, ProductConfig.Service.ROUTE_WAIT_STEP_MS.toString()),
-        FieldSpec(Keys.SERVICE_NO_ROUTE_RESTART_BACKOFF_MIN_MS, "Сервис", "Backoff без маршрута, мс", ValueType.LONG, ProductConfig.Service.NO_ROUTE_RESTART_BACKOFF_MIN_MS.toString()),
-        FieldSpec(Keys.SERVICE_IFACE_MISSING_RESTART_BACKOFF_MIN_MS, "Сервис", "Backoff без интерфейса, мс", ValueType.LONG, ProductConfig.Service.IFACE_MISSING_RESTART_BACKOFF_MIN_MS.toString()),
-        FieldSpec(Keys.SERVICE_NETWORK_LOST_RESTART_BACKOFF_MS, "Сервис", "Backoff при потере сети, мс", ValueType.LONG, ProductConfig.Service.NETWORK_LOST_RESTART_BACKOFF_MS.toString()),
-        FieldSpec(Keys.SERVICE_CONNECTIVITY_WATCHDOG_PERIOD_MS, "Сервис", "Период watchdog, мс", ValueType.LONG, ProductConfig.Service.CONNECTIVITY_WATCHDOG_PERIOD_MS.toString()),
-        FieldSpec(Keys.SERVICE_ROUTE_RECENT_SEND_GRACE_MS, "Сервис", "Окно свежей отправки, мс", ValueType.LONG, ProductConfig.Service.ROUTE_RECENT_SEND_GRACE_MS.toString()),
-        FieldSpec(Keys.SERVICE_ROUTE_FAILURES_BEFORE_RESTART, "Сервис", "Ошибок маршрута до рестарта", ValueType.INT, ProductConfig.Service.ROUTE_FAILURES_BEFORE_RESTART.toString()),
-        FieldSpec(Keys.SERVICE_THREAD_JOIN_TIMEOUT_MS, "Сервис", "Thread join timeout, мс", ValueType.LONG, ProductConfig.Service.THREAD_JOIN_TIMEOUT_MS.toString()),
-        FieldSpec(Keys.SERVICE_STATUS_PERIOD_MS, "Сервис", "Период status sync, мс", ValueType.INT, ProductConfig.Service.STATUS_PERIOD_MS.toString()),
-        FieldSpec(Keys.SERVICE_STATUS_KEY_SYNC_INTERVAL, "Сервис", "Интервал key sync", ValueType.INT, ProductConfig.Service.STATUS_KEY_SYNC_INTERVAL.toString()),
-        FieldSpec(Keys.SERVICE_STATUS_ERROR_LOG_EVERY, "Сервис", "Частота лога ошибок status", ValueType.INT, ProductConfig.Service.STATUS_ERROR_LOG_EVERY.toString()),
+        FieldSpec(Keys.SERVICE_NOTIFICATION_ID, R.string.runtime_section_service, R.string.runtime_field_service_notification_id, ValueType.INT, ProductConfig.Service.NOTIFICATION_ID.toString()),
+        FieldSpec(Keys.SERVICE_NOTIFICATION_CHANNEL_ID, R.string.runtime_section_service, R.string.runtime_field_service_notification_channel_id, ValueType.STRING, ProductConfig.Service.NOTIFICATION_CHANNEL_ID),
+        FieldSpec(Keys.SERVICE_NOTIFICATION_CHANNEL_NAME, R.string.runtime_section_service, R.string.runtime_field_service_notification_channel_name, ValueType.STRING, ProductConfig.Service.NOTIFICATION_CHANNEL_NAME),
+        FieldSpec(Keys.SERVICE_RESTART_BACKOFF_START_MS, R.string.runtime_section_service, R.string.runtime_field_service_restart_backoff_start_ms, ValueType.LONG, ProductConfig.Service.RESTART_BACKOFF_START_MS.toString()),
+        FieldSpec(Keys.SERVICE_RESTART_BACKOFF_MAX_MS, R.string.runtime_section_service, R.string.runtime_field_service_restart_backoff_max_ms, ValueType.LONG, ProductConfig.Service.RESTART_BACKOFF_MAX_MS.toString()),
+        FieldSpec(Keys.SERVICE_RECOVERY_DELAY_MS, R.string.runtime_section_service, R.string.runtime_field_service_recovery_delay_ms, ValueType.LONG, ProductConfig.Service.SERVICE_RECOVERY_DELAY_MS.toString()),
+        FieldSpec(Keys.SERVICE_TASK_REMOVED_RECOVERY_DELAY_MS, R.string.runtime_section_service, R.string.runtime_field_service_task_removed_recovery_delay_ms, ValueType.LONG, ProductConfig.Service.TASK_REMOVED_RECOVERY_DELAY_MS.toString()),
+        FieldSpec(Keys.SERVICE_RECOVERY_REQUEST_CODE, R.string.runtime_section_service, R.string.runtime_field_service_recovery_request_code, ValueType.INT, ProductConfig.Service.SERVICE_RECOVERY_REQUEST_CODE.toString()),
+        FieldSpec(Keys.SERVICE_RESTART_REQUEST_DEBOUNCE_MS, R.string.runtime_section_service, R.string.runtime_field_service_restart_request_debounce_ms, ValueType.LONG, ProductConfig.Service.RESTART_REQUEST_DEBOUNCE_MS.toString()),
+        FieldSpec(Keys.SERVICE_ROUTE_WAIT_TIMEOUT_MS, R.string.runtime_section_service, R.string.runtime_field_service_route_wait_timeout_ms, ValueType.LONG, ProductConfig.Service.ROUTE_WAIT_TIMEOUT_MS.toString()),
+        FieldSpec(Keys.SERVICE_ROUTE_WAIT_STEP_MS, R.string.runtime_section_service, R.string.runtime_field_service_route_wait_step_ms, ValueType.LONG, ProductConfig.Service.ROUTE_WAIT_STEP_MS.toString()),
+        FieldSpec(Keys.SERVICE_NO_ROUTE_RESTART_BACKOFF_MIN_MS, R.string.runtime_section_service, R.string.runtime_field_service_no_route_restart_backoff_min_ms, ValueType.LONG, ProductConfig.Service.NO_ROUTE_RESTART_BACKOFF_MIN_MS.toString()),
+        FieldSpec(Keys.SERVICE_IFACE_MISSING_RESTART_BACKOFF_MIN_MS, R.string.runtime_section_service, R.string.runtime_field_service_iface_missing_restart_backoff_min_ms, ValueType.LONG, ProductConfig.Service.IFACE_MISSING_RESTART_BACKOFF_MIN_MS.toString()),
+        FieldSpec(Keys.SERVICE_NETWORK_LOST_RESTART_BACKOFF_MS, R.string.runtime_section_service, R.string.runtime_field_service_network_lost_restart_backoff_ms, ValueType.LONG, ProductConfig.Service.NETWORK_LOST_RESTART_BACKOFF_MS.toString()),
+        FieldSpec(Keys.SERVICE_CONNECTIVITY_WATCHDOG_PERIOD_MS, R.string.runtime_section_service, R.string.runtime_field_service_connectivity_watchdog_period_ms, ValueType.LONG, ProductConfig.Service.CONNECTIVITY_WATCHDOG_PERIOD_MS.toString()),
+        FieldSpec(Keys.SERVICE_ROUTE_RECENT_SEND_GRACE_MS, R.string.runtime_section_service, R.string.runtime_field_service_route_recent_send_grace_ms, ValueType.LONG, ProductConfig.Service.ROUTE_RECENT_SEND_GRACE_MS.toString()),
+        FieldSpec(Keys.SERVICE_ROUTE_FAILURES_BEFORE_RESTART, R.string.runtime_section_service, R.string.runtime_field_service_route_failures_before_restart, ValueType.INT, ProductConfig.Service.ROUTE_FAILURES_BEFORE_RESTART.toString()),
+        FieldSpec(Keys.SERVICE_THREAD_JOIN_TIMEOUT_MS, R.string.runtime_section_service, R.string.runtime_field_service_thread_join_timeout_ms, ValueType.LONG, ProductConfig.Service.THREAD_JOIN_TIMEOUT_MS.toString()),
+        FieldSpec(Keys.SERVICE_STATUS_PERIOD_MS, R.string.runtime_section_service, R.string.runtime_field_service_status_period_ms, ValueType.INT, ProductConfig.Service.STATUS_PERIOD_MS.toString()),
+        FieldSpec(Keys.SERVICE_STATUS_KEY_SYNC_INTERVAL, R.string.runtime_section_service, R.string.runtime_field_service_status_key_sync_interval, ValueType.INT, ProductConfig.Service.STATUS_KEY_SYNC_INTERVAL.toString()),
+        FieldSpec(Keys.SERVICE_STATUS_ERROR_LOG_EVERY, R.string.runtime_section_service, R.string.runtime_field_service_status_error_log_every, ValueType.INT, ProductConfig.Service.STATUS_ERROR_LOG_EVERY.toString()),
     )
 
     @Volatile
@@ -197,12 +197,25 @@ object RuntimeConfig {
         return rawValues[spec.key] ?: spec.defaultValue
     }
 
+    fun getFieldTitle(context: Context, spec: FieldSpec): String = context.getString(spec.titleResId)
+
+    fun getFieldSectionTitle(context: Context, spec: FieldSpec): String = context.getString(spec.sectionResId)
+
+    fun isFtpOnlyField(spec: FieldSpec): Boolean {
+        return when (spec.key) {
+            Keys.FTP_INTERNAL_POLL_PERIOD_MS,
+            Keys.FTP_RETRY_DELAY_MS -> false
+            else -> spec.sectionResId == R.string.runtime_section_ftp_update
+        }
+    }
+
     fun saveField(context: Context, spec: FieldSpec, rawValue: String): SaveResult {
+        val fieldTitle = getFieldTitle(context, spec)
         val normalizedValue = normalizeFieldValue(spec, rawValue) ?: return when (spec.type) {
-            ValueType.INT -> SaveResult(false, "Поле \"${spec.title}\" должно быть целым числом", spec.key)
-            ValueType.LONG -> SaveResult(false, "Поле \"${spec.title}\" должно быть числом", spec.key)
-            ValueType.BOOLEAN -> SaveResult(false, "Поле \"${spec.title}\" должно быть true или false", spec.key)
-            ValueType.STRING -> SaveResult(false, "Не удалось сохранить поле \"${spec.title}\"", spec.key)
+            ValueType.INT -> SaveResult(false, context.getString(R.string.runtime_error_int_field_fmt, fieldTitle), spec.key)
+            ValueType.LONG -> SaveResult(false, context.getString(R.string.runtime_error_long_field_fmt, fieldTitle), spec.key)
+            ValueType.BOOLEAN -> SaveResult(false, context.getString(R.string.runtime_error_boolean_field_fmt, fieldTitle), spec.key)
+            ValueType.STRING -> SaveResult(false, context.getString(R.string.runtime_error_string_field_fmt, fieldTitle), spec.key)
         }
 
         val prefs = getPrefs(context)
@@ -210,41 +223,44 @@ object RuntimeConfig {
         editor.putString(spec.key, normalizedValue)
         val ok = editor.commit()
         if (!ok) {
-            return SaveResult(false, "Не удалось сохранить настройку \"${spec.title}\"", spec.key)
+            return SaveResult(false, context.getString(R.string.runtime_error_save_setting_fmt, fieldTitle), spec.key)
         }
         reload(context)
-        return SaveResult(true, "Настройка \"${spec.title}\" сохранена", spec.key, normalizedValue)
+        return SaveResult(true, context.getString(R.string.runtime_save_setting_ok_fmt, fieldTitle), spec.key, normalizedValue)
     }
 
     fun resetToDefaults(context: Context): SaveResult {
         val ok = getPrefs(context).edit().clear().commit()
         if (!ok) {
-            return SaveResult(false, "Не удалось сбросить настройки по умолчанию")
+            return SaveResult(false, context.getString(R.string.runtime_error_reset_defaults))
         }
         reload(context)
-        return SaveResult(true, "Настройки разработчика сброшены к значениям по умолчанию")
+        return SaveResult(true, context.getString(R.string.runtime_reset_defaults_ok))
     }
 
     fun saveAll(context: Context, editedValues: Map<String, String>): SaveResult {
         val normalized = LinkedHashMap<String, String>()
         for (spec in fieldSpecs) {
             val input = editedValues[spec.key]?.trim().orEmpty()
+            val fieldTitle = getFieldTitle(context, spec)
             val normalizedValue = when (spec.type) {
                 ValueType.STRING -> input
                 ValueType.INT -> {
                     val source = input.ifBlank { spec.defaultValue }
                     val parsed = source.toIntOrNull()
-                        ?: return SaveResult(false, "Поле \"${spec.title}\" должно быть целым числом", spec.key)
+                        ?: return SaveResult(false, context.getString(R.string.runtime_error_int_field_fmt, fieldTitle), spec.key)
                     parsed.toString()
                 }
+
                 ValueType.LONG -> {
                     val source = input.ifBlank { spec.defaultValue }
                     val parsed = source.toLongOrNull()
-                        ?: return SaveResult(false, "Поле \"${spec.title}\" должно быть числом", spec.key)
+                        ?: return SaveResult(false, context.getString(R.string.runtime_error_long_field_fmt, fieldTitle), spec.key)
                     parsed.toString()
                 }
+
                 ValueType.BOOLEAN -> normalizeBooleanString(input, spec)
-                    ?: return SaveResult(false, "Поле \"${spec.title}\" должно быть true или false", spec.key)
+                    ?: return SaveResult(false, context.getString(R.string.runtime_error_boolean_field_fmt, fieldTitle), spec.key)
             }
             normalized[spec.key] = normalizedValue
         }
@@ -254,10 +270,10 @@ object RuntimeConfig {
         normalized.forEach { (key, value) -> editor.putString(key, value) }
         val ok = editor.commit()
         if (!ok) {
-            return SaveResult(false, "Не удалось сохранить настройки разработчика")
+            return SaveResult(false, context.getString(R.string.runtime_error_save_all))
         }
         reload(context)
-        return SaveResult(true, "Настройки разработчика сохранены")
+        return SaveResult(true, context.getString(R.string.runtime_save_all_ok))
     }
 
     private fun normalizeFieldValue(spec: FieldSpec, rawValue: String): String? {
@@ -268,10 +284,12 @@ object RuntimeConfig {
                 val source = input.ifBlank { spec.defaultValue }
                 source.toIntOrNull()?.toString()
             }
+
             ValueType.LONG -> {
                 val source = input.ifBlank { spec.defaultValue }
                 source.toLongOrNull()?.toString()
             }
+
             ValueType.BOOLEAN -> normalizeBooleanString(input, spec)
         }
     }

@@ -14,25 +14,25 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="@dimen/screen_content_padding">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/app_name"
                 android:textColor="@color/text_primary"
-                android:textSize="28sp"
+                android:textSize="@dimen/screen_title_size"
                 android:textStyle="bold" />
 
             <LinearLayout
                 android:id="@+id/noticePanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/screen_section_spacing"
                 android:background="@drawable/bg_warning_panel"
                 android:gravity="center_vertical"
                 android:orientation="vertical"
-                android:padding="16dp"
+                android:padding="@dimen/screen_card_padding"
                 android:visibility="gone">
 
                 <LinearLayout
@@ -48,7 +48,7 @@
                         android:layout_weight="1"
                         android:text="@string/inline_notice_title_warning"
                         android:textColor="@color/warning"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/screen_body_size"
                         android:textStyle="bold" />
 
                     <com.google.android.material.button.MaterialButton
@@ -63,19 +63,19 @@
                     android:id="@+id/noticeText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/screen_notice_spacing"
                     android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
+                    android:textSize="@dimen/screen_body_size" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/statusHeadline"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="@dimen/screen_block_spacing"
                 android:text="@string/status_recovering_headline"
                 android:textColor="@color/text_primary"
-                android:textSize="22sp"
+                android:textSize="@dimen/screen_headline_size"
                 android:textStyle="bold" />
 
             <TextView
@@ -85,51 +85,48 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/status_recovering_subline"
                 android:textColor="@color/text_secondary"
-                android:textSize="15sp" />
+                android:textSize="@dimen/screen_subline_size" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="@dimen/screen_block_spacing"
                 android:background="@drawable/bg_metric_card"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="@dimen/screen_card_padding">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/stream_mode_title"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="@dimen/screen_caption_size" />
 
                 <RadioGroup
                     android:id="@+id/modeRadioGroup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
+                    android:orientation="vertical">
 
                     <RadioButton
                         android:id="@+id/modeNavRadio"
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:text="@string/stream_mode_nav"
                         android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/modeMedRadio"
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:text="@string/stream_mode_med"
                         android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/modeAbsRadio"
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:text="@string/stream_mode_abs"
                         android:textColor="@color/text_primary" />
                 </RadioGroup>
@@ -138,17 +135,17 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/screen_section_spacing"
                 android:background="@drawable/bg_metric_card"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="@dimen/screen_card_padding">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/ftp_title"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="@dimen/screen_caption_size" />
 
                 <TextView
                     android:id="@+id/ftpStatusText"
@@ -156,13 +153,13 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
+                    android:textSize="@dimen/screen_body_size" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="@dimen/screen_footer_spacing"
                 android:layout_marginBottom="8dp"
                 android:gravity="center_horizontal"
                 android:orientation="vertical">
@@ -174,7 +171,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
+                    android:textSize="@dimen/screen_footer_text_size" />
 
                 <TextView
                     android:id="@+id/developerTelegramText"
@@ -185,7 +182,7 @@
                     android:focusable="true"
                     android:text="@string/developer_telegram"
                     android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
+                    android:textSize="@dimen/screen_link_text_size" />
             </LinearLayout>
 
         </LinearLayout>

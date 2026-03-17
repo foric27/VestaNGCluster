@@ -14,7 +14,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="@dimen/screen_content_padding">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -36,7 +36,7 @@
                     android:layout_weight="1"
                     android:text="@string/developer_title"
                     android:textColor="@color/text_primary"
-                    android:textSize="24sp"
+                    android:textSize="@dimen/developer_title_size"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -46,7 +46,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
+                android:textSize="@dimen/screen_body_size" />
 
             <TextView
                 android:id="@+id/developerHintText"
@@ -55,13 +55,13 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/developer_autosave_hint"
                 android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
+                android:textSize="@dimen/screen_body_size" />
 
             <LinearLayout
                 android:id="@+id/settingsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/screen_section_spacing"
                 android:orientation="vertical" />
 
             <com.google.android.material.button.MaterialButton
@@ -70,7 +70,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/screen_section_spacing"
                 android:text="@string/developer_reset_all" />
 
             <TextView
@@ -81,7 +81,7 @@
                 android:paddingBottom="20dp"
                 android:text="@string/developer_hint"
                 android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
+                android:textSize="@dimen/screen_body_size" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

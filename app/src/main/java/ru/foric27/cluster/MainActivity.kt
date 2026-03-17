@@ -127,12 +127,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindFooterInfo() {
         binding.versionText.text = getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME)
-        binding.versionText.setOnClickListener {
-            handleVersionTap()
-        }
-        binding.developerTelegramText.setOnClickListener {
-            openDeveloperTelegram()
-        }
+        binding.versionText.setOnClickListener { handleVersionTap() }
+        binding.developerTelegramText.setOnClickListener { openDeveloperTelegram() }
     }
 
     private fun handleVersionTap() {
@@ -160,11 +156,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun openDeveloperTelegram() {
         val telegramUri = Uri.parse(getString(R.string.developer_telegram_link))
-        val intent = Intent(Intent.ACTION_VIEW, telegramUri).apply {
+        val launchIntent = Intent(Intent.ACTION_VIEW, telegramUri).apply {
             addCategory(Intent.CATEGORY_BROWSABLE)
         }
         runCatching {
-            startActivity(intent)
+            startActivity(launchIntent)
         }.onFailure { error ->
             Log.w(TAG, "Не удалось открыть ссылку Telegram разработчика", error)
             showInlineNotice(getString(R.string.main_open_telegram_failed), isError = true)
@@ -297,7 +293,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.inline_notice_title_info)
         }
-        binding.noticeText.text = inlineNotices.joinToString("\n\n") { "• ${it.text}" }
+        binding.noticeText.text = inlineNotices.joinToString("\n\n") {
+            getString(R.string.inline_notice_item_fmt, it.text)
+        }
     }
 
     private fun registerVdspReceiverSafely() {
@@ -402,5 +400,14 @@ class MainActivity : AppCompatActivity() {
         private const val DEVELOPER_TAP_COUNT = 7
         private const val VERSION_TAP_TIMEOUT_MS = 1_500L
         const val EXTRA_KEEP_IN_FOREGROUND = "ru.foric27.cluster.extra.KEEP_IN_FOREGROUND"
+
+        fun createLaunchIntent(context: Context, keepInForeground: Boolean): Intent {
+            return Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(EXTRA_KEEP_IN_FOREGROUND, keepInForeground)
+            }
+        }
     }
 }
