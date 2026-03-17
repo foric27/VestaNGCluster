@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -759,7 +760,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             val destinationHost = InetAddress.getByName(hostValue)
             val destinationPort = STATUS_PORT
 
-            statusThread = launchWorker("StatusSync") {
+            statusThread = launchWorker("StatusSync", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
                 var consecutiveErrors = 0
                 while (!statusStop.get()) {
                     try {
@@ -816,7 +817,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun startTransportStatsLogging() {
         stopTransportStatsLogging()
         statsStop.set(false)
-        statsThread = launchWorker("UdpStats") {
+        statsThread = launchWorker("UdpStats", Process.THREAD_PRIORITY_DEFAULT) {
             var prevVideoFrames = 0L
             var prevVideoPackets = 0L
             var prevVideoBytes = 0L
@@ -892,7 +893,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun startConnectivityWatchdog() {
         stopConnectivityWatchdog()
         watchdogStop.set(false)
-        watchdogThread = launchWorker("ConnectivityWatchdog") {
+        watchdogThread = launchWorker("ConnectivityWatchdog", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
             while (!watchdogStop.get()) {
                 try {
                     Thread.sleep(CONNECTIVITY_WATCHDOG_PERIOD_MS)
@@ -1049,7 +1050,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         sender = localSender
         startInProgress = true
 
-        launchWorker("UdpProbe") {
+        launchWorker("UdpProbe", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
             val udpReady = waitForUdpReady(
                 sender = localSender,
                 cfg = cfg,
@@ -1284,12 +1285,33 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
-    private fun launchWorker(name: String, block: () -> Unit): Thread {
-        return Thread(block, name).also { it.start() }
+    private fun launchWorker(
+        name: String,
+        threadPriority: Int = Process.THREAD_PRIORITY_DEFAULT,
+        block: () -> Unit,
+    ): Thread {
+        return Thread(
+            {
+                applyThreadPriority(threadPriority, name)
+                block()
+            },
+            name,
+        ).also { it.start() }
     }
 
     private fun startDetachedWorker(name: String, block: () -> Unit) {
-        launchWorker(name, block)
+        launchWorker(name, block = block)
+    }
+
+    private fun applyThreadPriority(threadPriority: Int, name: String) {
+        try {
+            Process.setThreadPriority(threadPriority)
+            if (threadPriority != Process.THREAD_PRIORITY_DEFAULT) {
+                Log.i(TAG, "Приоритет потока повышен: $name -> $threadPriority")
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось изменить приоритет потока $name", t)
+        }
     }
 
     private fun registerLocalReceiver(receiver: BroadcastReceiver, filter: IntentFilter) {

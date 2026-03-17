@@ -26,7 +26,7 @@
     <string name="ftp_state_inactive">FTP не активен</string>
     <string name="ftp_file_found_fmt">Файл найден: %1$s</string>
     <string name="ftp_file_not_found">Файл не найден</string>
-    <string name="app_version_fmt">Версия: %1$s (%2$d)</string>
+    <string name="app_version_fmt">Версия: %1$s</string>
     <string name="developer_telegram">Telegram разработчика: @foric27</string>
     <string name="developer_telegram_link">https://t.me/foric27</string>
 

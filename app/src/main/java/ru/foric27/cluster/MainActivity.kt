@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindFooterInfo() {
-        binding.versionText.text = getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+        binding.versionText.text = getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME)
         binding.versionText.setOnClickListener {
             handleVersionTap()
         }

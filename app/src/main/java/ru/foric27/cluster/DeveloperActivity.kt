@@ -47,7 +47,7 @@ class DeveloperActivity : AppCompatActivity() {
     }
 
     private fun renderVersionInfo() {
-        binding.versionInfoText.text = getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+        binding.versionInfoText.text = getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME)
     }
 
     private fun renderAllValues() {

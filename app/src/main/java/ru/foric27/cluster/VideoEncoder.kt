@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
@@ -74,8 +75,9 @@ class VideoEncoder(
         running = true
 
         try {
-            val handlerThread = HandlerThread("ClusterCodec")
+            val handlerThread = HandlerThread("ClusterCodec", Process.THREAD_PRIORITY_URGENT_DISPLAY)
             handlerThread.start()
+            Log.i(TAG, "Приоритет codec thread повышен: ClusterCodec -> ${Process.THREAD_PRIORITY_URGENT_DISPLAY}")
             codecThread = handlerThread
             codecHandler = Handler(handlerThread.looper)
 
