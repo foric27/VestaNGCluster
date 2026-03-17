@@ -42,4 +42,35 @@
     <string name="developer_applied_ftp_fmt">%1$s сохранено. Перезапускаю FTP.</string>
     <string name="developer_reset_all">Сбросить по умолчанию</string>
     <string name="developer_reset_success">Настройки разработчика сброшены. Поток перезапускается.</string>
+    <string name="main_open_developer_failed">Не удалось открыть экран разработчика</string>
+    <string name="main_open_telegram_failed">Не удалось открыть ссылку Telegram разработчика</string>
+    <string name="main_all_files_access_granted">Доступ ко всем файлам выдан</string>
+    <string name="main_open_files_settings_failed">Не удалось открыть настройки доступа к файлам</string>
+
+    <string name="service_notification_stream_starting_fmt">Стрим уже запускается: %1$s:%2$d</string>
+    <string name="service_notification_stream_preparing_fmt">Подготовка стрима: %1$s:%2$d</string>
+    <string name="service_notification_no_link_restart_fmt">Нет связи или маршрута. Перезапуск через %1$dс</string>
+    <string name="service_notification_ftp_restarted_fmt">FTP обновление запущено повторно: %1$s</string>
+    <string name="service_notification_iface_missing_fmt">%1$s отсутствует. Повтор через %2$dс</string>
+    <string name="service_notification_no_connection_retry_fmt">Нет связи. Повтор через %1$dс</string>
+    <string name="service_notification_ftp_message_fmt">FTP обновление: %1$s</string>
+    <string name="service_notification_wake_recovery">Телефон вышел из сна. Перезапускаю трансляцию и сеть…</string>
+    <string name="service_notification_wake_recovery_failed">После выхода из сна поток не восстановился. Перезапускаю трансляцию и сеть…</string>
+    <string name="service_notification_no_route_fmt">Нет маршрута до %1$s. Повтор через %2$dс</string>
+    <string name="service_notification_stream_active_fmt">Стрим активен: %1$s:%2$d</string>
+    <string name="service_notification_service_recovery_fmt">Восстановление стрима через %1$dс</string>
+
+    <string name="app_settings_source_shared_prefs">SharedPreferences</string>
+    <string name="app_settings_source_memory">Память приложения</string>
+    <string name="app_settings_source_save_error">Ошибка сохранения</string>
+    <string name="app_settings_details_saved_in_prefs">Режим сохранён в SharedPreferences</string>
+    <string name="app_settings_details_failed_to_save_in_prefs">Не удалось сохранить режим в SharedPreferences</string>
+    <string name="app_settings_details_saved_locally_without_root">Прямое применение режима не подтверждено. Выбор сохранён локально без root.</string>
+    <string name="app_settings_details_failed_to_save_anywhere">Не удалось сохранить режим ни локально, ни в Settings.Global.</string>
+    <string name="app_settings_direct_prefix">Direct: </string>
+    <string name="app_settings_details_write_secure_settings_missing">WRITE_SECURE_SETTINGS не выдан — прямую запись пропускаю</string>
+    <string name="app_settings_details_saved_in_prefs_and_global">Режим сохранён в SharedPreferences и напрямую записан в Settings.Global</string>
+    <string name="app_settings_details_global_put_result_fmt">Settings.Global.putInt вернул %1$s, readBack=%2$s</string>
+    <string name="app_settings_details_no_global_write_permission_fmt">Нет прав на запись в Settings.Global: %1$s</string>
+    <string name="app_settings_details_direct_write_error_fmt">Ошибка прямой записи: %1$s</string>
 </resources>

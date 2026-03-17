@@ -132,7 +132,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             synchronized(serviceLock) {
                 if (!forceRestart && lastCfg == cfg && (streamActive || startInProgress || sender != null)) {
                     Log.i(TAG, "Игнорирую повторный startCommand: стрим уже активен или запускается")
-                    updateNotification("Стрим уже запускается: $targetHost:$targetPort")
+                    updateNotification(getString(R.string.service_notification_stream_starting_fmt, targetHost, targetPort))
                     return START_STICKY
                 }
 
@@ -149,7 +149,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             ensureNotificationChannel()
             startForegroundCompat(
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-                buildNotification("Подготовка стрима: $targetHost:$targetPort"),
+                buildNotification(getString(R.string.service_notification_stream_preparing_fmt, targetHost, targetPort)),
             )
 
             Thread({
@@ -241,7 +241,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         pendingRestartReason = reason
         val delayMs = restartBackoffMs
         Log.w(TAG, "Перезапуск запланирован через ${delayMs}мс, reason=$reason${cause?.let { " cause=$it" } ?: ""}")
-        notifyNoLinkOnce("Нет связи или маршрута. Перезапуск через ${delayMs / 1000}с")
+        notifyNoLinkOnce(getString(R.string.service_notification_no_link_restart_fmt, delayMs / 1000))
 
         mainHandler.removeCallbacks(restartRunnable)
         mainHandler.postDelayed(restartRunnable, delayMs)
@@ -304,7 +304,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     if (result.success) {
                         val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
                         Log.i(TAG, "FTP успешно поднят повторно: $address")
-                        AppWarningCenter.publish("FTP обновление запущено повторно: $address")
+                        AppWarningCenter.publish(getString(R.string.service_notification_ftp_restarted_fmt, address))
                     } else {
                         Log.w(TAG, "Повторный запуск FTP не удался: ${result.message}")
                     }
@@ -389,7 +389,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                             minOf(RESTART_BACKOFF_MAX_MS, restartBackoffMs * 2),
                         )
                         Log.w(TAG, "${RuntimeConfig.Root.IFACE} отсутствует на устройстве; повторю позже. backoff=${restartBackoffMs}ms")
-                        notifyNoLinkOnce("${RuntimeConfig.Root.IFACE} отсутствует. Повтор через ${restartBackoffMs / 1000}с")
+                        notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, RuntimeConfig.Root.IFACE, restartBackoffMs / 1000))
                         scheduleRestart(RuntimeConfig.Root.MISSING_REASON, null)
                     }
                     return@Thread
@@ -410,7 +410,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     startInProgress = false
                     restartBackoffMs = minOf(RESTART_BACKOFF_MAX_MS, restartBackoffMs * 2)
                     Log.w(TAG, "Попытка рестарта завершилась ошибкой; повторю позже. backoff=${restartBackoffMs}ms", t)
-                    notifyNoLinkOnce("Нет связи. Повтор через ${restartBackoffMs / 1000}с")
+                    notifyNoLinkOnce(getString(R.string.service_notification_no_connection_retry_fmt, restartBackoffMs / 1000))
                     scheduleRestart("retry", t)
                 }
             }
@@ -527,7 +527,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
 
         Log.w(TAG, "FTP обновление не запущено: ${result.message}")
-        AppWarningCenter.publish("FTP обновление: ${result.message}")
+        AppWarningCenter.publish(getString(R.string.service_notification_ftp_message_fmt, result.message))
         if (result.retrySuggested) {
             scheduleFtpRetry("startup")
         }
@@ -670,7 +670,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             requestImmediateRecovery(
                 reason = "wake_recovery",
                 minBackoffMs = RESTART_BACKOFF_START_MS,
-                userMessage = "Телефон вышел из сна. Перезапускаю трансляцию и сеть…",
+                userMessage = getString(R.string.service_notification_wake_recovery),
             )
             return
         }
@@ -696,7 +696,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         requestImmediateRecovery(
             reason = "wake_recovery",
             minBackoffMs = RESTART_BACKOFF_START_MS,
-            userMessage = "После выхода из сна поток не восстановился. Перезапускаю трансляцию и сеть…",
+            userMessage = getString(R.string.service_notification_wake_recovery_failed),
         )
     }
 
@@ -1070,7 +1070,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         minOf(RESTART_BACKOFF_MAX_MS, restartBackoffMs * 2),
                     )
                     Log.w(TAG, "Маршрут до $hostValue не готов; повторю позже. backoff=${restartBackoffMs}ms")
-                    notifyNoLinkOnce("Нет маршрута до $hostValue. Повтор через ${restartBackoffMs / 1000}с")
+                    notifyNoLinkOnce(getString(R.string.service_notification_no_route_fmt, hostValue, restartBackoffMs / 1000))
                     scheduleRestart("net_wait", null)
                 }
                 return@Thread
@@ -1102,7 +1102,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     noLinkNotified = false
                     cancelPendingRestart()
                     cancelServiceRecoveryAlarm()
-                    updateNotification("Стрим активен: $hostValue:$port")
+                    updateNotification(getString(R.string.service_notification_stream_active_fmt, hostValue, port))
                     if (AppWarningCenter.contains(getString(R.string.msg_root_required))) {
                         notifyRootRequiredOnce()
                     }
@@ -1294,7 +1294,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             }
             Log.w(TAG, "Запланировано восстановление сервиса через ${delayMs}мс, reason=$reason")
-            updateNotification("Восстановление стрима через ${delayMs / 1000}с")
+            updateNotification(getString(R.string.service_notification_service_recovery_fmt, delayMs / 1000))
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось запланировать восстановление сервиса", t)
             try {

@@ -83,11 +83,11 @@ object AppSettings {
 
     fun applySelectedMode(context: Context, mode: UiStreamMode): ApplyModeResult {
         val prefSaved = saveSelectedMode(context, mode)
-        var source = if (prefSaved) "SharedPreferences" else "Память приложения"
+        var source = if (prefSaved) context.getString(R.string.app_settings_source_shared_prefs) else context.getString(R.string.app_settings_source_memory)
         var details = if (prefSaved) {
-            "Режим сохранён в SharedPreferences"
+            context.getString(R.string.app_settings_details_saved_in_prefs)
         } else {
-            "Не удалось сохранить режим в SharedPreferences"
+            context.getString(R.string.app_settings_details_failed_to_save_in_prefs)
         }
 
         val directWrite = putModeToSettingsDirect(context, mode)
@@ -96,25 +96,25 @@ object AppSettings {
                 ok = true,
                 savedLocally = prefSaved,
                 mode = mode,
-                source = if (prefSaved) "SharedPreferences + Settings.Global" else "Settings.Global",
+                source = if (prefSaved) "${context.getString(R.string.app_settings_source_shared_prefs)} + Settings.Global" else "Settings.Global",
                 details = directWrite.details,
             )
         }
 
         if (prefSaved) {
-            source = "SharedPreferences"
+            source = context.getString(R.string.app_settings_source_shared_prefs)
             details = buildString {
-                append("Прямое применение режима не подтверждено. Выбор сохранён локально без root.")
+                append(context.getString(R.string.app_settings_details_saved_locally_without_root))
                 append('\n')
-                append("Direct: ")
+                append(context.getString(R.string.app_settings_direct_prefix))
                 append(directWrite.details)
             }
         } else {
-            source = "Ошибка сохранения"
+            source = context.getString(R.string.app_settings_source_save_error)
             details = buildString {
-                append("Не удалось сохранить режим ни локально, ни в Settings.Global.")
+                append(context.getString(R.string.app_settings_details_failed_to_save_anywhere))
                 append('\n')
-                append("Direct: ")
+                append(context.getString(R.string.app_settings_direct_prefix))
                 append(directWrite.details)
             }
         }
@@ -132,7 +132,7 @@ object AppSettings {
         if (!canWriteGlobalSettingsDirect(context)) {
             return SettingsWriteResult(
                 success = false,
-                details = "WRITE_SECURE_SETTINGS не выдан — прямую запись пропускаю",
+                details = context.getString(R.string.app_settings_details_write_secure_settings_missing),
             )
         }
 
@@ -146,20 +146,24 @@ object AppSettings {
             if (directOk && readBack == mode) {
                 SettingsWriteResult(
                     success = true,
-                    details = "Режим сохранён в SharedPreferences и напрямую записан в Settings.Global",
+                    details = context.getString(R.string.app_settings_details_saved_in_prefs_and_global),
                 )
             } else {
                 SettingsWriteResult(
                     success = false,
-                    details = "Settings.Global.putInt вернул $directOk, readBack=${readBack?.prefValue ?: "null"}",
+                    details = context.getString(
+                        R.string.app_settings_details_global_put_result_fmt,
+                        directOk.toString(),
+                        readBack?.prefValue ?: "null",
+                    ),
                 )
             }
         } catch (se: SecurityException) {
             Log.w(TAG, "Нет прав на прямую запись в Settings.Global", se)
-            SettingsWriteResult(false, "Нет прав на запись в Settings.Global: ${se.message}")
+            SettingsWriteResult(false, context.getString(R.string.app_settings_details_no_global_write_permission_fmt, se.message ?: "unknown"))
         } catch (t: Throwable) {
             Log.w(TAG, "Ошибка прямой записи режима в Settings.Global", t)
-            SettingsWriteResult(false, "Ошибка прямой записи: ${t.message ?: t.javaClass.simpleName}")
+            SettingsWriteResult(false, context.getString(R.string.app_settings_details_direct_write_error_fmt, t.message ?: t.javaClass.simpleName))
         }
     }
 

@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, DeveloperActivity::class.java))
         }.onFailure { error ->
             Log.w(TAG, "Не удалось открыть экран разработчика", error)
-            showInlineNotice("Не удалось открыть экран разработчика", isError = true)
+            showInlineNotice(getString(R.string.main_open_developer_failed), isError = true)
         }
     }
 
@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }.onFailure { error ->
             Log.w(TAG, "Не удалось открыть ссылку Telegram разработчика", error)
-            showInlineNotice("Не удалось открыть ссылку Telegram разработчика", isError = true)
+            showInlineNotice(getString(R.string.main_open_telegram_failed), isError = true)
         }
     }
 
@@ -333,7 +333,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (accessJustGranted) {
-            showInlineNotice("Доступ ко всем файлам выдан", isError = false)
+            showInlineNotice(getString(R.string.main_all_files_access_granted), isError = false)
             UdpStreamService.startServiceCompat(this)
             UpdateServerManager.restartServer()
             renderFtpState()
@@ -347,7 +347,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(StorageAccessManager.buildManageAllFilesAccessFallbackIntent())
         }.onFailure { error ->
             Log.w(TAG, "Не удалось открыть настройки доступа ко всем файлам", error)
-            showInlineNotice("Не удалось открыть настройки доступа к файлам", isError = true)
+            showInlineNotice(getString(R.string.main_open_files_settings_failed), isError = true)
         }
     }
 
