@@ -1,8 +1,11 @@
 package ru.foric27.cluster
 
+import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 
 /**
@@ -30,8 +33,40 @@ class BootReceiver : BroadcastReceiver() {
             UdpStreamService.startServiceCompat(context)
             Log.i(TAG, "$action: foreground-сервис запущен")
         } catch (t: Throwable) {
+            if (isForegroundStartRestricted(t)) {
+                Log.i(TAG, "$action: прямой foreground-старт сейчас запрещён, планирую мягкое восстановление")
+                scheduleDeferredRecovery(context, action)
+                return
+            }
             Log.w(TAG, "$action: не удалось запустить foreground-сервис", t)
         }
+    }
+
+    private fun scheduleDeferredRecovery(context: Context, action: String) {
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val pendingIntent = AppRecoveryReceiver.createPendingIntent(
+                context = context.applicationContext,
+                requestCode = RuntimeConfig.Service.SERVICE_RECOVERY_REQUEST_CODE,
+                reason = action,
+            )
+            val triggerAtMillis = SystemClock.elapsedRealtime() + RECOVERY_DELAY_MS
+            if (Build.VERSION.SDK_INT >= 23) {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+            } else {
+                alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+            }
+            Log.i(TAG, "$action: отложенное восстановление приложения запланировано через ${RECOVERY_DELAY_MS}мс")
+        } catch (t: Throwable) {
+            Log.w(TAG, "$action: не удалось запланировать отложенное восстановление", t)
+        }
+    }
+
+    private fun isForegroundStartRestricted(error: Throwable): Boolean {
+        val name = error.javaClass.name
+        val message = error.message.orEmpty()
+        return name.contains("ForegroundServiceStartNotAllowedException") ||
+            message.contains("ForegroundServiceStartNotAllowedException")
     }
 
     private fun handleUsbMounted(context: Context, intent: Intent) {
@@ -66,5 +101,6 @@ class BootReceiver : BroadcastReceiver() {
 
     private companion object {
         private const val TAG = "BootReceiver"
+        private const val RECOVERY_DELAY_MS = 1_500L
     }
 }
