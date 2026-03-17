@@ -134,7 +134,7 @@ object RuntimeConfig {
         FieldSpec(Keys.NETWORK_UDP_MAX_PAYLOAD_BYTES, "Сеть", "UDP max payload", ValueType.INT, ProductConfig.Network.UDP_MAX_PAYLOAD_BYTES.toString()),
         FieldSpec(Keys.NETWORK_UDP_PACING_MAX_BPS, "Сеть", "UDP pacing max bps", ValueType.INT, ProductConfig.Network.UDP_PACING_MAX_BPS.toString()),
 
-        FieldSpec(Keys.ROOT_IFACE, "Root и интерфейс", "Имя интерфейса", ValueType.STRING, ProductConfig.Root.IFACE),
+        FieldSpec(Keys.ROOT_IFACE, "Root и интерфейс", "Имя root-интерфейса", ValueType.STRING, ProductConfig.Root.IFACE),
         FieldSpec(Keys.ROOT_IFACE_CACHE_TTL_MS, "Root и интерфейс", "Кеш интерфейса, мс", ValueType.LONG, ProductConfig.Root.IFACE_CACHE_TTL_MS.toString()),
         FieldSpec(Keys.ROOT_ROUTE_CACHE_TTL_MS, "Root и интерфейс", "Кеш маршрута, мс", ValueType.LONG, ProductConfig.Root.ROUTE_CACHE_TTL_MS.toString()),
         FieldSpec(Keys.ROOT_SU_TIMEOUT_MS, "Root и интерфейс", "Таймаут su, мс", ValueType.LONG, ProductConfig.Root.SU_TIMEOUT_MS.toString()),

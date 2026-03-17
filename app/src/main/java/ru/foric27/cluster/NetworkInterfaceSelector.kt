@@ -3,19 +3,17 @@ package ru.foric27.cluster
 import android.util.Log
 import java.io.File
 import java.net.NetworkInterface
-import java.util.Locale
 import java.util.TreeSet
 
 /**
- * Выбирает подходящий сетевой интерфейс для root-настройки и FTP.
+ * Проверяет только явно заданный сетевой интерфейс из runtime-настроек.
  *
- * Сначала уважает явно заданное имя интерфейса, а если его нет в системе,
- * переходит к автоопределению по приоритетным шаблонам проекта.
+ * Автоподбор интерфейса намеренно не используется: проект работает только
+ * с тем именем, которое задано в конфиге разработчика.
  */
 object NetworkInterfaceSelector {
 
     private const val TAG = "NetIfaceSelector"
-    private const val AUTO_INTERFACE_VALUE = "auto"
 
     data class Selection(
         val name: String?,
@@ -43,29 +41,29 @@ object NetworkInterfaceSelector {
                 .filter { it.isNotEmpty() }
                 .forEach(::add)
         }.toList()
-        val preferred = preferredName
-            .trim()
-            .takeIf { it.isNotEmpty() && !it.equals(AUTO_INTERFACE_VALUE, ignoreCase = true) }
-        if (preferred != null && available.contains(preferred)) {
+
+        val preferred = preferredName.trim()
+        if (preferred.isEmpty()) {
             return Selection(
-                name = preferred,
-                source = "configured",
+                name = null,
+                source = "missing_config",
                 available = available,
             )
         }
 
-        val selected = pickByPriority(available)
-        val source = when {
-            selected == null -> "not_found"
-            preferred.isNullOrEmpty() -> "auto"
-            preferred == selected -> "configured"
-            else -> "fallback_from_$preferred"
+        return if (available.any { it.equals(preferred, ignoreCase = true) }) {
+            Selection(
+                name = available.first { it.equals(preferred, ignoreCase = true) },
+                source = "configured",
+                available = available,
+            )
+        } else {
+            Selection(
+                name = null,
+                source = "configured_missing",
+                available = available,
+            )
         }
-        return Selection(
-            name = selected,
-            source = source,
-            available = available,
-        )
     }
 
     fun logSelection(tag: String, prefix: String, selection: Selection) {
@@ -96,86 +94,13 @@ object NetworkInterfaceSelector {
             logDiscoveryFailure("/sys/class/net", it)
         }
 
-        runCatching {
-            File("/proc/net/dev")
-                .useLines { lines ->
-                    lines
-                        .drop(2)
-                        .mapNotNull { line ->
-                            line.substringBefore(':')
-                                .trim()
-                                .takeIf { it.isNotEmpty() }
-                        }
-                        .forEach { names += it }
-                }
-        }.onFailure {
-            logDiscoveryFailure("/proc/net/dev", it)
-        }
-
-        if (names.none(::isHighPriorityCandidate)) {
-            runCatching {
-                RootShell.su(
-                    cmds = listOf("ip -o link show", "cat /proc/net/dev"),
-                    logOnFailure = false,
-                ).takeIf { it.ok() }?.let { result ->
-                    parseInterfaceNames(result.out).forEach { names += it }
-                }
-            }.onFailure {
-                Log.w(TAG, "Не удалось получить список интерфейсов через root", it)
-            }
-        }
-
         return names.toList()
-    }
-
-    private fun pickByPriority(available: List<String>): String? {
-        if (available.isEmpty()) return null
-
-        val prefixPriority = listOf("eth", "usb", "rndis")
-        for (prefix in prefixPriority) {
-            available.firstOrNull { it.lowercase(Locale.US).startsWith(prefix) }?.let { return it }
-        }
-
-        available.firstOrNull { it.equals("ccmni-lan", ignoreCase = true) }?.let { return it }
-
-        return null
-    }
-
-    internal fun parseInterfaceNames(output: String): Set<String> {
-        val names = TreeSet<String>(String.CASE_INSENSITIVE_ORDER)
-        output.lineSequence().forEach { rawLine ->
-            val line = rawLine.trim()
-            if (line.isEmpty()) return@forEach
-
-            Regex("""^\d+:\s*([^:@]+)""").find(line)?.groupValues?.getOrNull(1)
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { names += it.substringBefore('@') }
-
-            line.substringBefore(':')
-                .trim()
-                .takeIf {
-                    it.isNotEmpty() &&
-                        !it.contains(' ') &&
-                        it != "Inter-|" &&
-                        !it.all(Char::isDigit)
-                }?.let { names += it }
-        }
-        return names
-    }
-
-    private fun isHighPriorityCandidate(name: String): Boolean {
-        val normalized = name.lowercase(Locale.US)
-        return normalized.startsWith("eth") ||
-            normalized.startsWith("usb") ||
-            normalized.startsWith("rndis") ||
-            normalized == "ccmni-lan"
     }
 
     private fun logDiscoveryFailure(source: String, error: Throwable) {
         val message = error.message.orEmpty()
         if (message.contains("EACCES", ignoreCase = true) || message.contains("Permission denied", ignoreCase = true)) {
-            Log.i(TAG, "Доступ к $source ограничен на этом устройстве; продолжаю поиск другими способами")
+            Log.i(TAG, "Доступ к $source ограничен на этом устройстве")
             return
         }
         Log.w(TAG, "Не удалось получить список интерфейсов через $source", error)
