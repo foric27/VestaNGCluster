@@ -1,7 +1,5 @@
 package ru.foric27.cluster
 
-import android.app.ActivityOptions
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.graphics.SurfaceTexture
 import android.hardware.display.VirtualDisplay
@@ -350,103 +348,6 @@ class VideoEncoder(
         }
     }
 
-    private fun launchFixedActivityOnDisplayBestEffort(displayId: Int) {
-        val commands = YandexLaunchTarget.buildPreferredCommands(preferredLaunchComponent)
-        var started: YandexLaunchTarget.LaunchCommand? = null
-        var lastShellResult = RootShell.Result(-1, "", "not_started")
-        var lastDirectError: Throwable? = null
-
-        for (command in commands) {
-            val direct = launchViaIntentBestEffort(displayId, command)
-            if (direct.success) {
-                started = command
-                Log.i(TAG, "Proxy activity запрошена через Context.startActivity на display=$displayId: ${command.component}, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
-                break
-            }
-            lastDirectError = direct.error
-
-            if (!shouldTryRootLaunchFallback(direct.error)) {
-                continue
-            }
-
-            val shellResult = RootShell.su(listOf(YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)))
-            lastShellResult = shellResult
-            if (shellResult.ok()) {
-                started = command
-                Log.i(TAG, "Proxy activity запрошена через su/am start на display=$displayId после отказа direct-launch: ${command.component}, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
-                break
-            }
-        }
-
-        if (started != null) {
-            Log.i(TAG, "Запрос на активацию activity для вывода отправлен на display=$displayId: ${started.component} (${started.note}), visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
-            return
-        }
-
-        if (isLaunchTargetMissing(lastShellResult) || lastDirectError is ActivityNotFoundException) {
-            notifyLaunchAppMissing(commands.lastOrNull())
-        }
-        Log.w(
-            TAG,
-            "Не удалось запустить Яндекс.Навигатор на display=$displayId. " +
-                "Последняя попытка: ${commands.lastOrNull()?.component ?: "не задана"}. " +
-                "DirectError=${lastDirectError?.message ?: "null"}. " +
-                "STDOUT=${lastShellResult.out} STDERR=${lastShellResult.err}",
-        )
-    }
-
-    private fun launchViaIntentBestEffort(
-        displayId: Int,
-        command: YandexLaunchTarget.LaunchCommand,
-    ): LaunchAttempt {
-        val intent = YandexLaunchTarget.buildProxyIntent(command)
-
-        return try {
-            val options = if (Build.VERSION.SDK_INT >= 26) {
-                ActivityOptions.makeBasic()
-                    .setLaunchDisplayId(displayId)
-                    .toBundle()
-            } else {
-                null
-            }
-            context.startActivity(intent, options)
-            LaunchAttempt(true, null)
-        } catch (t: Throwable) {
-            LaunchAttempt(false, t)
-        }
-    }
-
-    private fun shouldTryRootLaunchFallback(error: Throwable?): Boolean {
-        if (!streamConfig.useRootNet) {
-            return false
-        }
-        val message = error?.message?.lowercase().orEmpty()
-        return error is SecurityException ||
-            message.contains("permission denial") ||
-            message.contains("launchdisplayid") ||
-            message.contains("display")
-    }
-
-    private fun isLaunchTargetMissing(result: RootShell.Result): Boolean {
-        val text = buildString {
-            append(result.out)
-            append('\n')
-            append(result.err)
-        }.lowercase()
-
-        return text.contains("error type 3") ||
-            text.contains("does not exist") ||
-            text.contains("activity class")
-    }
-
-    private fun notifyLaunchAppMissing(command: YandexLaunchTarget.LaunchCommand?) {
-        val msg = context.getString(
-            R.string.msg_output_app_not_found_fmt,
-            command?.component ?: YandexLaunchTarget.COMPONENT_AUTO_CLUSTER,
-        )
-        RootShell.publishUserWarning(msg)
-    }
-
     private fun renderLatestFrame() {
         if (!running || stopping) return
         val surfaceTexture = vdSurfaceTexture ?: return
@@ -586,18 +487,6 @@ class VideoEncoder(
         lastRenderedFrameAtMs = 0L
     }
 
-    private fun prependCodecConfigIfNeeded(frameAnnexB: ByteArray, configAnnexB: ByteArray?): ByteArray {
-        val config = configAnnexB ?: return frameAnnexB
-        if (config.isEmpty()) return frameAnnexB
-        if (frameAnnexB.size >= config.size && frameAnnexB.copyOfRange(0, config.size).contentEquals(config)) {
-            return frameAnnexB
-        }
-        return ByteArray(config.size + frameAnnexB.size).also { out ->
-            System.arraycopy(config, 0, out, 0, config.size)
-            System.arraycopy(frameAnnexB, 0, out, config.size, frameAnnexB.size)
-        }
-    }
-
     private fun safeRequestRestart() {
         try {
             restartCallback.requestRestart()
@@ -605,18 +494,6 @@ class VideoEncoder(
             Log.w(TAG, "Не удалось запросить перезапуск пайплайна", t)
         }
     }
-
-    private fun ByteBuffer.readBytes(offset: Int, size: Int): ByteArray {
-        val dup = duplicate()
-        dup.position(offset)
-        dup.limit(offset + size)
-        return ByteArray(size).also { dup.get(it) }
-    }
-
-    private data class LaunchAttempt(
-        val success: Boolean,
-        val error: Throwable?,
-    )
 
     private class GlFrameComposer(
         outputSurface: Surface,
