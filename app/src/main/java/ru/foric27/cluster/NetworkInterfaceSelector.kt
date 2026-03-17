@@ -15,6 +15,7 @@ import java.util.TreeSet
 object NetworkInterfaceSelector {
 
     private const val TAG = "NetIfaceSelector"
+    private const val AUTO_INTERFACE_VALUE = "auto"
 
     data class Selection(
         val name: String?,
@@ -29,7 +30,9 @@ object NetworkInterfaceSelector {
 
     fun select(preferredName: String = RuntimeConfig.Root.IFACE): Selection {
         val available = discoverInterfaces()
-        val preferred = preferredName.trim().takeIf { it.isNotEmpty() }
+        val preferred = preferredName
+            .trim()
+            .takeIf { it.isNotEmpty() && !it.equals(AUTO_INTERFACE_VALUE, ignoreCase = true) }
         if (preferred != null && available.contains(preferred)) {
             return Selection(
                 name = preferred,
@@ -77,7 +80,36 @@ object NetworkInterfaceSelector {
             val listed = sysClassNet.list()?.map { it.trim() }.orEmpty()
             listed.filter { it.isNotEmpty() }.forEach { names += it }
         }.onFailure {
-            Log.w(TAG, "Не удалось получить список интерфейсов через /sys/class/net", it)
+            logDiscoveryFailure("/sys/class/net", it)
+        }
+
+        runCatching {
+            File("/proc/net/dev")
+                .useLines { lines ->
+                    lines
+                        .drop(2)
+                        .mapNotNull { line ->
+                            line.substringBefore(':')
+                                .trim()
+                                .takeIf { it.isNotEmpty() }
+                        }
+                        .forEach { names += it }
+                }
+        }.onFailure {
+            logDiscoveryFailure("/proc/net/dev", it)
+        }
+
+        if (names.none(::isHighPriorityCandidate)) {
+            runCatching {
+                RootShell.su(
+                    cmds = listOf("ip -o link show", "cat /proc/net/dev"),
+                    logOnFailure = false,
+                ).takeIf { it.ok() }?.let { result ->
+                    collectInterfacesFromRootOutput(result.out).forEach { names += it }
+                }
+            }.onFailure {
+                Log.w(TAG, "Не удалось получить список интерфейсов через root", it)
+            }
         }
 
         return names.toList()
@@ -94,5 +126,40 @@ object NetworkInterfaceSelector {
         available.firstOrNull { it.equals("ccmni-lan", ignoreCase = true) }?.let { return it }
 
         return null
+    }
+
+    private fun collectInterfacesFromRootOutput(output: String): Set<String> {
+        val names = TreeSet<String>(String.CASE_INSENSITIVE_ORDER)
+        output.lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (line.isEmpty()) return@forEach
+
+            Regex("""^\d+:\s*([^:@]+)""").find(line)?.groupValues?.getOrNull(1)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { names += it.substringBefore('@') }
+
+            line.substringBefore(':')
+                .trim()
+                .takeIf { it.isNotEmpty() && !it.contains(' ') && it != "Inter-|"}?.let { names += it }
+        }
+        return names
+    }
+
+    private fun isHighPriorityCandidate(name: String): Boolean {
+        val normalized = name.lowercase(Locale.US)
+        return normalized.startsWith("eth") ||
+            normalized.startsWith("usb") ||
+            normalized.startsWith("rndis") ||
+            normalized == "ccmni-lan"
+    }
+
+    private fun logDiscoveryFailure(source: String, error: Throwable) {
+        val message = error.message.orEmpty()
+        if (message.contains("EACCES", ignoreCase = true) || message.contains("Permission denied", ignoreCase = true)) {
+            Log.i(TAG, "Доступ к $source ограничен на этом устройстве; продолжаю поиск другими способами")
+            return
+        }
+        Log.w(TAG, "Не удалось получить список интерфейсов через $source", error)
     }
 }

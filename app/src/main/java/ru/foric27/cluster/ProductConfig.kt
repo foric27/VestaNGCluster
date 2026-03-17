@@ -110,8 +110,8 @@ object ProductConfig {
     }
 
     object Root {
-        /** Имя сетевого интерфейса, который настраивается через root. */
-        const val IFACE: String = "eth0"
+        /** Имя интерфейса для root-сети. Значение `auto` включает автоопределение. */
+        const val IFACE: String = "auto"
 
         /** Ключ диагностики для признака существования интерфейса. */
         val IFACE_EXISTS_LABEL: String = "${IFACE}_exists"
