@@ -49,6 +49,8 @@ class VideoEncoder(
     private val width: Int = streamConfig.width
     private val height: Int = streamConfig.height
     private val dpi: Int = streamConfig.dpi
+    private val displayLauncher = VideoDisplayLauncher(context, streamConfig, preferredLaunchComponent)
+    private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::updateDynamicFpsStats)
 
     private var encoder: MediaCodec? = null
     private var virtualDisplay: VirtualDisplay? = null
@@ -148,7 +150,7 @@ class VideoEncoder(
 
         val relaunch = Runnable {
             try {
-                launchFixedActivityOnDisplayBestEffort(displayId)
+                displayLauncher.launchOnDisplay(displayId)
                 Log.i(TAG, "Повторно активирую навигатор на display=$displayId, reason=$reason")
             } catch (t: Throwable) {
                 Log.w(TAG, "Не удалось повторно активировать навигатор на display=$displayId, reason=$reason", t)
@@ -331,7 +333,7 @@ class VideoEncoder(
             Log.i(TAG, "Создан VirtualDisplay display=$displayId")
         }
 
-        launchFixedActivityOnDisplayBestEffort(displayId)
+        displayLauncher.launchOnDisplay(displayId)
     }
 
     private fun notifyDisplayReady(displayId: Int) {
@@ -497,31 +499,7 @@ class VideoEncoder(
             releaseOutputBufferQuietly(codec, index)
             return
         }
-
-        if (info.size <= 0) {
-            releaseOutputBufferQuietly(codec, index)
-            return
-        }
-
-        val outBuffer = codec.getOutputBuffer(index)
-        if (outBuffer == null) {
-            releaseOutputBufferQuietly(codec, index)
-            return
-        }
-
-        val payload = outBuffer.readBytes(info.offset, info.size)
-        releaseOutputBufferQuietly(codec, index)
-
-        val payloadAnnexB = H264AnnexBUtil.ensureAnnexB(payload) ?: return
-        val keyFrame = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
-        val codecConfig = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
-        if (codecConfig) {
-            return
-        }
-
-        val annexB = if (keyFrame) prependCodecConfigIfNeeded(payloadAnnexB, configAnnexB) else payloadAnnexB
-        udpSender.sendFrame(annexB)
-        updateDynamicFpsStats()
+        outputProcessor.process(codec, index, info, configAnnexB)
     }
 
     private val constantFpsRunnable = object : Runnable {

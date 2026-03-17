@@ -66,32 +66,33 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     @Volatile private var lastWakeRecoveryAtMs = 0L
     @Volatile private var pendingWakeAction: String? = null
     @Volatile private var wakeRecoveryStage: Int = 0
-
     private var statusThread: Thread? = null
     private val statusStop = AtomicBoolean(false)
     private var syncHandler: SyncHandler? = null
-    private var statusSocket: DatagramSocket? = null
+    private var statusSocket: java.net.DatagramSocket? = null
     private var statusReceiver: BroadcastReceiver? = null
     private var statusReceiverRegistered = false
-    private val statusPacketsSent = AtomicLong(0)
-    private val statusBytesSent = AtomicLong(0)
-    private val statusSendErrors = AtomicLong(0)
-
+    private val statusPacketsSent = java.util.concurrent.atomic.AtomicLong(0)
+    private val statusBytesSent = java.util.concurrent.atomic.AtomicLong(0)
+    private val statusSendErrors = java.util.concurrent.atomic.AtomicLong(0)
     private var statsThread: Thread? = null
     private val statsStop = AtomicBoolean(false)
-
     private var watchdogThread: Thread? = null
     private val watchdogStop = AtomicBoolean(false)
     @Volatile private var routeFailureStreak = 0
-
     private var boundNetwork: Network? = null
     @Volatile private var lastSeenEthNetwork: Network? = null
-    private var linkCallback: ConnectivityManager.NetworkCallback? = null
+    private var linkCallback: android.net.ConnectivityManager.NetworkCallback? = null
     @Volatile private var activeRootIface: String? = null
 
     private var host: String? = null
     private var port: Int = 0
     private var lastCfg: StreamConfig? = null
+    private lateinit var updateCoordinator: UdpUpdateServerCoordinator
+    private lateinit var statusSyncCoordinator: UdpStatusSyncCoordinator
+    private lateinit var wakeRecoveryController: UdpWakeRecoveryController
+    private lateinit var networkCoordinator: StreamNetworkCoordinator
+    private lateinit var connectivityWatchdog: UdpConnectivityWatchdog
 
     override fun onCreate() {
         super.onCreate()
@@ -99,9 +100,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         restartBackoffMs = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
         sServiceRunning = true
         sStreamActive = false
+        initCollaborators()
         ensureNotificationChannel()
         cancelServiceRecoveryAlarm()
-        registerScreenStateReceiver()
+        wakeRecoveryController.register()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -217,7 +219,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         sStreamActive = false
         sServiceRunning = false
         scheduleServiceRecovery("service_destroyed", SERVICE_RECOVERY_DELAY_MS)
-        unregisterScreenStateReceiver()
+        wakeRecoveryController.unregister()
         stopInternalFull()
         super.onDestroy()
     }
@@ -233,6 +235,98 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             @Suppress("DEPRECATION")
             intent.getSerializableExtra(EXTRA_CONFIG) as? StreamConfig
         } ?: StreamConfig.fixedConfig(this)
+    }
+
+    private fun initCollaborators() {
+        updateCoordinator = UdpUpdateServerCoordinator(
+            context = applicationContext,
+            mainHandler = mainHandler,
+            isServiceRunning = { sServiceRunning },
+            startDetachedWorker = ::startDetachedWorker,
+            publishWarning = { AppWarningCenter.publish(it) },
+        )
+        statusSyncCoordinator = UdpStatusSyncCoordinator(
+            context = applicationContext,
+            registerLocalReceiver = ::registerLocalReceiver,
+            unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
+            launchWorker = ::launchWorker,
+            interruptThreadQuietly = ::interruptThreadQuietly,
+            joinThreadQuietly = ::joinThreadQuietly,
+        )
+        wakeRecoveryController = UdpWakeRecoveryController(
+            context = this,
+            mainHandler = mainHandler,
+            registerLocalReceiver = ::registerLocalReceiver,
+            unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
+            snapshotProvider = ::buildWakeRecoverySnapshot,
+            logPipelineSnapshot = ::logPipelineSnapshot,
+            forceOutputFrame = { reason -> encoder?.forceOutputFrame(reason) ?: Unit },
+            relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
+            requestImmediateRecovery = ::requestImmediateRecovery,
+        )
+        networkCoordinator = StreamNetworkCoordinator(
+            context = this,
+            logTag = TAG,
+            onNetworkAvailable = ::onEthernetNetworkAvailable,
+            onNetworkLost = ::onEthernetNetworkLost,
+        )
+        connectivityWatchdog = UdpConnectivityWatchdog(
+            launchWorker = ::launchWorker,
+            interruptThreadQuietly = ::interruptThreadQuietly,
+            joinThreadQuietly = ::joinThreadQuietly,
+            stateProvider = ::buildWatchdogState,
+            requestImmediateRecovery = ::requestImmediateRecovery,
+        )
+    }
+
+    private fun buildWakeRecoverySnapshot(): UdpWakeRecoverySnapshot {
+        val currentSender = sender
+        val snapshot = currentSender?.snapshot()
+        val recentVideoTraffic = snapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
+            lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
+        } == true
+        val displayId = VdspState.getDisplayId()
+        return UdpWakeRecoverySnapshot(
+            streamHealthy = streamActive && !startInProgress && currentSender != null && recentVideoTraffic && displayId >= 0,
+            requiresFullRecovery = !streamActive || startInProgress || currentSender == null || displayId < 0,
+        )
+    }
+
+    private fun onEthernetNetworkAvailable() {
+        if (UpdateServerManager.getServerState().retrySuggested) {
+            updateCoordinator.startOrRefreshUpdateServer()
+        }
+        if (streamActive || startInProgress || sender != null) return
+        scheduleRestart("net_available", null)
+    }
+
+    private fun onEthernetNetworkLost(network: Network) {
+        if (boundNetwork == network || streamActive || startInProgress || sender != null) {
+            Log.w(TAG, "Ethernet Network потерян: $network")
+            requestImmediateRecovery(
+                reason = "eth_network_lost",
+                minBackoffMs = NETWORK_LOST_RESTART_BACKOFF_MS,
+                userMessage = "Ethernet-связь потеряна. Перезапуск стрима…",
+            )
+        }
+    }
+
+    private fun buildWatchdogState(): UdpConnectivityWatchdogState? {
+        val cfg = lastCfg ?: return null
+        val currentSender = sender ?: return null
+        val targetHost = host?.takeIf { it.isNotBlank() } ?: cfg.ip
+        return UdpConnectivityWatchdogState(
+            sender = currentSender,
+            cfg = cfg,
+            host = targetHost,
+            activeRootIface = activeRootIface,
+            routeFailureStreak = routeFailureStreak,
+            routeFailureThreshold = ROUTE_FAILURES_BEFORE_RESTART,
+            routeRecentSendGraceMs = ROUTE_RECENT_SEND_GRACE_MS,
+            missingBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
+            noRouteBackoffMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
+            onRouteFailureStreakChanged = { routeFailureStreak = it },
+        )
     }
 
     private fun scheduleRestart(reason: String, cause: Throwable?) {
@@ -262,18 +356,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun scheduleInternalUpdatePoll() {
-        if (internalUpdatePollScheduled.getAndSet(true)) {
-            mainHandler.removeCallbacks(internalUpdatePollRunnable)
-        }
-        mainHandler.postDelayed(
-            internalUpdatePollRunnable,
-            RuntimeConfig.UpdateFtp.INTERNAL_POLL_PERIOD_MS,
-        )
+        updateCoordinator.scheduleInternalUpdatePoll()
     }
 
     private fun cancelInternalUpdatePoll() {
-        internalUpdatePollScheduled.set(false)
-        mainHandler.removeCallbacks(internalUpdatePollRunnable)
+        updateCoordinator.cancelInternalUpdatePoll()
     }
 
     private fun scheduleFtpRetry(reason: String) {
@@ -286,8 +373,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun cancelFtpRetry() {
-        ftpRetryScheduled.set(false)
-        mainHandler.removeCallbacks(ftpRetryRunnable)
+        updateCoordinator.cancelFtpRetry()
     }
 
     private fun performFtpRetry() {
