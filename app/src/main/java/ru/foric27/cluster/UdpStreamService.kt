@@ -85,6 +85,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private var boundNetwork: Network? = null
     @Volatile private var lastSeenEthNetwork: Network? = null
     private var linkCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var activeRootIface: String? = null
 
     private var host: String? = null
     private var port: Int = 0
@@ -165,6 +166,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                             startInProgress = false
                             notifyRootRequiredOnce()
                             return@post
+                        }
+                        activeRootIface = if (cfg.useRootNet && networkPrep.ifacePresent) {
+                            networkPrep.ifaceName
+                        } else {
+                            null
                         }
                         startPipelineAsync(
                             cfg = cfg,
@@ -436,6 +442,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun prepareNetwork(cfg: StreamConfig): NetworkPreparation {
         RootNetUtil.logSelectedIface(TAG, "Подготовка сети")
         if (!cfg.useRootNet) {
+            activeRootIface = null
             ensureEthCallbackRegistered()
             val network = lastSeenEthNetwork ?: findEthernetNetwork()
             val bindIp = cfg.bindIp
@@ -454,6 +461,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 network = network,
                 ifacePresent = network != null,
                 rootRequired = false,
+                ifaceName = null,
             )
         }
 
@@ -469,6 +477,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 network = null,
                 ifacePresent = true,
                 rootRequired = true,
+                ifaceName = applyResult.iface,
             )
         }
 
@@ -486,6 +495,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 network = null,
                 ifacePresent = true,
                 rootRequired = true,
+                ifaceName = probeState.iface,
             )
         }
 
@@ -515,6 +525,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             network = network,
             ifacePresent = ifacePresent,
             rootRequired = false,
+            ifaceName = probeState.iface,
         )
     }
 
@@ -544,6 +555,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         wakeRecoveryStage = 0
         mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
         routeFailureStreak = 0
+        activeRootIface = null
 
         try {
             encoder?.stop()
@@ -919,6 +931,33 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 val recentVideoTraffic = lastSendMs > 0L && (nowMs - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
 
                 if (cfg.useRootNet) {
+                    val activeProbeState = RootNetUtil.getIfaceProbeState(force = false)
+                    if (!activeProbeState.rootRequired && !activeProbeState.exists) {
+                        Log.w(TAG, "Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
+                        requestImmediateRecovery(
+                            reason = RuntimeConfig.Root.MISSING_RUNTIME_REASON,
+                            minBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
+                            userMessage = "${activeProbeState.iface} пропал. Ожидаю восстановление и перезапускаю стрим…",
+                        )
+                        continue
+                    }
+
+                    val pinnedIface = activeRootIface?.takeIf { it.isNotBlank() }
+                    val selectedIface = RootNetUtil.getSelectedIfaceName(force = false)
+                    if (
+                        !activeProbeState.rootRequired &&
+                        !pinnedIface.isNullOrBlank() &&
+                        !selectedIface.equals(pinnedIface, ignoreCase = true)
+                    ) {
+                        Log.w(TAG, "Watchdog: активный root-интерфейс $pinnedIface сменился на ${selectedIface ?: "none"}")
+                        requestImmediateRecovery(
+                            reason = "root_iface_changed",
+                            minBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
+                            userMessage = "Сетевой интерфейс $pinnedIface отключён или сменился. Перезапускаю стрим…",
+                        )
+                        continue
+                    }
+
                     if (recentVideoTraffic) {
                         if (routeFailureStreak != 0) {
                             Log.i(TAG, "Watchdog: есть свежая видеопередача, сбрасываю route-failure streak")
@@ -1406,6 +1445,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val network: Network?,
         val ifacePresent: Boolean,
         val rootRequired: Boolean,
+        val ifaceName: String?,
     )
 
     companion object {
