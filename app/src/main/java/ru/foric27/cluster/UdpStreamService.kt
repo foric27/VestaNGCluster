@@ -388,8 +388,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                             IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
                             minOf(RESTART_BACKOFF_MAX_MS, restartBackoffMs * 2),
                         )
-                        Log.w(TAG, "${RuntimeConfig.Root.IFACE} отсутствует на устройстве; повторю позже. backoff=${restartBackoffMs}ms")
-                        notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, RuntimeConfig.Root.IFACE, restartBackoffMs / 1000))
+                        val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
+                        Log.w(TAG, "$ifaceName отсутствует на устройстве; повторю позже. backoff=${restartBackoffMs}ms")
+                        notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, restartBackoffMs / 1000))
                         scheduleRestart(RuntimeConfig.Root.MISSING_REASON, null)
                     }
                     return@Thread
@@ -433,6 +434,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun prepareNetwork(cfg: StreamConfig): NetworkPreparation {
+        RootNetUtil.logSelectedIface(TAG, "Подготовка сети")
         if (!cfg.useRootNet) {
             ensureEthCallbackRegistered()
             val network = lastSeenEthNetwork ?: findEthernetNetwork()
@@ -478,7 +480,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         val probeState = RootNetUtil.getIfaceProbeState()
         if (probeState.rootRequired) {
-            Log.w(TAG, "Нет доступа к su/root — проверка ${RuntimeConfig.Root.IFACE} недоступна")
+            Log.w(TAG, "Нет доступа к su/root — проверка ${probeState.iface} недоступна")
             return NetworkPreparation(
                 bindIp = null,
                 network = null,
@@ -490,9 +492,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val ifacePresent = probeState.exists
         if (!applyResult.ok) {
             if (ifacePresent) {
-                Log.w(TAG, "Не удалось применить статический IP для ${RuntimeConfig.Root.IFACE} (продолжаю): ${applyResult.details}")
+                Log.w(TAG, "Не удалось применить статический IP для ${applyResult.iface} (продолжаю): ${applyResult.details}")
             } else {
-                Log.i(TAG, "${RuntimeConfig.Root.IFACE} отсутствует — статическая настройка сети пропущена")
+                Log.i(TAG, "${probeState.iface} отсутствует — статическая настройка сети пропущена")
             }
         }
 
@@ -505,7 +507,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 Log.i(TAG, "ConnectivityManager не дал ethernet Network; продолжаю по bindIp и route")
             }
         } else {
-            Log.i(TAG, "${RuntimeConfig.Root.IFACE} отсутствует на устройстве — биндинг к ethernet Network пропущен")
+            Log.i(TAG, "${probeState.iface} отсутствует на устройстве — биндинг к ethernet Network пропущен")
         }
 
         return NetworkPreparation(
@@ -927,11 +929,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                     val probeState = RootNetUtil.getIfaceProbeState(force = false)
                     if (!probeState.rootRequired && !probeState.exists) {
-                        Log.w(TAG, "Watchdog: ${RuntimeConfig.Root.IFACE} пропал во время активного стрима")
+                        Log.w(TAG, "Watchdog: ${probeState.iface} пропал во время активного стрима")
                         requestImmediateRecovery(
                             reason = RuntimeConfig.Root.MISSING_RUNTIME_REASON,
                             minBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
-                            userMessage = "${RuntimeConfig.Root.IFACE} пропал. Ожидаю восстановление и перезапускаю стрим…",
+                            userMessage = "${probeState.iface} пропал. Ожидаю восстановление и перезапускаю стрим…",
                         )
                         continue
                     }
@@ -949,18 +951,18 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                             }
                             if (probeOk) {
                                 if (routeFailureStreak != 0) {
-                                    Log.i(TAG, "Watchdog: route-check для ${RuntimeConfig.Root.IFACE} не совпал, но probe жив; сбрасываю streak")
+                                    Log.i(TAG, "Watchdog: route-check для ${probeState.iface} не совпал, но probe жив; сбрасываю streak")
                                 }
                                 routeFailureStreak = 0
                             } else {
                                 routeFailureStreak += 1
-                                Log.w(TAG, "Watchdog: маршрут до $targetHost через ${RuntimeConfig.Root.IFACE} недоступен и нет живой передачи (streak=$routeFailureStreak)")
+                                Log.w(TAG, "Watchdog: маршрут до $targetHost через ${probeState.iface} недоступен и нет живой передачи (streak=$routeFailureStreak)")
                                 if (routeFailureStreak >= ROUTE_FAILURES_BEFORE_RESTART) {
                                     routeFailureStreak = 0
                                     requestImmediateRecovery(
                                         reason = "route_lost_runtime",
                                         minBackoffMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
-                                        userMessage = "Маршрут через ${RuntimeConfig.Root.IFACE} потерян. Перезапуск стрима…",
+                                        userMessage = "Маршрут через ${probeState.iface} потерян. Перезапуск стрима…",
                                     )
                                     continue
                                 }

@@ -29,8 +29,9 @@ data class FtpServerConfig(
 
     companion object {
         fun fromProject(): FtpServerConfig {
+            val selectedIface = NetworkInterfaceSelector.select(RuntimeConfig.Root.IFACE)
             return FtpServerConfig(
-                ftpInterfaceName = RuntimeConfig.Root.IFACE,
+                ftpInterfaceName = selectedIface.name ?: RuntimeConfig.Root.IFACE,
                 ftpAdvertisedHost = RuntimeConfig.Network.BIND_IP,
                 ftpPort = RuntimeConfig.UpdateFtp.PORT,
                 ftpPassivePorts = RuntimeConfig.UpdateFtp.PASSIVE_PORT_START..RuntimeConfig.UpdateFtp.PASSIVE_PORT_END,
