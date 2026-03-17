@@ -203,9 +203,17 @@ class VideoEncoder(
             setInteger(MediaFormat.KEY_BIT_RATE, streamConfig.bitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, streamConfig.fps)
             try {
+                setInteger(MediaFormat.KEY_CAPTURE_RATE, streamConfig.fps)
+            } catch (_: Throwable) {
+            }
+            try {
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec)
             } catch (_: Throwable) {
                 setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec.toFloat())
+            }
+            try {
+                setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 125_000L)
+            } catch (_: Throwable) {
             }
             try {
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)

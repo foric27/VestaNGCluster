@@ -61,6 +61,16 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".ClusterFocusRequestReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.humaxdigital.cluster.action.CLUSTER_REQUEST_FOCUS" />
+                <action android:name="com.humaxdigital.cluster.action.CLUSTER_ABANDON_FOCUS" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
