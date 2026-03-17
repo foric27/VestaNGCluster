@@ -1,23 +1,50 @@
 # VestaNGCluster
 
-Android-приложение для автомобильного cluster-сценария: захват изображения, кодирование в H.264, отправка потока по UDP и выдача обновлений через встроенный FTP-сервер.
+Android-приложение для кластерного сценария: вывод навигации на `VirtualDisplay`, кодирование в `H.264`, передача видеопотока по `UDP` и раздача обновлений через встроенный `FTP`-сервер.
 
-## Что умеет проект
+## Что делает проект
 
-- захватывать изображение с virtual display
-- кодировать поток в H.264
-- отправлять видео и статусные пакеты по UDP
-- поднимать встроенный FTP-сервер для выдачи `ICUpdate.zip` и `ICUpdate.zip.sig`
-- работать с runtime-настройками через `SharedPreferences`
-- устанавливаться и проверяться на Android-устройстве через `adb`
+- захватывает изображение со второго виртуального дисплея
+- кодирует поток в `H.264`
+- отправляет видео и служебные статусы по `UDP`
+- поднимает встроенный `FTP` для раздачи `ICUpdate.zip` и `ICUpdate.zip.sig`
+- восстанавливает стрим и сетевую часть после ошибок и части системных событий
+- поддерживает runtime-настройки через `SharedPreferences`
 
-## Стек
+## Технологии
 
-- Android Gradle Plugin 9.1
-- Gradle 9.3.1
-- Java 17
-- Kotlin через built-in поддержку AGP
-- compileSdk 36 / targetSdk 36
+- Android Gradle Plugin `9.1.0`
+- Gradle `9.3.1`
+- Java `17`
+- Kotlin через встроенную поддержку AGP
+- `compileSdk 36`
+- `targetSdk 36`
+
+## Структура проекта
+
+```text
+VestaNGClusterFlowStudio/
+├─ app/
+│  ├─ build.gradle
+│  └─ src/main/
+│     ├─ AndroidManifest.xml
+│     ├─ java/ru/foric27/cluster/
+│     └─ res/
+├─ gradle/
+├─ scripts/
+├─ .github/workflows/
+├─ build.gradle
+├─ gradle.properties
+├─ keystore.properties.example
+└─ README.md
+```
+
+## Требования
+
+- Android SDK и JDK `17`
+- доступный `adb`
+- для root-сетевого режима устройству нужно выдать `su`
+- для раздачи обновлений приложению нужен доступ `MANAGE_EXTERNAL_STORAGE`
 
 ## Сборка
 
@@ -33,7 +60,7 @@ Release APK:
 .\gradlew.bat assembleRelease
 ```
 
-## Локальная подпись release APK
+## Подпись release
 
 Release-подпись берётся из одного из двух источников:
 
@@ -42,67 +69,86 @@ Release-подпись берётся из одного из двух источ
    - `ANDROID_KEYSTORE_PASSWORD`
    - `ANDROID_KEY_ALIAS`
    - `ANDROID_KEY_PASSWORD`
-2. Локальный файл `keystore.properties` в корне проекта
+2. Локальный `keystore.properties` в корне проекта
 
-Пример `keystore.properties`:
+Пример файла лежит в `keystore.properties.example`.
 
-```properties
-storeFile=C:\\path\\to\\release-keystore.jks
-storePassword=...
-keyAlias=...
-keyPassword=...
+`keystore.properties` и сам keystore в git не хранятся.
+
+## Установка на устройство
+
+Подключение тестового устройства:
+
+```powershell
+& '.\.tools\platform-tools\adb.exe' connect 192.168.1.163:5555
 ```
 
-Файл `keystore.properties` добавлен в `.gitignore`.
+Установка debug APK:
+
+```powershell
+& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 install -r '.\app\build\outputs\apk\debug\app-debug.apk'
+```
+
+Запуск приложения:
+
+```powershell
+& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell am start -W -n ru.foric27.cluster/.MainActivity
+```
+
+## Минимальный smoke-тест
+
+После установки полезно проверить:
+
+```powershell
+& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell dumpsys activity activities | Select-String 'topResumedActivity|ru.foric27.cluster'
+```
+
+```powershell
+$pid = (& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell pidof ru.foric27.cluster).Trim()
+if ($pid) { & '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 logcat --pid=$pid -d -t 500 }
+```
+
+Если поднялся `FTP`, дополнительно:
+
+```powershell
+Test-NetConnection 192.168.1.163 -Port 2121
+```
+
+## Диагностика
+
+Полезные признаки в логах:
+
+- успешный root-сценарий сети: `Статический IP применён`
+- успешный старт стрима: `Стрим успешно запущен`
+- keepalive при статичной картинке: `Отправляю keepalive-кадр`
+- восстановление после сна или ошибки: `Немедленное восстановление`
+- снимок внутреннего состояния сервиса: `Снимок сервиса | ...`
+
+Очистить `logcat` перед тестом:
+
+```powershell
+& '.\.tools\platform-tools\adb.exe' logcat -c
+```
 
 ## GitHub Actions
 
-В репозитории настроена автосборка через workflow:
+В репозитории настроен workflow `Android Release`:
 
-- на каждый push в `main`
-- вручную через `workflow_dispatch`
-
-Workflow:
-
+- запускается на каждый push в `main`
+- умеет запускаться вручную через `workflow_dispatch`
 - собирает `release` APK
-- создаёт или обновляет prerelease `main-latest`
-- прикладывает APK в GitHub Releases
-- подписывает APK, если в GitHub secrets добавлены signing-секреты
+- обновляет prerelease `main-latest`
+- прикладывает APK к GitHub Releases
 
-Необходимые secrets в GitHub:
+Для подписанной GitHub-сборки должны быть настроены secrets:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-## Где лежит локальный keystore
+## Известные ограничения
 
-Локально ключ подписи можно хранить только вне git, например в:
-
-`C:\my_soft\android\VestaNGClusterFlowStudio\.tools\signing\`
-
-Эта папка уже игнорируется.
-
-## Установка на устройство
-
-Пример установки debug APK:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' connect 192.168.1.163:5555
-& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 install -r '.\app\build\outputs\apk\debug\app-debug.apk'
-```
-
-## Логи
-
-Пример съёма логов приложения:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 logcat --pid=(& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell pidof ru.foric27.cluster).Trim() -d -t 500
-```
-
-## Важно
-
-- приватный ключ подписи нельзя коммитить в репозиторий
-- workflow GitHub готов к подписанию, но без secrets будет собирать только неподписанный release APK
-- для публичного репозитория использовать keystore только через GitHub secrets
+- системный `displayId` назначает Android, жёстко зафиксировать его на конкретное число приложением нельзя
+- без `su` нельзя штатно назначить статический IP на интерфейс `eth0`
+- при первом запуске возможны системные экраны разрешений

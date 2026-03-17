@@ -62,17 +62,18 @@ object UpdateServerManager {
             currentState.set(State(Status.PREPARING, buildPreparingMessage(searchPolicy), detectedLocation = lastDetectedLocation))
 
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
-                stopServerLocked(clearPrepared = true)
                 Log.w(TAG, "Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен")
-                return failState(StorageAccessManager.buildMissingAccessMessage(), detectedLocation = lastDetectedLocation)
+                return stopServerAndFailLocked(
+                    message = StorageAccessManager.buildMissingAccessMessage(),
+                    detectedLocation = lastDetectedLocation,
+                )
             }
 
             return try {
                 val searchResult = locateFirstValidPair(applicationContext, searchPolicy)
                 lastDetectedLocation = searchResult.detectedLocation
                 val validatedPair = searchResult.validatedPair ?: run {
-                    stopServerLocked(clearPrepared = true)
-                    return failState(
+                    return stopServerAndFailLocked(
                         buildNoValidPairMessage(searchResult.rejectionMessages),
                         detectedLocation = searchResult.detectedLocation,
                     )
@@ -86,13 +87,16 @@ object UpdateServerManager {
                     }
                 }
 
-                stopServerLocked(clearPrepared = true)
+                stopServerForReloadLocked()
                 startValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
             } catch (t: Throwable) {
                 Log.e(TAG, "Ошибка запуска FTP-сервера обновления", t)
-                stopServerLocked(clearPrepared = true)
                 val retrySuggested = isTransientFtpStartError(t)
-                failState(buildStartFailureMessage(t, retrySuggested), retrySuggested = retrySuggested, detectedLocation = lastDetectedLocation)
+                stopServerAndFailLocked(
+                    message = buildStartFailureMessage(t, retrySuggested),
+                    retrySuggested = retrySuggested,
+                    detectedLocation = lastDetectedLocation,
+                )
             }
         }
     }
@@ -127,8 +131,10 @@ object UpdateServerManager {
             }
 
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
-                stopServerLocked(clearPrepared = true)
-                return failState(StorageAccessManager.buildMissingAccessMessage(), detectedLocation = lastDetectedLocation)
+                return stopServerAndFailLocked(
+                    message = StorageAccessManager.buildMissingAccessMessage(),
+                    detectedLocation = lastDetectedLocation,
+                )
             }
 
             return try {
@@ -136,8 +142,7 @@ object UpdateServerManager {
                 lastDetectedLocation = searchResult.detectedLocation
                 val validatedPair = searchResult.validatedPair
                 if (validatedPair == null) {
-                    stopServerLocked(clearPrepared = true)
-                    return failState(
+                    return stopServerAndFailLocked(
                         buildNoValidPairMessage(searchResult.rejectionMessages),
                         detectedLocation = searchResult.detectedLocation,
                     )
@@ -151,13 +156,16 @@ object UpdateServerManager {
                     TAG,
                     "Периодический опрос обнаружил новое или изменённое обновление во внутренней памяти: ${validatedPair.pair.directoryLabel}",
                 )
-                stopServerLocked(clearPrepared = true)
+                stopServerForReloadLocked()
                 startValidatedPairLocked(applicationContext, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY, validatedPair)
             } catch (t: Throwable) {
                 Log.e(TAG, "Ошибка периодического опроса обновления во внутренней памяти", t)
-                stopServerLocked(clearPrepared = true)
                 val retrySuggested = isTransientFtpStartError(t)
-                failState(buildStartFailureMessage(t, retrySuggested), retrySuggested = retrySuggested, detectedLocation = lastDetectedLocation)
+                stopServerAndFailLocked(
+                    message = buildStartFailureMessage(t, retrySuggested),
+                    retrySuggested = retrySuggested,
+                    detectedLocation = lastDetectedLocation,
+                )
             }
         }
     }
@@ -316,6 +324,23 @@ object UpdateServerManager {
             appContext?.let { repository.clear(it) }
             preparedUpdate = null
         }
+    }
+
+    private fun stopServerForReloadLocked() {
+        stopServerLocked(clearPrepared = true)
+    }
+
+    private fun stopServerAndFailLocked(
+        message: String,
+        retrySuggested: Boolean = false,
+        detectedLocation: String? = null,
+    ): Result {
+        stopServerLocked(clearPrepared = true)
+        return failState(
+            message = message,
+            retrySuggested = retrySuggested,
+            detectedLocation = detectedLocation,
+        )
     }
 
     private fun buildPreparingMessage(searchPolicy: UpdateFileLocator.SearchPolicy): String {

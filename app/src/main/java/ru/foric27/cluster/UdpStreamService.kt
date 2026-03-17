@@ -665,6 +665,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
 
         if (!streamActive || startInProgress || currentSender == null || displayId < 0) {
+            logPipelineSnapshot("Wake recovery требует полного восстановления")
             pendingWakeAction = null
             wakeRecoveryStage = 0
             requestImmediateRecovery(
@@ -758,7 +759,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             val destinationHost = InetAddress.getByName(hostValue)
             val destinationPort = STATUS_PORT
 
-            statusThread = Thread({
+            statusThread = launchWorker("StatusSync") {
                 var consecutiveErrors = 0
                 while (!statusStop.get()) {
                     try {
@@ -782,7 +783,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         break
                     }
                 }
-            }, "StatusSync").also { it.start() }
+            }
 
             Log.i(TAG, "Status sync запущен (dst=$hostValue:$destinationPort)")
         } catch (t: Throwable) {
@@ -793,16 +794,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun stopStatusSyncBestEffort() {
         statusStop.set(true)
-        try {
-            statusThread?.interrupt()
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось прервать поток status sync", t)
-        }
-        try {
-            statusThread?.join(THREAD_JOIN_TIMEOUT_MS)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось дождаться завершения status sync", t)
-        }
+        interruptThreadQuietly(statusThread, "status sync")
+        joinThreadQuietly(statusThread, "status sync")
         statusThread = null
 
         try {
@@ -828,7 +821,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun startTransportStatsLogging() {
         stopTransportStatsLogging()
         statsStop.set(false)
-        statsThread = Thread({
+        statsThread = launchWorker("UdpStats") {
             var prevVideoFrames = 0L
             var prevVideoPackets = 0L
             var prevVideoBytes = 0L
@@ -898,13 +891,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     ),
                 )
             }
-        }, "UdpStats").also { it.start() }
+        }
     }
 
     private fun startConnectivityWatchdog() {
         stopConnectivityWatchdog()
         watchdogStop.set(false)
-        watchdogThread = Thread({
+        watchdogThread = launchWorker("ConnectivityWatchdog") {
             while (!watchdogStop.get()) {
                 try {
                     Thread.sleep(CONNECTIVITY_WATCHDOG_PERIOD_MS)
@@ -979,21 +972,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 // при статичной картинке на VirtualDisplay кодек может долго не отдавать выходные буферы.
                 // Восстановление здесь выполняется только по проверке маршрута, probe и явным ошибкам сокета или энкодера.
             }
-        }, "ConnectivityWatchdog").also { it.start() }
+        }
     }
 
     private fun stopConnectivityWatchdog() {
         watchdogStop.set(true)
-        try {
-            watchdogThread?.interrupt()
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось прервать watchdog", t)
-        }
-        try {
-            watchdogThread?.join(THREAD_JOIN_TIMEOUT_MS)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось дождаться остановки watchdog", t)
-        }
+        interruptThreadQuietly(watchdogThread, "watchdog")
+        joinThreadQuietly(watchdogThread, "watchdog")
         watchdogThread = null
     }
 
@@ -1004,6 +989,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     ) {
         mainHandler.post {
             restartBackoffMs = maxOf(minBackoffMs, restartBackoffMs)
+            logPipelineSnapshot("Немедленное восстановление, reason=$reason")
             Log.w(TAG, "Немедленное восстановление стрима, reason=$reason, backoff=${restartBackoffMs}ms")
             notifyNoLinkOnce(userMessage)
             cancelPendingRestart()
@@ -1017,16 +1003,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun stopTransportStatsLogging() {
         statsStop.set(true)
-        try {
-            statsThread?.interrupt()
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось прервать поток статистики", t)
-        }
-        try {
-            statsThread?.join(THREAD_JOIN_TIMEOUT_MS)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось дождаться завершения потока статистики", t)
-        }
+        interruptThreadQuietly(statsThread, "статистики")
+        joinThreadQuietly(statsThread, "статистики")
         statsThread = null
     }
 
@@ -1049,7 +1027,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         sender = localSender
         startInProgress = true
 
-        Thread({
+        launchWorker("UdpProbe") {
             val udpReady = waitForUdpReady(
                 sender = localSender,
                 cfg = cfg,
@@ -1069,11 +1047,12 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         NO_ROUTE_RESTART_BACKOFF_MIN_MS,
                         minOf(RESTART_BACKOFF_MAX_MS, restartBackoffMs * 2),
                     )
+                    logPipelineSnapshot("Маршрут не готов для $hostValue")
                     Log.w(TAG, "Маршрут до $hostValue не готов; повторю позже. backoff=${restartBackoffMs}ms")
                     notifyNoLinkOnce(getString(R.string.service_notification_no_route_fmt, hostValue, restartBackoffMs / 1000))
                     scheduleRestart("net_wait", null)
                 }
-                return@Thread
+                return@launchWorker
             }
 
             mainHandler.post {
@@ -1129,7 +1108,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     scheduleRestart("enc_start", t)
                 }
             }
-        }, "UdpProbe").start()
+        }
     }
 
     private fun waitForUdpReady(
@@ -1281,6 +1260,41 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             Log.w(TAG, "Не удалось извлечь IP из CIDR: $cidr", t)
             null
         }
+    }
+
+    private fun launchWorker(name: String, block: () -> Unit): Thread {
+        return Thread(block, name).also { it.start() }
+    }
+
+    private fun interruptThreadQuietly(thread: Thread?, label: String) {
+        try {
+            thread?.interrupt()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось прервать поток $label", t)
+        }
+    }
+
+    private fun joinThreadQuietly(thread: Thread?, label: String) {
+        try {
+            thread?.join(THREAD_JOIN_TIMEOUT_MS)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось дождаться завершения потока $label", t)
+        }
+    }
+
+    private fun logPipelineSnapshot(prefix: String) {
+        val senderSnapshot = sender?.snapshot()
+        val displayId = VdspState.getDisplayId()
+        val lastSendAgoMs = senderSnapshot?.lastSendElapsedRealtimeMs?.takeIf { it > 0L }?.let {
+            SystemClock.elapsedRealtime() - it
+        } ?: -1L
+        Log.i(
+            TAG,
+            "Снимок сервиса | $prefix | streamActive=$streamActive, startInProgress=$startInProgress, displayId=$displayId, " +
+                "sender=${senderSnapshot != null}, host=${senderSnapshot?.host ?: host ?: "unknown"}, " +
+                "videoFrames=${senderSnapshot?.videoFramesSent ?: 0}, videoPackets=${senderSnapshot?.videoPacketsSent ?: 0}, " +
+                "sendErrors=${senderSnapshot?.sendErrors ?: 0}, lastSendAgo=${lastSendAgoMs}ms, routeFailureStreak=$routeFailureStreak",
+        )
     }
 
     private fun scheduleServiceRecovery(reason: String, delayMs: Long) {

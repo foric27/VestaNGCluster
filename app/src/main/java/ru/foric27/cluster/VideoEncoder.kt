@@ -144,7 +144,6 @@ class VideoEncoder(
             return
         }
 
-        val handler = codecHandler
         val relaunch = Runnable {
             try {
                 launchFixedActivityOnDisplayBestEffort(displayId)
@@ -153,38 +152,23 @@ class VideoEncoder(
                 Log.w(TAG, "Не удалось повторно активировать навигатор на display=$displayId, reason=$reason", t)
             }
         }
-        if (handler != null) {
-            handler.post(relaunch)
-        } else {
-            relaunch.run()
-        }
+        runOnCodecThread(relaunch)
     }
 
     fun forceOutputFrame(reason: String) {
-        val handler = codecHandler
         val render = Runnable {
             if (!running || stopping) return@Runnable
             try {
                 if (streamConfig.dynamicFps) {
-                    glComposer?.drawLastFrame()
-                    hasRenderedAnyFrame = true
-                    hasPendingSurfaceFrame = false
+                    drawKeepaliveFrame(SystemClock.elapsedRealtime())
                 }
-                encoder?.setParameters(
-                    Bundle().apply {
-                        putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
-                    },
-                )
+                requestSyncFrame()
                 Log.i(TAG, "Принудительно отправляю кадр после wake, reason=$reason")
             } catch (t: Throwable) {
                 Log.w(TAG, "Не удалось принудительно отправить кадр после wake, reason=$reason", t)
             }
         }
-        if (handler != null) {
-            handler.post(render)
-        } else {
-            render.run()
-        }
+        runOnCodecThread(render)
     }
 
     private val codecCallback = object : MediaCodec.Callback() {
@@ -308,11 +292,7 @@ class VideoEncoder(
         }
         codecThread = null
         codecHandler = null
-        fpsWindowStartedAtMs = 0L
-        fpsWindowFrames = 0
-        hasPendingSurfaceFrame = false
-        hasRenderedAnyFrame = false
-        lastRenderedFrameAtMs = 0L
+        resetFrameTrackingState()
     }
 
     private fun acquireVirtualDisplayOrThrow() {
@@ -550,10 +530,7 @@ class VideoEncoder(
             val idleMs = nowMs - lastRenderedFrameAtMs
             if (lastRenderedFrameAtMs > 0L && idleMs >= DYNAMIC_KEEPALIVE_PERIOD_MS) {
                 try {
-                    glComposer?.drawLastFrame()
-                    hasRenderedAnyFrame = true
-                    hasPendingSurfaceFrame = false
-                    lastRenderedFrameAtMs = nowMs
+                    drawKeepaliveFrame(nowMs)
                     Log.i(TAG, "Отправляю keepalive-кадр для живого потока, idle=${idleMs}ms")
                 } catch (t: Throwable) {
                     Log.e(TAG, "Ошибка keepalive-кадра в dynamicFps -> рестарт", t)
@@ -587,6 +564,38 @@ class VideoEncoder(
         )
         fpsWindowStartedAtMs = nowMs
         fpsWindowFrames = 0
+    }
+
+    private fun runOnCodecThread(task: Runnable) {
+        val handler = codecHandler
+        if (handler != null) {
+            handler.post(task)
+        } else {
+            task.run()
+        }
+    }
+
+    private fun requestSyncFrame() {
+        encoder?.setParameters(
+            Bundle().apply {
+                putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+            },
+        )
+    }
+
+    private fun drawKeepaliveFrame(nowMs: Long) {
+        glComposer?.drawLastFrame()
+        hasRenderedAnyFrame = true
+        hasPendingSurfaceFrame = false
+        lastRenderedFrameAtMs = nowMs
+    }
+
+    private fun resetFrameTrackingState() {
+        fpsWindowStartedAtMs = 0L
+        fpsWindowFrames = 0
+        hasPendingSurfaceFrame = false
+        hasRenderedAnyFrame = false
+        lastRenderedFrameAtMs = 0L
     }
 
     private fun prependCodecConfigIfNeeded(frameAnnexB: ByteArray, configAnnexB: ByteArray?): ByteArray {

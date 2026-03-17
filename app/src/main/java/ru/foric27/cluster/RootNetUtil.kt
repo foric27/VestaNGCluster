@@ -163,19 +163,13 @@ object RootNetUtil {
 
         val probeState = probeIfaceState(force = forceProbe)
         if (probeState.rootRequired || !probeState.exists) {
-            cachedRouteDstIp = ip
-            cachedRouteExpectedSrcIp = normalizedSrcIp
-            cachedRouteOk = false
-            cachedRouteCheckAtMs = now
+            updateRouteCache(ip, normalizedSrcIp, ok = false, checkedAtMs = now)
             return false
         }
 
         val result = RootShell.su(listOf("ip route get $ip"), logOnFailure = false)
         if (!result.ok()) {
-            cachedRouteDstIp = ip
-            cachedRouteExpectedSrcIp = normalizedSrcIp
-            cachedRouteOk = false
-            cachedRouteCheckAtMs = now
+            updateRouteCache(ip, normalizedSrcIp, ok = false, checkedAtMs = now)
             return false
         }
 
@@ -184,10 +178,7 @@ object RootNetUtil {
         val devOk = devRegex.containsMatchIn(output)
         val srcRegex = normalizedSrcIp?.let { Regex("""\bsrc\s+${Regex.escape(it)}\b""") }
         val ok = devOk && (srcRegex == null || srcRegex.containsMatchIn(output))
-        cachedRouteDstIp = ip
-        cachedRouteExpectedSrcIp = normalizedSrcIp
-        cachedRouteOk = ok
-        cachedRouteCheckAtMs = now
+        updateRouteCache(ip, normalizedSrcIp, ok = ok, checkedAtMs = now)
         return ok
     }
 
@@ -265,6 +256,13 @@ object RootNetUtil {
             (network ushr 8) and 0xFF,
             network and 0xFF,
         ).joinToString(".")
+    }
+
+    private fun updateRouteCache(dstIp: String, expectedSrcIp: String?, ok: Boolean, checkedAtMs: Long) {
+        cachedRouteDstIp = dstIp
+        cachedRouteExpectedSrcIp = expectedSrcIp
+        cachedRouteOk = ok
+        cachedRouteCheckAtMs = checkedAtMs
     }
 
     private data class Ipv4Cidr(
