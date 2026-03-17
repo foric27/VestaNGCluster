@@ -80,10 +80,13 @@ class SyncHandler(
     fun sync(): String {
         val data = SyncData()
         data.streamMode = readStreamModeSafely()
-        data.syncTime = SyncTime(Instant.now(), TimeZone.getDefault())
-        data.lang = getLocalLang()
-
         val periodic = (periodicSyncCount % keySyncInterval.toLong()) == 0L
+        if (shouldIncludeTime(periodic, timeChanged)) {
+            data.syncTime = SyncTime(Instant.now(), TimeZone.getDefault())
+        }
+        if (shouldIncludeLang(periodic, langChanged)) {
+            data.lang = getLocalLang()
+        }
         if (periodic || timeChanged || langChanged) {
             Log.v(TAG, "Сформирован пакет sync: периодический=$periodic timeChanged=$timeChanged langChanged=$langChanged")
         }
@@ -150,6 +153,14 @@ class SyncHandler(
 
         @Volatile
         private var warnedBadStreamModeValue: Boolean = false
+
+        internal fun shouldIncludeTime(periodic: Boolean, timeChanged: Boolean): Boolean {
+            return periodic || timeChanged
+        }
+
+        internal fun shouldIncludeLang(periodic: Boolean, langChanged: Boolean): Boolean {
+            return periodic || langChanged
+        }
 
         private fun getLocalLang(): String {
             val locale = ConfigurationCompat.getLocales(Resources.getSystem().configuration)[0]
