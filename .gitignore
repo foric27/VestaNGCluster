@@ -12,6 +12,7 @@ app/build/
 out/
 bin/
 .tools/
+dist/
 AGENTS.md
 keystore.properties
 *.apk
