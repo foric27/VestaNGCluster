@@ -431,10 +431,23 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun prepareNetwork(cfg: StreamConfig): NetworkPreparation {
         if (!cfg.useRootNet) {
+            ensureEthCallbackRegistered()
+            val network = lastSeenEthNetwork ?: findEthernetNetwork()
+            val bindIp = cfg.bindIp
+                ?.takeIf { it.isNotBlank() }
+                ?.takeUnless { it == RuntimeConfig.Network.BIND_IP }
+            if (network != null) {
+                bindProcessToNetworkBestEffort(network)
+            } else {
+                Log.i(TAG, "Root-сеть отключена; ethernet Network не найден, продолжаю без привязки к интерфейсу")
+            }
+            if (bindIp == null && !cfg.bindIp.isNullOrBlank()) {
+                Log.i(TAG, "Root-сеть отключена; статический bindIp ${cfg.bindIp} пропускаю")
+            }
             return NetworkPreparation(
-                bindIp = cfg.bindIp?.takeIf { it.isNotBlank() },
-                network = null,
-                ifacePresent = false,
+                bindIp = bindIp,
+                network = network,
+                ifacePresent = network != null,
                 rootRequired = false,
             )
         }

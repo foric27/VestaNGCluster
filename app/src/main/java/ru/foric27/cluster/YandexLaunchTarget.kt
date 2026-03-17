@@ -134,4 +134,5 @@ object YandexLaunchTarget {
     private fun shellQuote(value: String): String {
         return "'" + value.replace("'", "'\\''") + "'"
     }
+
 }

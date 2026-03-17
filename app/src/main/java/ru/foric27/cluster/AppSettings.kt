@@ -101,30 +101,13 @@ object AppSettings {
             )
         }
 
-        val rootWrite = putModeToSettingsViaRoot(context, mode)
-        if (rootWrite.success) {
-            return ApplyModeResult(
-                ok = true,
-                savedLocally = prefSaved,
-                mode = mode,
-                source = when {
-                    prefSaved -> "SharedPreferences + root settings"
-                    else -> "root settings"
-                },
-                details = rootWrite.details,
-            )
-        }
-
         if (prefSaved) {
             source = "SharedPreferences"
             details = buildString {
-                append("Прямое применение режима не подтверждено. Выбор сохранён локально.")
+                append("Прямое применение режима не подтверждено. Выбор сохранён локально без root.")
                 append('\n')
                 append("Direct: ")
                 append(directWrite.details)
-                append('\n')
-                append("Root: ")
-                append(rootWrite.details)
             }
         } else {
             source = "Ошибка сохранения"
@@ -133,14 +116,11 @@ object AppSettings {
                 append('\n')
                 append("Direct: ")
                 append(directWrite.details)
-                append('\n')
-                append("Root: ")
-                append(rootWrite.details)
             }
         }
 
         return ApplyModeResult(
-            ok = false,
+            ok = prefSaved,
             savedLocally = prefSaved,
             mode = mode,
             source = source,
@@ -183,36 +163,6 @@ object AppSettings {
         }
     }
 
-    private fun putModeToSettingsViaRoot(context: Context, mode: UiStreamMode): SettingsWriteResult {
-        val result = RootShell.su(
-            cmds = listOf(
-                "settings put global ${SyncHandler.STREAM_MODE_PARAM} ${mode.settingValue}",
-                "settings get global ${SyncHandler.STREAM_MODE_PARAM}",
-            ),
-            logOnFailure = false,
-            timeoutMs = 2_000L,
-        )
-        if (!result.ok()) {
-            return SettingsWriteResult(
-                success = false,
-                details = "Root settings завершился с кодом=${result.code}. ${result.err.ifBlank { result.out }}",
-            )
-        }
-
-        val readBack = readModeFromSettings(context) ?: parseRootReadback(result.out)
-        return if (readBack == mode) {
-            SettingsWriteResult(
-                success = true,
-                details = "Режим сохранён через root settings и подтверждён чтением обратно",
-            )
-        } else {
-            SettingsWriteResult(
-                success = false,
-                details = "Root settings выполнился, но readBack=${readBack?.prefValue ?: "null"}",
-            )
-        }
-    }
-
     private fun readModeFromSettings(context: Context): UiStreamMode? {
         return try {
             UiStreamMode.fromSetting(
@@ -221,16 +171,6 @@ object AppSettings {
         } catch (_: Throwable) {
             null
         }
-    }
-
-    private fun parseRootReadback(stdout: String): UiStreamMode? {
-        val lastValue = stdout
-            .lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .lastOrNull()
-            ?: return null
-        return lastValue.toIntOrNull()?.let { UiStreamMode.fromSetting(it) }
     }
 
     private fun getPrefs(context: Context): SharedPreferences {

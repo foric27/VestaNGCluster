@@ -341,11 +341,15 @@ class VideoEncoder(
             }
             lastDirectError = direct.error
 
+            if (!shouldTryRootLaunchFallback(direct.error)) {
+                continue
+            }
+
             val shellResult = RootShell.su(listOf(YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)))
             lastShellResult = shellResult
             if (shellResult.ok()) {
                 started = command
-                Log.i(TAG, "Proxy activity запрошена через su/am start на display=$displayId: ${command.component}, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+                Log.i(TAG, "Proxy activity запрошена через su/am start на display=$displayId после отказа direct-launch: ${command.component}, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
                 break
             }
         }
@@ -386,6 +390,17 @@ class VideoEncoder(
         } catch (t: Throwable) {
             LaunchAttempt(false, t)
         }
+    }
+
+    private fun shouldTryRootLaunchFallback(error: Throwable?): Boolean {
+        if (!streamConfig.useRootNet) {
+            return false
+        }
+        val message = error?.message?.lowercase().orEmpty()
+        return error is SecurityException ||
+            message.contains("permission denial") ||
+            message.contains("launchdisplayid") ||
+            message.contains("display")
     }
 
     private fun isLaunchTargetMissing(result: RootShell.Result): Boolean {
