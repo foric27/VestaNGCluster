@@ -34,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     private var hadAllFilesAccess = false
     private var versionTapCount = 0
     private var lastVersionTapAt = 0L
+    private var notificationsPermissionPending = false
+    private var backgroundLaunchHandled = false
 
     private val warningListener = object : AppWarningCenter.WarningListener {
         override fun onWarningPublished(message: String) {
@@ -66,6 +68,7 @@ class MainActivity : AppCompatActivity() {
         requestNotificationsPermissionIfNeeded()
         handleAllFilesAccessState()
         ensureStreamingRunning()
+        tryMoveTaskToBackIfNeeded()
     }
 
     override fun onStart() {
@@ -79,6 +82,13 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         handleAllFilesAccessState()
         refreshScreenState()
+        tryMoveTaskToBackIfNeeded()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        backgroundLaunchHandled = false
     }
 
     override fun onStop() {
@@ -354,17 +364,43 @@ class MainActivity : AppCompatActivity() {
         ) {
             return
         }
+        notificationsPermissionPending = true
         requestPermissions(
             arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
             REQUEST_NOTIFICATIONS_CODE,
         )
     }
 
-    private companion object {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_NOTIFICATIONS_CODE) return
+        notificationsPermissionPending = false
+        tryMoveTaskToBackIfNeeded()
+    }
+
+    private fun tryMoveTaskToBackIfNeeded() {
+        if (backgroundLaunchHandled) return
+        if (intent.getBooleanExtra(EXTRA_KEEP_IN_FOREGROUND, false)) return
+        if (notificationsPermissionPending) return
+        if (!StorageAccessManager.isAllFilesAccessGranted()) return
+
+        backgroundLaunchHandled = true
+        binding.root.post {
+            if (isFinishing || isDestroyed) return@post
+            moveTaskToBack(true)
+        }
+    }
+
+    companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_NOTIFICATIONS_CODE = 10
         private const val MAX_INLINE_NOTICES = 6
         private const val DEVELOPER_TAP_COUNT = 7
         private const val VERSION_TAP_TIMEOUT_MS = 1_500L
+        const val EXTRA_KEEP_IN_FOREGROUND = "ru.foric27.cluster.extra.KEEP_IN_FOREGROUND"
     }
 }

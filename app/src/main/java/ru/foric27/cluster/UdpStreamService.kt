@@ -1400,7 +1400,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_KEEP_IN_FOREGROUND, true),
             PendingIntent.FLAG_UPDATE_CURRENT or pendingIntentImmutableFlag(),
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
