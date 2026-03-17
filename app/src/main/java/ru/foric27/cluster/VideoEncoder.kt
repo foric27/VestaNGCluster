@@ -12,6 +12,7 @@ import android.opengl.EGL14
 import android.opengl.EGLExt
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
+import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -153,6 +154,33 @@ class VideoEncoder(
             handler.post(relaunch)
         } else {
             relaunch.run()
+        }
+    }
+
+    fun forceOutputFrame(reason: String) {
+        val handler = codecHandler
+        val render = Runnable {
+            if (!running || stopping) return@Runnable
+            try {
+                if (streamConfig.dynamicFps) {
+                    glComposer?.drawLastFrame()
+                    hasRenderedAnyFrame = true
+                    hasPendingSurfaceFrame = false
+                }
+                encoder?.setParameters(
+                    Bundle().apply {
+                        putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+                    },
+                )
+                Log.i(TAG, "Принудительно отправляю кадр после wake, reason=$reason")
+            } catch (t: Throwable) {
+                Log.w(TAG, "Не удалось принудительно отправить кадр после wake, reason=$reason", t)
+            }
+        }
+        if (handler != null) {
+            handler.post(render)
+        } else {
+            render.run()
         }
     }
 

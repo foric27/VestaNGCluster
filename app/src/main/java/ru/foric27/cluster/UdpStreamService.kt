@@ -43,6 +43,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private val internalUpdatePollRunnable = Runnable { performInternalUpdatePoll() }
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
     private val restartRunnable = Runnable { attemptRestart(pendingRestartReason) }
+    private val wakeRecoveryVerifyRunnable = Runnable { verifyWakeRecovery() }
 
     private var restartBackoffMs = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
     private var lastRestartRequestMs = 0L
@@ -61,6 +62,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private var screenStateReceiverRegistered = false
     @Volatile private var screenSleepStartedAtMs = 0L
     @Volatile private var lastWakeRecoveryAtMs = 0L
+    @Volatile private var pendingWakeAction: String? = null
+    @Volatile private var wakeRecoveryStage: Int = 0
 
     private var statusThread: Thread? = null
     private val statusStop = AtomicBoolean(false)
@@ -535,6 +538,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         stopTransportStatsLogging()
         stopStatusSyncBestEffort()
         cancelFtpRetry()
+        pendingWakeAction = null
+        wakeRecoveryStage = 0
+        mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
         routeFailureStreak = 0
 
         try {
@@ -611,6 +617,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             screenStateReceiver = null
             screenStateReceiverRegistered = false
             screenSleepStartedAtMs = 0L
+            pendingWakeAction = null
+            wakeRecoveryStage = 0
+            mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
         }
     }
 
@@ -633,26 +642,62 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val sleptMs = now - sleptAt
         Log.i(TAG, "Устройство вышло из сна: action=$action, slept=${sleptMs}ms")
 
-        mainHandler.post {
-            val currentSender = sender
-            val snapshot = currentSender?.snapshot()
-            val recentVideoTraffic = snapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
-                lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
-            } == true
-            val displayId = VdspState.getDisplayId()
+        pendingWakeAction = action
+        wakeRecoveryStage = 0
+        mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
+        mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_VERIFY_DELAY_MS)
+    }
 
-            if (streamActive && !startInProgress && currentSender != null) {
-                encoder?.relaunchTargetActivityIfNeeded("wake:$action")
-            }
+    private fun verifyWakeRecovery() {
+        val action = pendingWakeAction ?: return
+        val currentSender = sender
+        val snapshot = currentSender?.snapshot()
+        val recentVideoTraffic = snapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
+            lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
+        } == true
+        val displayId = VdspState.getDisplayId()
 
-            if (!streamActive || startInProgress || currentSender == null || !recentVideoTraffic || displayId < 0) {
-                requestImmediateRecovery(
-                    reason = "wake_recovery",
-                    minBackoffMs = RESTART_BACKOFF_START_MS,
-                    userMessage = "Телефон вышел из сна. Перезапускаю трансляцию и сеть…",
-                )
-            }
+        if (streamActive && !startInProgress && currentSender != null && recentVideoTraffic && displayId >= 0) {
+            Log.i(TAG, "После выхода из сна поток уже активен; лишний relaunch не нужен")
+            pendingWakeAction = null
+            wakeRecoveryStage = 0
+            return
         }
+
+        if (!streamActive || startInProgress || currentSender == null || displayId < 0) {
+            pendingWakeAction = null
+            wakeRecoveryStage = 0
+            requestImmediateRecovery(
+                reason = "wake_recovery",
+                minBackoffMs = RESTART_BACKOFF_START_MS,
+                userMessage = "Телефон вышел из сна. Перезапускаю трансляцию и сеть…",
+            )
+            return
+        }
+
+        if (wakeRecoveryStage == 0) {
+            wakeRecoveryStage = 1
+            encoder?.forceOutputFrame("wake:$action")
+            mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
+            mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_FORCE_FRAME_SETTLE_DELAY_MS)
+            return
+        }
+
+        if (wakeRecoveryStage == 1) {
+            wakeRecoveryStage = 2
+            encoder?.relaunchTargetActivityIfNeeded("wake:$action")
+            mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
+            mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_RELAUNCH_SETTLE_DELAY_MS)
+            return
+        }
+
+        pendingWakeAction = null
+        wakeRecoveryStage = 0
+        requestImmediateRecovery(
+            reason = "wake_recovery",
+            minBackoffMs = RESTART_BACKOFF_START_MS,
+            userMessage = "После выхода из сна поток не восстановился. Перезапускаю трансляцию и сеть…",
+        )
     }
 
     private fun startStatusSyncBestEffort(network: Network?, bindIp: String?, hostValue: String) {
@@ -1468,5 +1513,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             get() = RuntimeConfig.Network.GATEWAY
 
         private const val WAKE_RECOVERY_DEBOUNCE_MS = 2_000L
+        private const val WAKE_VERIFY_DELAY_MS = 1_500L
+        private const val WAKE_FORCE_FRAME_SETTLE_DELAY_MS = 1_200L
+        private const val WAKE_RELAUNCH_SETTLE_DELAY_MS = 2_500L
     }
 }
