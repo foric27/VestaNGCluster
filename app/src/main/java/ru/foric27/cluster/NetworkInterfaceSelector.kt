@@ -30,6 +30,19 @@ object NetworkInterfaceSelector {
 
     fun select(preferredName: String = RuntimeConfig.Root.IFACE): Selection {
         val available = discoverInterfaces()
+        return selectFromAvailable(available, preferredName)
+    }
+
+    internal fun selectFromAvailable(
+        availableNames: Collection<String>,
+        preferredName: String = RuntimeConfig.Root.IFACE,
+    ): Selection {
+        val available = TreeSet<String>(String.CASE_INSENSITIVE_ORDER).apply {
+            availableNames
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .forEach(::add)
+        }.toList()
         val preferred = preferredName
             .trim()
             .takeIf { it.isNotEmpty() && !it.equals(AUTO_INTERFACE_VALUE, ignoreCase = true) }
@@ -105,7 +118,7 @@ object NetworkInterfaceSelector {
                     cmds = listOf("ip -o link show", "cat /proc/net/dev"),
                     logOnFailure = false,
                 ).takeIf { it.ok() }?.let { result ->
-                    collectInterfacesFromRootOutput(result.out).forEach { names += it }
+                    parseInterfaceNames(result.out).forEach { names += it }
                 }
             }.onFailure {
                 Log.w(TAG, "Не удалось получить список интерфейсов через root", it)
@@ -128,7 +141,7 @@ object NetworkInterfaceSelector {
         return null
     }
 
-    private fun collectInterfacesFromRootOutput(output: String): Set<String> {
+    internal fun parseInterfaceNames(output: String): Set<String> {
         val names = TreeSet<String>(String.CASE_INSENSITIVE_ORDER)
         output.lineSequence().forEach { rawLine ->
             val line = rawLine.trim()
@@ -141,7 +154,12 @@ object NetworkInterfaceSelector {
 
             line.substringBefore(':')
                 .trim()
-                .takeIf { it.isNotEmpty() && !it.contains(' ') && it != "Inter-|"}?.let { names += it }
+                .takeIf {
+                    it.isNotEmpty() &&
+                        !it.contains(' ') &&
+                        it != "Inter-|" &&
+                        !it.all(Char::isDigit)
+                }?.let { names += it }
         }
         return names
     }

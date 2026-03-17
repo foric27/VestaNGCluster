@@ -294,12 +294,7 @@ class MainActivity : AppCompatActivity() {
         if (vdspReceiverRegistered) return
         try {
             val filter = IntentFilter(VdspState.ACTION_VDSP_READY)
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(vdspReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                @Suppress("DEPRECATION")
-                registerReceiver(vdspReceiver, filter)
-            }
+            ContextCompat.registerReceiver(this, vdspReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             vdspReceiverRegistered = true
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось зарегистрировать VDSP receiver", t)

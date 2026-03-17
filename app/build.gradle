@@ -96,4 +96,6 @@ dependencies {
     implementation 'androidx.transition:transition:1.5.1'
     implementation 'org.apache.ftpserver:ftpserver-core:1.2.1'
     implementation 'org.apache.mina:mina-core:2.2.5'
+
+    testImplementation 'junit:junit:4.13.2'
 }

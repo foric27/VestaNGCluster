@@ -106,13 +106,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         try {
             val action = intent?.action
             if (action == ACTION_REFRESH_FTP_NOW) {
-                Thread({
+                startDetachedWorker("RefreshFtpNow") {
                     try {
                         startOrRefreshUpdateServer()
                     } catch (t: Throwable) {
                         Log.e(TAG, "Ошибка немедленного обновления FTP", t)
                     }
-                }, "RefreshFtpNow").start()
+                }
                 return START_STICKY
             }
 
@@ -153,7 +153,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 buildNotification(getString(R.string.service_notification_stream_preparing_fmt, targetHost, targetPort)),
             )
 
-            Thread({
+            startDetachedWorker("StartupWorker") {
                 try {
                     startOrRefreshUpdateServer()
                     scheduleInternalUpdatePoll()
@@ -188,7 +188,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         scheduleRestart("network_prep", t)
                     }
                 }
-            }, "StartupWorker").start()
+            }
             return START_STICKY
         } catch (se: SecurityException) {
             startInProgress = false
@@ -295,12 +295,12 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
         ftpRetryScheduled.set(false)
 
-        Thread({
+        startDetachedWorker("FtpRetryWorker") {
             try {
                 val state = UpdateServerManager.getServerState()
                 if (state.status == UpdateServerManager.Status.RUNNING) {
                     cancelFtpRetry()
-                    return@Thread
+                    return@startDetachedWorker
                 }
 
                 val result = UpdateServerManager.restartServer()
@@ -325,7 +325,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 Log.e(TAG, "Ошибка повторного запуска FTP", t)
                 scheduleFtpRetry("ftp_retry_exception")
             }
-        }, "FtpRetryWorker").start()
+        }
     }
 
     private fun performInternalUpdatePoll() {
@@ -335,7 +335,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
         internalUpdatePollScheduled.set(false)
 
-        Thread({
+        startDetachedWorker("UpdatePollWorker") {
             try {
                 val result = UpdateServerManager.pollInternalStorage(applicationContext)
                 val report = (if (result.success) "ok:" else "fail:") + result.message
@@ -357,7 +357,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     scheduleInternalUpdatePoll()
                 }
             }
-        }, "UpdatePollWorker").start()
+        }
     }
 
     private fun attemptRestart(reason: String?) {
@@ -373,7 +373,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         RootNetUtil.clearCaches()
         unbindProcessNetworkBestEffort()
 
-        Thread({
+        startDetachedWorker("RestartWorker") {
             try {
                 val cfg = lastCfg ?: StreamConfig.fixedConfig(this@UdpStreamService)
                 val targetHost = host ?: cfg.ip
@@ -384,7 +384,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         startInProgress = false
                         notifyRootRequiredOnce()
                     }
-                    return@Thread
+                    return@startDetachedWorker
                 }
 
                 if (cfg.useRootNet && !networkPrep.ifacePresent) {
@@ -399,7 +399,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, restartBackoffMs / 1000))
                         scheduleRestart(RuntimeConfig.Root.MISSING_REASON, null)
                     }
-                    return@Thread
+                    return@startDetachedWorker
                 }
 
                 mainHandler.post {
@@ -421,7 +421,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     scheduleRestart("retry", t)
                 }
             }
-        }, "RestartWorker").start()
+        }
     }
 
     private fun notifyNoLinkOnce(msg: String) {
@@ -1305,6 +1305,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun launchWorker(name: String, block: () -> Unit): Thread {
         return Thread(block, name).also { it.start() }
+    }
+
+    private fun startDetachedWorker(name: String, block: () -> Unit) {
+        launchWorker(name, block)
     }
 
     private fun interruptThreadQuietly(thread: Thread?, label: String) {
