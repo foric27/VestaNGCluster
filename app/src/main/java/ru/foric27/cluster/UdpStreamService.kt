@@ -22,6 +22,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -606,12 +607,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
 
         try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                @Suppress("DEPRECATION")
-                registerReceiver(receiver, filter)
-            }
+            registerLocalReceiver(receiver, filter)
             screenStateReceiver = receiver
             screenStateReceiverRegistered = true
         } catch (t: Throwable) {
@@ -623,18 +619,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun unregisterScreenStateReceiver() {
         if (!screenStateReceiverRegistered) return
-        try {
-            screenStateReceiver?.let { unregisterReceiver(it) }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось снять receiver экранных событий", t)
-        } finally {
-            screenStateReceiver = null
-            screenStateReceiverRegistered = false
-            screenSleepStartedAtMs = 0L
-            pendingWakeAction = null
-            wakeRecoveryStage = 0
-            mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
-        }
+        unregisterReceiverBestEffort(screenStateReceiver, "экранных событий")
+        screenStateReceiver = null
+        screenStateReceiverRegistered = false
+        screenSleepStartedAtMs = 0L
+        pendingWakeAction = null
+        wakeRecoveryStage = 0
+        mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
     }
 
     private fun handleScreenOff() {
@@ -736,12 +727,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 addAction(Intent.ACTION_TIMEZONE_CHANGED)
                 addAction(Intent.ACTION_LOCALE_CHANGED)
             }
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                @Suppress("DEPRECATION")
-                registerReceiver(receiver, filter)
-            }
+            registerLocalReceiver(receiver, filter)
             statusReceiverRegistered = true
 
             statusPacketsSent.set(0)
@@ -820,13 +806,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         statusSocket = null
 
         if (statusReceiverRegistered) {
-            try {
-                statusReceiver?.let { unregisterReceiver(it) }
-            } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось снять receiver status sync", t)
-            } finally {
-                statusReceiverRegistered = false
-            }
+            unregisterReceiverBestEffort(statusReceiver, "status sync")
+            statusReceiverRegistered = false
         }
         statusReceiver = null
         syncHandler = null
@@ -1309,6 +1290,23 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun startDetachedWorker(name: String, block: () -> Unit) {
         launchWorker(name, block)
+    }
+
+    private fun registerLocalReceiver(receiver: BroadcastReceiver, filter: IntentFilter) {
+        ContextCompat.registerReceiver(
+            this,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
+
+    private fun unregisterReceiverBestEffort(receiver: BroadcastReceiver?, label: String) {
+        try {
+            receiver?.let { unregisterReceiver(it) }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось снять receiver $label", t)
+        }
     }
 
     private fun interruptThreadQuietly(thread: Thread?, label: String) {

@@ -8,6 +8,7 @@ import androidx.core.os.ConfigurationCompat
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.abs
 
@@ -43,6 +44,7 @@ class SyncHandler(
             val utc: ZonedDateTime = utcInst.atZone(ZoneOffset.UTC)
             val totalOffsetMs = zone.getOffset(utcInst.toEpochMilli())
             return String.format(
+                Locale.US,
                 "%02d%02d%02d%+03d%02d",
                 utc.hour,
                 utc.minute,
