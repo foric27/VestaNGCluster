@@ -295,7 +295,11 @@ object RuntimeConfig {
     private fun long(key: String, default: Long): Long = rawValues[key]?.toLongOrNull() ?: default
 
     private fun boolean(key: String, default: Boolean): Boolean {
-        return when ((rawValues[key] ?: default.toString()).trim().lowercase()) {
+        return parseBooleanValue(rawValues[key], default)
+    }
+
+    internal fun parseBooleanValue(rawValue: String?, default: Boolean): Boolean {
+        return when ((rawValue ?: default.toString()).trim().lowercase()) {
             "true", "1", "yes", "on" -> true
             "false", "0", "no", "off" -> false
             else -> default

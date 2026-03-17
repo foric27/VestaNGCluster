@@ -241,17 +241,7 @@ class DeveloperActivity : AppCompatActivity() {
         }
 
         RuntimeConfig.init(applicationContext)
-        when (applyTargetFor(spec)) {
-            ApplyTarget.FTP -> {
-                UdpStreamService.refreshFtpCompat(this)
-                binding.developerStatusText.text = getString(R.string.developer_applied_ftp_fmt, spec.title)
-            }
-            ApplyTarget.STREAM -> {
-                RootNetUtil.clearCaches()
-                UdpStreamService.restartServiceCompat(this)
-                binding.developerStatusText.text = getString(R.string.developer_applied_stream_fmt, spec.title)
-            }
-        }
+        handleAppliedChange(spec)
     }
 
     private fun applySpecChange(
@@ -272,6 +262,11 @@ class DeveloperActivity : AppCompatActivity() {
         val appliedValue = RuntimeConfig.getFieldValue(spec)
         runtimeInputs[spec]?.setText(appliedValue)
 
+        handleAppliedChange(spec)
+        return appliedValue
+    }
+
+    private fun handleAppliedChange(spec: RuntimeConfig.FieldSpec) {
         when (applyTargetFor(spec)) {
             ApplyTarget.FTP -> {
                 UdpStreamService.refreshFtpCompat(this)
@@ -283,7 +278,6 @@ class DeveloperActivity : AppCompatActivity() {
                 binding.developerStatusText.text = getString(R.string.developer_applied_stream_fmt, spec.title)
             }
         }
-        return appliedValue
     }
 
     private fun applyTargetFor(spec: RuntimeConfig.FieldSpec): ApplyTarget {
@@ -319,9 +313,13 @@ class DeveloperActivity : AppCompatActivity() {
         RuntimeConfig.init(applicationContext)
         RootNetUtil.clearCaches()
         renderAllValues()
+        restartRuntimeDrivenServices()
+        binding.developerStatusText.text = getString(R.string.developer_reset_success)
+    }
+
+    private fun restartRuntimeDrivenServices() {
         UdpStreamService.restartServiceCompat(this)
         UdpStreamService.refreshFtpCompat(this)
-        binding.developerStatusText.text = getString(R.string.developer_reset_success)
     }
 
     private val Int.dp: Int

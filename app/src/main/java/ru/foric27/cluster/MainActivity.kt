@@ -46,9 +46,7 @@ class MainActivity : AppCompatActivity() {
     private val vdspReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (VdspState.ACTION_VDSP_READY != intent.action) return
-            renderDynamicState()
-            renderFtpState()
-            showPendingWarnings()
+            refreshScreenState()
             showInlineNotice(getString(R.string.msg_vdsp_ready), isError = false)
         }
     }
@@ -62,9 +60,7 @@ class MainActivity : AppCompatActivity() {
         bindNoticePanel()
         bindModeSelector()
         bindFooterInfo()
-        renderDynamicState()
-        renderFtpState()
-        showPendingWarnings()
+        refreshScreenState()
         renderNoticePanel()
 
         requestNotificationsPermissionIfNeeded()
@@ -76,17 +72,13 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         AppWarningCenter.registerListener(warningListener)
         registerVdspReceiverSafely()
-        renderDynamicState()
-        renderFtpState()
-        showPendingWarnings()
+        refreshScreenState()
     }
 
     override fun onResume() {
         super.onResume()
         handleAllFilesAccessState()
-        renderDynamicState()
-        renderFtpState()
-        showPendingWarnings()
+        refreshScreenState()
     }
 
     override fun onStop() {
@@ -110,8 +102,7 @@ class MainActivity : AppCompatActivity() {
         binding.modeRadioGroup.setOnCheckedChangeListener { _, checkedId ->
             val mode = radioIdToMode(checkedId) ?: return@setOnCheckedChangeListener
             val result = AppSettings.applySelectedMode(this, mode)
-            renderDynamicState()
-            showPendingWarnings()
+            refreshScreenState(refreshFtp = false)
 
             if (result.ok) {
                 showInlineNotice(getString(R.string.stream_mode_apply_ok_fmt, modeLabel(mode)), isError = false)
@@ -172,20 +163,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensureStreamingRunning() {
         if (UdpStreamService.isServiceRunning()) {
-            renderDynamicState()
-            renderFtpState()
-            showPendingWarnings()
+            refreshScreenState()
             return
         }
 
         startStreamingService()
-        renderDynamicState()
-        renderFtpState()
-        showPendingWarnings()
+        refreshScreenState()
     }
 
     private fun startStreamingService() {
         UdpStreamService.startServiceCompat(this)
+    }
+
+    private fun refreshScreenState(
+        refreshFtp: Boolean = true,
+        consumeWarnings: Boolean = true,
+    ) {
+        renderDynamicState()
+        if (refreshFtp) {
+            renderFtpState()
+        }
+        if (consumeWarnings) {
+            showPendingWarnings()
+        }
     }
 
     private fun renderDynamicState() {

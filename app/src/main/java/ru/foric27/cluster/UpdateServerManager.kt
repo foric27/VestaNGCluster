@@ -87,8 +87,7 @@ object UpdateServerManager {
                     }
                 }
 
-                stopServerForReloadLocked()
-                startValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
+                reloadValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
             } catch (t: Throwable) {
                 Log.e(TAG, "Ошибка запуска FTP-сервера обновления", t)
                 val retrySuggested = isTransientFtpStartError(t)
@@ -156,8 +155,7 @@ object UpdateServerManager {
                     TAG,
                     "Периодический опрос обнаружил новое или изменённое обновление во внутренней памяти: ${validatedPair.pair.directoryLabel}",
                 )
-                stopServerForReloadLocked()
-                startValidatedPairLocked(applicationContext, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY, validatedPair)
+                reloadValidatedPairLocked(applicationContext, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY, validatedPair)
             } catch (t: Throwable) {
                 Log.e(TAG, "Ошибка периодического опроса обновления во внутренней памяти", t)
                 val retrySuggested = isTransientFtpStartError(t)
@@ -326,10 +324,14 @@ object UpdateServerManager {
         }
     }
 
-    private fun stopServerForReloadLocked() {
+    private fun reloadValidatedPairLocked(
+        context: Context,
+        searchPolicy: UpdateFileLocator.SearchPolicy,
+        validatedPair: ValidatedPair,
+    ): Result {
         stopServerLocked(clearPrepared = true)
+        return startValidatedPairLocked(context, searchPolicy, validatedPair)
     }
-
     private fun stopServerAndFailLocked(
         message: String,
         retrySuggested: Boolean = false,
