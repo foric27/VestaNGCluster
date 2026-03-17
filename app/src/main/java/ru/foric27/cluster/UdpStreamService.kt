@@ -89,10 +89,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private var port: Int = 0
     private var lastCfg: StreamConfig? = null
     private lateinit var updateCoordinator: UdpUpdateServerCoordinator
-    private lateinit var statusSyncCoordinator: UdpStatusSyncCoordinator
     private lateinit var wakeRecoveryController: UdpWakeRecoveryController
-    private lateinit var networkCoordinator: StreamNetworkCoordinator
-    private lateinit var connectivityWatchdog: UdpConnectivityWatchdog
 
     override fun onCreate() {
         super.onCreate()
@@ -245,14 +242,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             startDetachedWorker = ::startDetachedWorker,
             publishWarning = { AppWarningCenter.publish(it) },
         )
-        statusSyncCoordinator = UdpStatusSyncCoordinator(
-            context = applicationContext,
-            registerLocalReceiver = ::registerLocalReceiver,
-            unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
-            launchWorker = ::launchWorker,
-            interruptThreadQuietly = ::interruptThreadQuietly,
-            joinThreadQuietly = ::joinThreadQuietly,
-        )
         wakeRecoveryController = UdpWakeRecoveryController(
             context = this,
             mainHandler = mainHandler,
@@ -262,19 +251,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             logPipelineSnapshot = ::logPipelineSnapshot,
             forceOutputFrame = { reason -> encoder?.forceOutputFrame(reason) ?: Unit },
             relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
-            requestImmediateRecovery = ::requestImmediateRecovery,
-        )
-        networkCoordinator = StreamNetworkCoordinator(
-            context = this,
-            logTag = TAG,
-            onNetworkAvailable = ::onEthernetNetworkAvailable,
-            onNetworkLost = ::onEthernetNetworkLost,
-        )
-        connectivityWatchdog = UdpConnectivityWatchdog(
-            launchWorker = ::launchWorker,
-            interruptThreadQuietly = ::interruptThreadQuietly,
-            joinThreadQuietly = ::joinThreadQuietly,
-            stateProvider = ::buildWatchdogState,
             requestImmediateRecovery = ::requestImmediateRecovery,
         )
     }
@@ -292,14 +268,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
     }
 
-    private fun onEthernetNetworkAvailable() {
-        if (UpdateServerManager.getServerState().retrySuggested) {
-            updateCoordinator.startOrRefreshUpdateServer()
-        }
-        if (streamActive || startInProgress || sender != null) return
-        scheduleRestart("net_available", null)
-    }
-
     private fun onEthernetNetworkLost(network: Network) {
         if (boundNetwork == network || streamActive || startInProgress || sender != null) {
             Log.w(TAG, "Ethernet Network потерян: $network")
@@ -309,24 +277,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 userMessage = "Ethernet-связь потеряна. Перезапуск стрима…",
             )
         }
-    }
-
-    private fun buildWatchdogState(): UdpConnectivityWatchdogState? {
-        val cfg = lastCfg ?: return null
-        val currentSender = sender ?: return null
-        val targetHost = host?.takeIf { it.isNotBlank() } ?: cfg.ip
-        return UdpConnectivityWatchdogState(
-            sender = currentSender,
-            cfg = cfg,
-            host = targetHost,
-            activeRootIface = activeRootIface,
-            routeFailureStreak = routeFailureStreak,
-            routeFailureThreshold = ROUTE_FAILURES_BEFORE_RESTART,
-            routeRecentSendGraceMs = ROUTE_RECENT_SEND_GRACE_MS,
-            missingBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
-            noRouteBackoffMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
-            onRouteFailureStreakChanged = { routeFailureStreak = it },
-        )
     }
 
     private fun scheduleRestart(reason: String, cause: Throwable?) {
