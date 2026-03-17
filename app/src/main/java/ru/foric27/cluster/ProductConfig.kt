@@ -90,8 +90,8 @@ object ProductConfig {
         /** Короткая строка адреса синхронизации статуса для логов и диагностики. */
         val STATUS_ENDPOINT: String = "$TARGET_IP:$STATUS_PORT"
 
-        /** По умолчанию использовать системный `Network`; root нужен только для принудительной статической схемы. */
-        const val USE_ROOT_NET: Boolean = false
+        /** По умолчанию использовать root-схему, потому что статический IP на интерфейсе назначается через `su`. */
+        const val USE_ROOT_NET: Boolean = true
 
         /** Локальный адрес и маска интерфейса в формате CIDR. */
         const val LOCAL_CIDR: String = "192.168.40.1/24"
