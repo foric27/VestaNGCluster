@@ -326,7 +326,7 @@ class MainActivity : AppCompatActivity() {
         hadAllFilesAccess = hasAccess
 
         if (!hasAccess) {
-            showInlineNotice(StorageAccessManager.buildMissingAccessMessage(), isError = true)
+            showInlineNotice(StorageAccessManager.buildMissingAccessMessage(this), isError = true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !manageStorageSettingsOpened) {
                 manageStorageSettingsOpened = true
                 openManageAllFilesAccessSettings()

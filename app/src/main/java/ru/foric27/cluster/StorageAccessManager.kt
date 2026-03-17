@@ -40,7 +40,7 @@ object StorageAccessManager {
         }
     }
 
-    fun buildMissingAccessMessage(): String {
-        return "Нужно выдать приложению доступ ко всем файлам (MANAGE_EXTERNAL_STORAGE)"
+    fun buildMissingAccessMessage(context: Context): String {
+        return context.getString(R.string.storage_access_missing_message)
     }
 }

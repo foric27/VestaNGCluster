@@ -161,4 +161,5 @@
 
     <string name="app_recovery_restart_reason_task_removed">Приложение закрыто из списка недавних</string>
     <string name="app_recovery_restart_reason_service_destroyed">Сервис был уничтожен системой</string>
+    <string name="storage_access_missing_message">Нужно выдать приложению доступ ко всем файлам (MANAGE_EXTERNAL_STORAGE)</string>
 </resources>

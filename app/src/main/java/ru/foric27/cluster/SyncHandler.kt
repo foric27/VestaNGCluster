@@ -15,13 +15,8 @@ import kotlin.math.abs
 /**
  * Формирование JSON-пакета синхронизации для приёмника кластера.
  *
- * Пакет всегда содержит:
- *  - vid: режим видеопотока
- *  - time: текущее время в формате OEM
- *  - lang: текущий язык интерфейса
- *
- * Это важно для устойчивости: если первый пакет статуса потерян,
- * приёмник всё равно получает время и язык уже в следующем тике.
+ * Пакет всегда содержит `vid`, а `time` и `lang` отправляются периодически
+ * или при явном изменении соответствующего состояния.
  */
 class SyncHandler(
     private val context: Context,
@@ -88,7 +83,7 @@ class SyncHandler(
             data.lang = getLocalLang()
         }
         if (periodic || timeChanged || langChanged) {
-            Log.v(TAG, "Сформирован пакет sync: периодический=$periodic timeChanged=$timeChanged langChanged=$langChanged")
+            Log.v(TAG, "Сформирован пакет sync: periodic=$periodic timeChanged=$timeChanged langChanged=$langChanged")
         }
         timeChanged = false
         langChanged = false
@@ -109,14 +104,14 @@ class SyncHandler(
                 val raw = Settings.Global.getInt(context.contentResolver, STREAM_MODE_PARAM)
                 try {
                     getStreamMode(raw)
-                } catch (e: StreamModeException) {
+                } catch (_: StreamModeException) {
                     if (!warnedBadStreamModeValue) {
                         warnedBadStreamModeValue = true
                         Log.w(TAG, "Некорректное значение режима видеопотока: key=$STREAM_MODE_PARAM value=$raw. Использую fallback 'nav'.")
                     }
                     StreamMode.nav
                 }
-            } catch (e: Settings.SettingNotFoundException) {
+            } catch (_: Settings.SettingNotFoundException) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
                     Log.w(TAG, "Настройка режима видеопотока отсутствует: key=$STREAM_MODE_PARAM. Использую fallback 'nav'.")
@@ -147,6 +142,8 @@ class SyncHandler(
     companion object {
         private const val TAG = "SyncHandler"
         const val STREAM_MODE_PARAM: String = "android.extension.car.cluster.CLUSTER_VIDEO_STREAM_STATUS"
+        private const val SUPPORTED_LANG_RU = "ru"
+        private const val SUPPORTED_LANG_EN = "en"
 
         @Volatile
         private var warnedMissingStreamModeSetting: Boolean = false
@@ -162,10 +159,19 @@ class SyncHandler(
             return periodic || langChanged
         }
 
+        internal fun mapSupportedClusterLang(rawLanguage: String?): String {
+            val normalized = rawLanguage?.trim()?.lowercase(Locale.US).orEmpty()
+            return if (normalized == SUPPORTED_LANG_RU) {
+                SUPPORTED_LANG_RU
+            } else {
+                SUPPORTED_LANG_EN
+            }
+        }
+
         private fun getLocalLang(): String {
             val locale = ConfigurationCompat.getLocales(Resources.getSystem().configuration)[0]
-            val lang = locale?.language ?: java.util.Locale.getDefault().language
-            return if (lang.isBlank()) "ru" else lang
+            val rawLanguage = locale?.language ?: Locale.getDefault().language
+            return mapSupportedClusterLang(rawLanguage)
         }
     }
 }

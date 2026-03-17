@@ -64,7 +64,7 @@ object UpdateServerManager {
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
                 Log.w(TAG, "Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен")
                 return stopServerAndFailLocked(
-                    message = StorageAccessManager.buildMissingAccessMessage(),
+                    message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
                     detectedLocation = lastDetectedLocation,
                 )
             }
@@ -131,7 +131,7 @@ object UpdateServerManager {
 
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
                 return stopServerAndFailLocked(
-                    message = StorageAccessManager.buildMissingAccessMessage(),
+                    message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
                     detectedLocation = lastDetectedLocation,
                 )
             }
