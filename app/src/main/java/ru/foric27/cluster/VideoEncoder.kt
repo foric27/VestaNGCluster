@@ -66,6 +66,7 @@ class VideoEncoder(
     @Volatile private var fpsWindowFrames: Int = 0
     @Volatile private var hasPendingSurfaceFrame: Boolean = false
     @Volatile private var hasRenderedAnyFrame: Boolean = false
+    @Volatile private var lastRenderedFrameAtMs: Long = 0L
 
     fun start() {
         if (running) return
@@ -117,6 +118,8 @@ class VideoEncoder(
             acquireVirtualDisplayOrThrow()
             if (!streamConfig.dynamicFps) {
                 scheduleConstantFpsTick(initial = true)
+            } else {
+                scheduleDynamicKeepaliveTick()
             }
         } catch (t: Throwable) {
             Log.e(TAG, "Не удалось запустить VideoEncoder", t)
@@ -309,6 +312,7 @@ class VideoEncoder(
         fpsWindowFrames = 0
         hasPendingSurfaceFrame = false
         hasRenderedAnyFrame = false
+        lastRenderedFrameAtMs = 0L
     }
 
     private fun acquireVirtualDisplayOrThrow() {
@@ -459,6 +463,7 @@ class VideoEncoder(
             composer.drawSurfaceFrame(surfaceTexture)
             hasRenderedAnyFrame = true
             hasPendingSurfaceFrame = false
+            lastRenderedFrameAtMs = SystemClock.elapsedRealtime()
         } catch (t: Throwable) {
             Log.e(TAG, "Ошибка GL-композиции кадра -> рестарт", t)
             safeRequestRestart()
@@ -477,6 +482,7 @@ class VideoEncoder(
             } else {
                 composer.drawLastFrame()
             }
+            lastRenderedFrameAtMs = SystemClock.elapsedRealtime()
         } catch (t: Throwable) {
             Log.e(TAG, "Ошибка постоянного FPS -> рестарт", t)
             safeRequestRestart()
@@ -488,6 +494,12 @@ class VideoEncoder(
         val delayMs = (1000L / streamConfig.fps.coerceAtLeast(1)).coerceAtLeast(1L)
         handler.removeCallbacks(constantFpsRunnable)
         handler.postDelayed(constantFpsRunnable, if (initial) delayMs else 0L)
+    }
+
+    private fun scheduleDynamicKeepaliveTick() {
+        val handler = codecHandler ?: return
+        handler.removeCallbacks(dynamicKeepaliveRunnable)
+        handler.postDelayed(dynamicKeepaliveRunnable, DYNAMIC_KEEPALIVE_PERIOD_MS)
     }
 
     private fun onEncoderOutput(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
@@ -527,6 +539,30 @@ class VideoEncoder(
             if (!running || stopping || streamConfig.dynamicFps) return
             renderConstantFpsFrame()
             scheduleConstantFpsTick(initial = true)
+        }
+    }
+
+    private val dynamicKeepaliveRunnable = object : Runnable {
+        override fun run() {
+            if (!running || stopping || !streamConfig.dynamicFps) return
+
+            val nowMs = SystemClock.elapsedRealtime()
+            val idleMs = nowMs - lastRenderedFrameAtMs
+            if (lastRenderedFrameAtMs > 0L && idleMs >= DYNAMIC_KEEPALIVE_PERIOD_MS) {
+                try {
+                    glComposer?.drawLastFrame()
+                    hasRenderedAnyFrame = true
+                    hasPendingSurfaceFrame = false
+                    lastRenderedFrameAtMs = nowMs
+                    Log.i(TAG, "Отправляю keepalive-кадр для живого потока, idle=${idleMs}ms")
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Ошибка keepalive-кадра в dynamicFps -> рестарт", t)
+                    safeRequestRestart()
+                    return
+                }
+            }
+
+            scheduleDynamicKeepaliveTick()
         }
     }
 
@@ -823,6 +859,7 @@ class VideoEncoder(
         private const val MIME_AVC = "video/avc"
         private const val CODEC_THREAD_JOIN_TIMEOUT_MS = 1_000L
         private const val FPS_LOG_WINDOW_MS = 2_000L
+        private const val DYNAMIC_KEEPALIVE_PERIOD_MS = 1_500L
         
         private fun releaseOutputBufferQuietly(codec: MediaCodec, index: Int) {
             try {
