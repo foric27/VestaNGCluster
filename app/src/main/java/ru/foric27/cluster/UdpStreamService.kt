@@ -57,6 +57,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private var encoder: VideoEncoder? = null
     private var sender: UdpSender? = null
+    private var screenStateReceiver: BroadcastReceiver? = null
+    private var screenStateReceiverRegistered = false
+    @Volatile private var screenSleepStartedAtMs = 0L
+    @Volatile private var lastWakeRecoveryAtMs = 0L
 
     private var statusThread: Thread? = null
     private val statusStop = AtomicBoolean(false)
@@ -91,6 +95,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         sStreamActive = false
         ensureNotificationChannel()
         cancelServiceRecoveryAlarm()
+        registerScreenStateReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -201,6 +206,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         sStreamActive = false
         sServiceRunning = false
         scheduleServiceRecovery("service_destroyed", SERVICE_RECOVERY_DELAY_MS)
+        unregisterScreenStateReceiver()
         stopInternalFull()
         super.onDestroy()
     }
@@ -355,6 +361,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
 
         stopInternalKeepService()
+        RootNetUtil.clearCaches()
         unbindProcessNetworkBestEffort()
 
         Thread({
@@ -540,10 +547,99 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         cancelPendingRestart()
         stopInternalKeepService()
         UpdateServerManager.stopServer()
+        RootNetUtil.clearCaches()
         unbindProcessNetworkBestEffort()
         unregisterEthCallbackBestEffort()
-        PersistentVirtualDisplay.releaseAll()
-        VdspState.clear()
+        PersistentVirtualDisplay.detachSurface()
+    }
+
+    private fun registerScreenStateReceiver() {
+        if (screenStateReceiverRegistered) return
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> handleScreenOff()
+                    Intent.ACTION_SCREEN_ON,
+                    Intent.ACTION_USER_PRESENT -> handleWakeEvent(intent.action.orEmpty())
+                }
+            }
+        }
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(receiver, filter)
+            }
+            screenStateReceiver = receiver
+            screenStateReceiverRegistered = true
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось зарегистрировать receiver экранных событий", t)
+            screenStateReceiver = null
+            screenStateReceiverRegistered = false
+        }
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        if (!screenStateReceiverRegistered) return
+        try {
+            screenStateReceiver?.let { unregisterReceiver(it) }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось снять receiver экранных событий", t)
+        } finally {
+            screenStateReceiver = null
+            screenStateReceiverRegistered = false
+            screenSleepStartedAtMs = 0L
+        }
+    }
+
+    private fun handleScreenOff() {
+        screenSleepStartedAtMs = SystemClock.elapsedRealtime()
+        Log.i(TAG, "Экран выключен; отслеживаю восстановление после выхода из сна")
+    }
+
+    private fun handleWakeEvent(action: String) {
+        val sleptAt = screenSleepStartedAtMs
+        if (sleptAt == 0L) return
+
+        val now = SystemClock.elapsedRealtime()
+        if ((now - lastWakeRecoveryAtMs) < WAKE_RECOVERY_DEBOUNCE_MS) {
+            return
+        }
+        lastWakeRecoveryAtMs = now
+        screenSleepStartedAtMs = 0L
+
+        val sleptMs = now - sleptAt
+        Log.i(TAG, "Устройство вышло из сна: action=$action, slept=${sleptMs}ms")
+
+        mainHandler.post {
+            val currentSender = sender
+            val snapshot = currentSender?.snapshot()
+            val recentVideoTraffic = snapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
+                lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
+            } == true
+            val displayId = VdspState.getDisplayId()
+
+            if (streamActive && !startInProgress && currentSender != null) {
+                encoder?.relaunchTargetActivityIfNeeded("wake:$action")
+            }
+
+            if (!streamActive || startInProgress || currentSender == null || !recentVideoTraffic || displayId < 0) {
+                requestImmediateRecovery(
+                    reason = "wake_recovery",
+                    minBackoffMs = RESTART_BACKOFF_START_MS,
+                    userMessage = "Телефон вышел из сна. Перезапускаю трансляцию и сеть…",
+                )
+            }
+        }
     }
 
     private fun startStatusSyncBestEffort(network: Network?, bindIp: String?, hostValue: String) {
@@ -855,6 +951,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             cancelPendingRestart()
             lastRestartRequestMs = 0L
             stopInternalKeepService()
+            RootNetUtil.clearCaches()
             unbindProcessNetworkBestEffort()
             scheduleRestart(reason, null)
         }
@@ -1309,6 +1406,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         private val RESTART_REQUEST_DEBOUNCE_MS: Long
             get() = RuntimeConfig.Service.RESTART_REQUEST_DEBOUNCE_MS
 
+        private val RESTART_BACKOFF_START_MS: Long
+            get() = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
+
         private val ROUTE_WAIT_TIMEOUT_MS: Long
             get() = RuntimeConfig.Service.ROUTE_WAIT_TIMEOUT_MS
 
@@ -1353,5 +1453,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         private val DEF_USB_GATEWAY: String
             get() = RuntimeConfig.Network.GATEWAY
+
+        private const val WAKE_RECOVERY_DEBOUNCE_MS = 2_000L
     }
 }

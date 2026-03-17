@@ -64,6 +64,11 @@ class ClusterLaunchProxyActivity : Activity() {
 
 
     private fun resolveCurrentDisplayId(): Int {
+        val persistentDisplayId = VdspState.getDisplayId()
+        if (persistentDisplayId >= 0) {
+            return persistentDisplayId
+        }
+
         return try {
             when {
                 Build.VERSION.SDK_INT >= 30 -> display?.displayId ?: -1

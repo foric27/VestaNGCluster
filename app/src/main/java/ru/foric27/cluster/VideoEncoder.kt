@@ -133,6 +133,29 @@ class VideoEncoder(
         stopping = false
     }
 
+    fun relaunchTargetActivityIfNeeded(reason: String) {
+        val displayId = virtualDisplay?.display?.displayId ?: VdspState.getDisplayId()
+        if (displayId < 0) {
+            Log.w(TAG, "Пропускаю relaunch навигатора: displayId недоступен, reason=$reason")
+            return
+        }
+
+        val handler = codecHandler
+        val relaunch = Runnable {
+            try {
+                launchFixedActivityOnDisplayBestEffort(displayId)
+                Log.i(TAG, "Повторно активирую навигатор на display=$displayId, reason=$reason")
+            } catch (t: Throwable) {
+                Log.w(TAG, "Не удалось повторно активировать навигатор на display=$displayId, reason=$reason", t)
+            }
+        }
+        if (handler != null) {
+            handler.post(relaunch)
+        } else {
+            relaunch.run()
+        }
+    }
+
     private val codecCallback = object : MediaCodec.Callback() {
         override fun onInputBufferAvailable(codec: MediaCodec, index: Int) = Unit
 
