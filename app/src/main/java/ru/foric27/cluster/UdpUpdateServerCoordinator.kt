@@ -32,9 +32,7 @@ internal class UdpUpdateServerCoordinator(
 
         Log.w(TAG, "FTP обновление не запущено: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
-        if (result.retrySuggested) {
-            scheduleFtpRetry("startup")
-        }
+        scheduleFtpRetry("startup")
     }
 
     fun scheduleInternalUpdatePoll() {
@@ -101,7 +99,7 @@ internal class UdpUpdateServerCoordinator(
 
                 if (result.success) {
                     cancelFtpRetry()
-                } else if (result.retrySuggested) {
+                } else {
                     scheduleFtpRetry("ftp_retry")
                 }
             } catch (t: Throwable) {
@@ -130,7 +128,7 @@ internal class UdpUpdateServerCoordinator(
                 }
                 if (result.success) {
                     cancelFtpRetry()
-                } else if (result.retrySuggested) {
+                } else {
                     scheduleFtpRetry("internal_poll")
                 }
             } catch (t: Throwable) {

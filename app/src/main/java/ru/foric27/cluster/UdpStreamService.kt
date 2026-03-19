@@ -365,7 +365,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                 if (result.success) {
                     cancelFtpRetry()
-                } else if (result.retrySuggested) {
+                } else {
                     scheduleFtpRetry("ftp_retry")
                 }
             } catch (t: Throwable) {
@@ -394,7 +394,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 }
                 if (result.success) {
                     cancelFtpRetry()
-                } else if (result.retrySuggested) {
+                } else {
                     scheduleFtpRetry("internal_poll")
                 }
             } catch (t: Throwable) {
@@ -588,9 +588,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         Log.w(TAG, "FTP обновление не запущено: ${result.message}")
         AppWarningCenter.publish(getString(R.string.service_notification_ftp_message_fmt, result.message))
-        if (result.retrySuggested) {
-            scheduleFtpRetry("startup")
-        }
+        scheduleFtpRetry("startup")
     }
 
     private fun stopInternalKeepService() {
