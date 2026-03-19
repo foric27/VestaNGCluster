@@ -1,154 +1,78 @@
-# VestaNGCluster
+# Vesta NG Cluster
 
-Android-приложение для кластерного сценария: вывод навигации на `VirtualDisplay`, кодирование в `H.264`, передача видеопотока по `UDP` и раздача обновлений через встроенный `FTP`-сервер.
+![Иконка приложения](docs/app-icon-1024.png)
 
-## Что делает проект
+`Vesta NG Cluster` — Android-приложение для вывода cluster/navigation UI на комбинацию приборов.  
+Основной пайплайн проекта: `VirtualDisplay` -> OpenGL-компоновка -> `MediaCodec` H.264 -> UDP-передача.
 
-- захватывает изображение со второго виртуального дисплея
-- кодирует поток в `H.264`
-- отправляет видео и служебные статусы по `UDP`
-- поднимает встроенный `FTP` для раздачи `ICUpdate.zip` и `ICUpdate.zip.sig`
-- восстанавливает стрим и сетевую часть после ошибок и части системных событий
-- поддерживает runtime-настройки через `SharedPreferences`
+## Что делает приложение
 
-## Технологии
+- запускает и удерживает foreground-сервис трансляции;
+- выводит навигационный интерфейс на виртуальный дисплей;
+- кодирует изображение в `H.264`;
+- отправляет видео и статусные данные по `UDP`;
+- поднимает встроенный `FTP` для выдачи `ICUpdate.zip` и `ICUpdate.zip.sig`;
+- восстанавливает трансляцию после ошибок, потери сети и части системных событий.
 
-- Android Gradle Plugin `9.1.0`
-- Gradle `9.3.1`
-- Java `17`
-- Kotlin через встроенную поддержку AGP
-- `compileSdk 36`
-- `targetSdk 36`
+## Ключевые особенности
+
+- фиксированное разрешение видеопотока `1920x640`;
+- root-сеть со статическим IP для целевого сценария;
+- status sync на отдельном UDP-порту;
+- режимы и runtime-настройки через экран разработчика;
+- совместимость с cluster focus broadcast заводских приложений;
+- автоматические recovery-сценарии для сервиса, стрима и FTP.
 
 ## Структура проекта
 
 ```text
-VestaNGClusterFlowStudio/
-├─ app/
-│  ├─ build.gradle
-│  └─ src/main/
-│     ├─ AndroidManifest.xml
-│     ├─ java/ru/foric27/cluster/
-│     └─ res/
-├─ gradle/
-├─ scripts/
-├─ .github/workflows/
-├─ build.gradle
-├─ gradle.properties
-├─ keystore.properties.example
-└─ README.md
+.
+├── app/
+│   ├── src/main/java/ru/foric27/cluster/
+│   ├── src/main/res/
+│   └── build.gradle
+├── docs/
+├── scripts/
+├── .github/workflows/
+├── keystore.properties.example
+└── README.md
 ```
 
-## Требования
+## Важные каталоги и файлы
 
-- Android SDK и JDK `17`
-- доступный `adb`
-- для root-сетевого режима устройству нужно выдать `su`
-- для раздачи обновлений приложению нужен доступ `MANAGE_EXTERNAL_STORAGE`
+- [`app/src/main/java/ru/foric27/cluster`](app/src/main/java/ru/foric27/cluster) — основной Kotlin-код проекта
+- [`app/src/main/res`](app/src/main/res) — ресурсы, layout, строки, иконки
+- [`app/src/main/AndroidManifest.xml`](app/src/main/AndroidManifest.xml) — manifest приложения
+- [`app/build.gradle`](app/build.gradle) — конфигурация Android-модуля
+- [`dist`](dist) — локально сохранённые production APK
+- [`docs/app-icon.svg`](docs/app-icon.svg) — крупная SVG-версия иконки приложения
 
-## Сборка
+## Основные компоненты
 
-Debug APK:
+- [`UdpStreamService.kt`](app/src/main/java/ru/foric27/cluster/UdpStreamService.kt) — orchestration сервиса, restart/recovery, статус, FTP и сеть
+- [`VideoEncoder.kt`](app/src/main/java/ru/foric27/cluster/VideoEncoder.kt) — видеокодирование, `VirtualDisplay`, запуск target activity
+- [`RootNetUtil.kt`](app/src/main/java/ru/foric27/cluster/RootNetUtil.kt) — root-команды для IP и маршрутов
+- [`UpdateServerManager.kt`](app/src/main/java/ru/foric27/cluster/UpdateServerManager.kt) — update flow и FTP-сервер
+- [`MainActivity.kt`](app/src/main/java/ru/foric27/cluster/MainActivity.kt) — основной экран и пользовательский контроль
+- [`DeveloperActivity.kt`](app/src/main/java/ru/foric27/cluster/DeveloperActivity.kt) — runtime-настройки для разработчика
+- [`RuntimeConfig.kt`](app/src/main/java/ru/foric27/cluster/RuntimeConfig.kt) — runtime-переопределения поверх `ProductConfig`
+- [`ProductConfig.kt`](app/src/main/java/ru/foric27/cluster/ProductConfig.kt) — базовые дефолты и wire-контракты
 
-```powershell
-.\gradlew.bat assembleDebug
-```
+## Как использовать
 
-Release APK:
+- установите приложение на устройство;
+- запустите [`MainActivity`](app/src/main/java/ru/foric27/cluster/MainActivity.kt);
+- дайте необходимые системные разрешения;
+- при необходимости откройте экран разработчика и измените runtime-настройки;
+- для production-версии используйте APK из каталога [`dist`](dist).
 
-```powershell
-.\gradlew.bat assembleRelease
-```
+## Что важно знать
 
-## Подпись release
-
-Release-подпись берётся из одного из двух источников:
-
-1. Переменные окружения:
-   - `ANDROID_KEYSTORE_FILE`
-   - `ANDROID_KEYSTORE_PASSWORD`
-   - `ANDROID_KEY_ALIAS`
-   - `ANDROID_KEY_PASSWORD`
-2. Локальный `keystore.properties` в корне проекта
-
-Пример файла лежит в `keystore.properties.example`.
-
-`keystore.properties` и сам keystore в git не хранятся.
-
-## Установка на устройство
-
-Подключение тестового устройства:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' connect 192.168.1.163:5555
-```
-
-Установка debug APK:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 install -r '.\app\build\outputs\apk\debug\app-debug.apk'
-```
-
-Запуск приложения:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell am start -W -n ru.foric27.cluster/.MainActivity
-```
-
-## Минимальный smoke-тест
-
-После установки полезно проверить:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell dumpsys activity activities | Select-String 'topResumedActivity|ru.foric27.cluster'
-```
-
-```powershell
-$pid = (& '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 shell pidof ru.foric27.cluster).Trim()
-if ($pid) { & '.\.tools\platform-tools\adb.exe' -s 192.168.1.163:5555 logcat --pid=$pid -d -t 500 }
-```
-
-Если поднялся `FTP`, дополнительно:
-
-```powershell
-Test-NetConnection 192.168.1.163 -Port 2121
-```
-
-## Диагностика
-
-Полезные признаки в логах:
-
-- успешный root-сценарий сети: `Статический IP применён`
-- успешный старт стрима: `Стрим успешно запущен`
-- keepalive при статичной картинке: `Отправляю keepalive-кадр`
-- восстановление после сна или ошибки: `Немедленное восстановление`
-- снимок внутреннего состояния сервиса: `Снимок сервиса | ...`
-
-Очистить `logcat` перед тестом:
-
-```powershell
-& '.\.tools\platform-tools\adb.exe' logcat -c
-```
+- поток всегда передаётся в размере `1920x640`, даже если UI адаптирован под другой экран;
+- язык панели ограничен `ru` и `en`;
+- root-интерфейс по умолчанию — `eth0`, а его изменение доступно только через экран разработчика;
+- внешний viewer на ПК может показывать decode-ошибки при слишком большом `UDP max payload`, поэтому для такой проверки обычно используют диапазон `1200-1400`.
 
 ## GitHub Actions
 
-В репозитории настроен workflow `Android Release`:
-
-- запускается на каждый push в `main`
-- умеет запускаться вручную через `workflow_dispatch`
-- собирает `release` APK
-- обновляет prerelease `main-latest`
-- прикладывает APK к GitHub Releases
-
-Для подписанной GitHub-сборки должны быть настроены secrets:
-
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
-
-## Известные ограничения
-
-- системный `displayId` назначает Android, жёстко зафиксировать его на конкретное число приложением нельзя
-- без `su` нельзя штатно назначить статический IP на интерфейс `eth0`
-- при первом запуске возможны системные экраны разрешений
+В репозитории настроен workflow [`Android Release`](.github/workflows/android-release.yml), который собирает релизный APK и публикует его в GitHub Releases.
