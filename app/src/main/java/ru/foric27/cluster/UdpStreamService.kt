@@ -212,6 +212,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             reason = "task_removed",
             delayMs = TASK_REMOVED_RECOVERY_DELAY_MS,
             userReason = getString(R.string.app_recovery_restart_reason_task_removed),
+            launchUi = true,
         )
         super.onTaskRemoved(rootIntent)
     }
@@ -1406,20 +1407,28 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
     }
 
-    private fun scheduleServiceRecovery(reason: String, delayMs: Long, userReason: String = reason) {
+    private fun scheduleServiceRecovery(
+        reason: String,
+        delayMs: Long,
+        userReason: String = reason,
+        launchUi: Boolean = false,
+    ) {
         try {
             val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
             val triggerAtMillis = SystemClock.elapsedRealtime() + delayMs
-            val pendingIntent = buildServiceRecoveryPendingIntent(userReason)
+            val pendingIntent = buildServiceRecoveryPendingIntent(
+                reason = userReason,
+                launchUi = launchUi,
+            )
             if (Build.VERSION.SDK_INT >= 23) {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             } else {
                 alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             }
-            Log.w(TAG, "Запланировано восстановление сервиса через ${delayMs}мс, reason=$reason")
+            Log.w(TAG, "Запланировано восстановление сервиса через ${delayMs}мс, reason=$reason, launchUi=$launchUi")
             updateNotification(getString(R.string.service_notification_service_recovery_fmt, delayMs / 1000))
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось запланировать восстановление сервиса", t)
+            Log.w(TAG, "Не удалось запланировать восстановление сервиса, reason=$reason, launchUi=$launchUi", t)
             try {
                 startServiceCompat(applicationContext)
             } catch (restartError: Throwable) {
@@ -1431,17 +1440,19 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun cancelServiceRecoveryAlarm() {
         try {
             val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(buildServiceRecoveryPendingIntent(""))
+            alarmManager.cancel(buildServiceRecoveryPendingIntent(reason = "", launchUi = false))
+            alarmManager.cancel(buildServiceRecoveryPendingIntent(reason = "", launchUi = true))
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось снять pending alarm восстановления", t)
         }
     }
 
-    private fun buildServiceRecoveryPendingIntent(reason: String): PendingIntent {
+    private fun buildServiceRecoveryPendingIntent(reason: String, launchUi: Boolean): PendingIntent {
         return AppRecoveryReceiver.createPendingIntent(
             context = this,
             requestCode = SERVICE_RECOVERY_REQUEST_CODE,
             reason = reason,
+            launchUi = launchUi,
         )
     }
 

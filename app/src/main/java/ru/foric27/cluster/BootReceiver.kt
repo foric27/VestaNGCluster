@@ -49,6 +49,7 @@ class BootReceiver : BroadcastReceiver() {
                 context = context.applicationContext,
                 requestCode = RuntimeConfig.Service.SERVICE_RECOVERY_REQUEST_CODE,
                 reason = action,
+                launchUi = false,
             )
             val triggerAtMillis = SystemClock.elapsedRealtime() + RECOVERY_DELAY_MS
             if (Build.VERSION.SDK_INT >= 23) {
