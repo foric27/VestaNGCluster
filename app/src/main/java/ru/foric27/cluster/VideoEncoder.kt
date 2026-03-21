@@ -112,6 +112,7 @@ class VideoEncoder(
             )
 
             mediaCodec.start()
+            applyConfiguredBitrate()
 
             Log.i(
                 TAG,
@@ -204,6 +205,10 @@ class VideoEncoder(
         return MediaFormat.createVideoFormat(MIME_AVC, width, height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, streamConfig.bitrate)
+            try {
+                setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+            } catch (_: Throwable) {
+            }
             setInteger(MediaFormat.KEY_FRAME_RATE, streamConfig.fps)
             if (streamConfig.dynamicFps) {
                 try {
@@ -518,6 +523,19 @@ class VideoEncoder(
                 putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
             },
         )
+    }
+
+    private fun applyConfiguredBitrate() {
+        try {
+            encoder?.setParameters(
+                Bundle().apply {
+                    putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, streamConfig.bitrate)
+                },
+            )
+            Log.i(TAG, "Принудительно применяю битрейт кодека: ${streamConfig.bitrate}bps")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось принудительно применить битрейт кодека", t)
+        }
     }
 
     private fun drawKeepaliveFrame(nowMs: Long) {

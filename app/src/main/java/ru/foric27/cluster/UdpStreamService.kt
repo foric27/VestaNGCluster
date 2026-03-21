@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
@@ -84,6 +85,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     @Volatile private var lastSeenEthNetwork: Network? = null
     private var linkCallback: android.net.ConnectivityManager.NetworkCallback? = null
     @Volatile private var activeRootIface: String? = null
+    private var streamWakeLock: PowerManager.WakeLock? = null
 
     private var host: String? = null
     private var port: Int = 0
@@ -97,6 +99,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         restartBackoffMs = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
         sServiceRunning = true
         sStreamActive = false
+        initWakeLock()
         initCollaborators()
         ensureNotificationChannel()
         cancelServiceRecoveryAlarm()
@@ -227,6 +230,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
         wakeRecoveryController.unregister()
         stopInternalFull()
+        releaseStreamWakeLock()
         super.onDestroy()
     }
 
@@ -262,6 +266,35 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
             requestImmediateRecovery = ::requestImmediateRecovery,
         )
+    }
+
+    private fun initWakeLock() {
+        val powerManager = getSystemService(POWER_SERVICE) as? PowerManager ?: return
+        streamWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:stream").apply {
+            setReferenceCounted(false)
+        }
+    }
+
+    private fun acquireStreamWakeLock() {
+        val wakeLock = streamWakeLock ?: return
+        if (wakeLock.isHeld) return
+        try {
+            wakeLock.acquire()
+            Log.i(TAG, "Удерживаю PARTIAL_WAKE_LOCK для активного стрима")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось захватить PARTIAL_WAKE_LOCK", t)
+        }
+    }
+
+    private fun releaseStreamWakeLock() {
+        val wakeLock = streamWakeLock ?: return
+        if (!wakeLock.isHeld) return
+        try {
+            wakeLock.release()
+            Log.i(TAG, "Освобождаю PARTIAL_WAKE_LOCK стрима")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось освободить PARTIAL_WAKE_LOCK", t)
+        }
     }
 
     private fun buildWakeRecoverySnapshot(): UdpWakeRecoverySnapshot {
@@ -601,6 +634,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
         routeFailureStreak = 0
         activeRootIface = null
+        releaseStreamWakeLock()
 
         try {
             encoder?.stop()
@@ -1145,6 +1179,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     startInProgress = false
                     restartBackoffMs = 500L
                     noLinkNotified = false
+                    acquireStreamWakeLock()
                     cancelPendingRestart()
                     cancelServiceRecoveryAlarm()
                     updateNotification(getString(R.string.service_notification_stream_active_fmt, hostValue, port))

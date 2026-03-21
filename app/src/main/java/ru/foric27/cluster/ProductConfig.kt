@@ -59,7 +59,7 @@ object ProductConfig {
         const val FPS_LIMIT: Int = 8
 
         /** Использовать динамический FPS по обновлениям UI. */
-        const val DYNAMIC_FPS: Boolean = true
+        const val DYNAMIC_FPS: Boolean = false
 
         /** DPI виртуального дисплея по умолчанию. */
         const val DEFAULT_DPI: Int = 320
