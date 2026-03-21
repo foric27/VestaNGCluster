@@ -7,6 +7,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Автостарт сервиса после загрузки устройства, после обновления приложения
@@ -15,16 +17,33 @@ import android.util.Log
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
-        RuntimeConfig.init(context.applicationContext)
         val action = intent?.action ?: return
+        val pendingResult = goAsync()
+        val appContext = context.applicationContext
+        receiverExecutor.execute {
+            try {
+                handleAction(appContext, action, intent)
+            } catch (t: Throwable) {
+                Log.w(TAG, "$action: не удалось обработать broadcast", t)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
+    /**
+     * Маршрутизирует broadcast в быстрый service/recovery-path, не выполняя
+     * тяжёлый USB/FTP-поиск прямо внутри onReceive.
+     */
+    private fun handleAction(context: Context, action: String, intent: Intent?) {
         when (action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED -> handleServiceAutostart(context, action)
 
-            Intent.ACTION_MEDIA_MOUNTED -> handleUsbMounted(context, intent)
+            Intent.ACTION_MEDIA_MOUNTED -> requestUsbRefresh(context, action, intent, removed = false)
             Intent.ACTION_MEDIA_REMOVED,
             Intent.ACTION_MEDIA_UNMOUNTED,
-            Intent.ACTION_MEDIA_EJECT -> handleUsbRemoved(context, intent)
+            Intent.ACTION_MEDIA_EJECT -> requestUsbRefresh(context, action, intent, removed = true)
         }
     }
 
@@ -70,28 +89,34 @@ class BootReceiver : BroadcastReceiver() {
             message.contains("ForegroundServiceStartNotAllowedException")
     }
 
-    private fun handleUsbMounted(context: Context, intent: Intent) {
-        val path = intent.data?.path.orEmpty()
+    /**
+     * USB mount/remove сводится к быстрому сигналу сервису обновить FTP-состояние.
+     * Фактический поиск update-пакета уже выполняется сервисом в фоне.
+     */
+    private fun requestUsbRefresh(context: Context, action: String, intent: Intent?, removed: Boolean) {
+        val path = intent?.data?.path.orEmpty()
         if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
-            Log.i(TAG, "Пропускаю mount не-USB носителя: $path")
+            if (path.isNotBlank()) {
+                Log.i(TAG, "$action: пропускаю не-USB носитель: $path")
+            }
             return
         }
-        val result = UpdateServerManager.handleUsbInserted(context.applicationContext)
-        Log.i(TAG, "USB вставлен: $path, результат FTP: ${result.message}")
-    }
 
-    private fun handleUsbRemoved(context: Context, intent: Intent) {
-        val path = intent.data?.path.orEmpty()
-        if (path.isNotBlank() && !UsbStoragePathMatcher.isUsbStoragePath(path)) {
-            Log.i(TAG, "Пропускаю remove не-USB носителя: $path")
-            return
-        }
-        val result = UpdateServerManager.handleUsbRemoved(context.applicationContext)
-        Log.i(TAG, "USB извлечён: $path, результат FTP: ${result.message}")
+        UdpStreamService.refreshFtpCompat(context)
+        Log.i(
+            TAG,
+            if (removed) {
+                "$action: запрошено обновление FTP после извлечения USB: $path"
+            } else {
+                "$action: запрошено обновление FTP после подключения USB: $path"
+            },
+        )
     }
 
     private companion object {
         private const val TAG = "BootReceiver"
         private const val RECOVERY_DELAY_MS = 1_500L
+        private val receiverExecutor: ExecutorService =
+            Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "BootReceiverWorker") }
     }
 }
