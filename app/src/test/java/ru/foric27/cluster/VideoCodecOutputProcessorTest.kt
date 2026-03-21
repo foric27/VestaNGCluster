@@ -1,6 +1,8 @@
 package ru.foric27.cluster
 
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VideoCodecOutputProcessorTest {
@@ -23,5 +25,23 @@ class VideoCodecOutputProcessorTest {
         val result = VideoCodecOutputProcessor.prependCodecConfigIfNeeded(frameWithConfig, config)
 
         assertArrayEquals(frameWithConfig, result)
+    }
+
+    @Test
+    fun `constant fps drops frames that arrive earlier than target interval`() {
+        assertTrue(
+            VideoCodecOutputProcessor.shouldDropFrameForConstantFps(
+                lastSentPresentationTimeUs = 1_000_000L,
+                presentationTimeUs = 1_050_000L,
+                fps = 8,
+            ),
+        )
+        assertFalse(
+            VideoCodecOutputProcessor.shouldDropFrameForConstantFps(
+                lastSentPresentationTimeUs = 1_000_000L,
+                presentationTimeUs = 1_125_000L,
+                fps = 8,
+            ),
+        )
     }
 }
