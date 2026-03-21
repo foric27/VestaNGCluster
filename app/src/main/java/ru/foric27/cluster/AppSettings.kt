@@ -17,24 +17,32 @@ object AppSettings {
     private const val KEY_STREAM_MODE = "stream_mode"
 
     enum class UiStreamMode(
-        val prefValue: String,
-        val settingValue: Int,
+        val clusterMode: ClusterMode,
     ) {
-        NAV("nav", 1),
-        MED("med", 2),
-        ABS("abs", 0),
+        NAV(ClusterMode.CLASSIC_NAV),
+        MED(ClusterMode.CLASSIC_MEDIA),
+        ABS(ClusterMode.TRIP),
         ;
+
+        val prefValue: String
+            get() = clusterMode.prefValue
+
+        val settingValue: Int
+            get() = clusterMode.settingValue
 
         companion object {
             fun fromPref(value: String?): UiStreamMode {
-                return values().firstOrNull { it.prefValue == value } ?: NAV
+                return fromClusterMode(ClusterMode.fromPref(value))
             }
 
             fun fromSetting(value: Int): UiStreamMode {
-                return when (value) {
-                    0 -> ABS
-                    1, 3, 5, 7 -> NAV
-                    2, 4, 6, 8 -> MED
+                return fromClusterMode(ClusterMode.fromSetting(value))
+            }
+
+            private fun fromClusterMode(mode: ClusterMode): UiStreamMode {
+                return when {
+                    mode.isMedia -> MED
+                    mode.isTrip -> ABS
                     else -> NAV
                 }
             }
@@ -210,4 +218,21 @@ object AppSettings {
         val success: Boolean,
         val details: String,
     )
+
+    fun getSelectedClusterMode(context: Context): ClusterMode {
+        return try {
+            val prefs = getPrefs(context)
+            val saved = prefs.getString(KEY_STREAM_MODE, null)
+            if (!saved.isNullOrBlank()) {
+                ClusterMode.fromPref(saved)
+            } else {
+                ClusterMode.fromSetting(
+                    Settings.Global.getInt(context.contentResolver, SyncHandler.STREAM_MODE_PARAM),
+                )
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось прочитать cluster mode, использую CLASSIC_NAV", t)
+            ClusterMode.CLASSIC_NAV
+        }
+    }
 }

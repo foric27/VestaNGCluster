@@ -47,9 +47,15 @@ class MainActivity : AppCompatActivity() {
 
     private val vdspReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (VdspState.ACTION_VDSP_READY != intent.action) return
-            refreshScreenState()
-            showInlineNotice(getString(R.string.msg_vdsp_ready), isError = false)
+            when (intent.action) {
+                VdspState.ACTION_VDSP_READY -> {
+                    refreshScreenState()
+                    showInlineNotice(getString(R.string.msg_vdsp_ready), isError = false)
+                }
+                VdspState.ACTION_VDSP_STATE_CHANGED -> {
+                    refreshScreenState()
+                }
+            }
         }
     }
 
@@ -216,7 +222,11 @@ class MainActivity : AppCompatActivity() {
 
         binding.statusSubline.text = when {
             streaming && displayId >= 0 -> getString(R.string.status_running_subline, displayId)
-            streaming -> getString(R.string.status_running_subline_no_display)
+            streaming -> when (VdspState.getDisplayState()) {
+                VdspState.DisplayState.REMOVED -> getString(R.string.status_running_subline_display_removed)
+                VdspState.DisplayState.CHANGED -> getString(R.string.status_running_subline_display_changed)
+                else -> getString(R.string.status_running_subline_no_display)
+            }
             running -> getString(R.string.status_starting_subline)
             else -> getString(R.string.status_recovering_subline)
         }
@@ -311,6 +321,7 @@ class MainActivity : AppCompatActivity() {
         if (vdspReceiverRegistered) return
         try {
             val filter = IntentFilter(VdspState.ACTION_VDSP_READY)
+            filter.addAction(VdspState.ACTION_VDSP_STATE_CHANGED)
             ContextCompat.registerReceiver(this, vdspReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             vdspReceiverRegistered = true
         } catch (t: Throwable) {

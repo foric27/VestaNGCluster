@@ -8,6 +8,8 @@
     <string name="status_running_headline">Трансляция активна</string>
     <string name="status_running_subline">Вывод идёт на дисплей №%1$d.</string>
     <string name="status_running_subline_no_display">Поток активен.</string>
+    <string name="status_running_subline_display_removed">Поток активен, но cluster display исчез. Ожидаю восстановление.</string>
+    <string name="status_running_subline_display_changed">Поток активен, cluster display обновлён.</string>
 
     <string name="stream_mode_title">Режим</string>
     <string name="stream_mode_nav">Навигатор</string>

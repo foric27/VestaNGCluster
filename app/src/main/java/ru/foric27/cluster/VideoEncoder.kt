@@ -307,6 +307,7 @@ class VideoEncoder(
         codecThread = null
         codecHandler = null
         resetFrameTrackingState()
+        notifyDisplayRemoved()
     }
 
     private fun acquireVirtualDisplayOrThrow() {
@@ -326,8 +327,8 @@ class VideoEncoder(
             throw IllegalStateException("VirtualDisplay создан без displayId")
         }
 
-        VdspState.set(displayId, width, height)
-        notifyDisplayReady(displayId)
+        val displayState = VdspState.set(displayId, width, height)
+        notifyDisplayReady(displayId, displayState)
 
         if (previousDisplayId >= 0 && previousDisplayId == displayId) {
             Log.i(TAG, "Переиспользую существующий VirtualDisplay display=$displayId")
@@ -338,17 +339,40 @@ class VideoEncoder(
         displayLauncher.launchOnDisplay(displayId)
     }
 
-    private fun notifyDisplayReady(displayId: Int) {
+    private fun notifyDisplayReady(displayId: Int, displayState: VdspState.DisplayState) {
         try {
             context.sendBroadcast(
                 android.content.Intent(VdspState.ACTION_VDSP_READY)
                     .setPackage(context.packageName)
-                    .putExtra("displayId", displayId)
-                    .putExtra("width", width)
-                    .putExtra("height", height),
+                    .putExtra(VdspState.EXTRA_DISPLAY_ID, displayId)
+                    .putExtra(VdspState.EXTRA_WIDTH, width)
+                    .putExtra(VdspState.EXTRA_HEIGHT, height),
+            )
+            context.sendBroadcast(
+                android.content.Intent(VdspState.ACTION_VDSP_STATE_CHANGED)
+                    .setPackage(context.packageName)
+                    .putExtra(VdspState.EXTRA_DISPLAY_ID, displayId)
+                    .putExtra(VdspState.EXTRA_WIDTH, width)
+                    .putExtra(VdspState.EXTRA_HEIGHT, height)
+                    .putExtra(VdspState.EXTRA_STATE, displayState.wireValue),
             )
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось отправить broadcast о готовности VirtualDisplay", t)
+        }
+    }
+
+    private fun notifyDisplayRemoved() {
+        try {
+            context.sendBroadcast(
+                android.content.Intent(VdspState.ACTION_VDSP_STATE_CHANGED)
+                    .setPackage(context.packageName)
+                    .putExtra(VdspState.EXTRA_DISPLAY_ID, -1)
+                    .putExtra(VdspState.EXTRA_WIDTH, width)
+                    .putExtra(VdspState.EXTRA_HEIGHT, height)
+                    .putExtra(VdspState.EXTRA_STATE, VdspState.DisplayState.REMOVED.wireValue),
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось отправить broadcast об исчезновении VirtualDisplay", t)
         }
     }
 

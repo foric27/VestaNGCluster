@@ -27,10 +27,6 @@ class SyncHandler(
     private var timeChanged: Boolean = false
     private var langChanged: Boolean = false
 
-    private enum class StreamMode {
-        nav, med, abs
-    }
-
     class SyncTime(
         private val utcInst: Instant,
         private val zone: TimeZone,
@@ -52,12 +48,12 @@ class SyncHandler(
 
     private class SyncData {
         var lang: String? = null
-        var streamMode: StreamMode? = null
+        var streamMode: String? = null
         var syncTime: SyncTime? = null
 
         override fun toString(): String {
             val json = SimpleJsonContainer()
-            streamMode?.let { json.addValue("vid", it.toString()) }
+            streamMode?.let { json.addValue("vid", it) }
             syncTime?.let { json.addValue("time", it.toString()) }
             lang?.let { json.addValue("lang", it) }
             return json.toString()
@@ -92,13 +88,9 @@ class SyncHandler(
         return data.toString()
     }
 
-    private fun readStreamModeSafely(): StreamMode {
+    private fun readStreamModeSafely(): String {
         return try {
-            when (AppSettings.getSelectedMode(context)) {
-                AppSettings.UiStreamMode.NAV -> StreamMode.nav
-                AppSettings.UiStreamMode.MED -> StreamMode.med
-                AppSettings.UiStreamMode.ABS -> StreamMode.abs
-            }
+            AppSettings.getSelectedClusterMode(context).streamModeValue
         } catch (t: Throwable) {
             try {
                 val raw = Settings.Global.getInt(context.contentResolver, STREAM_MODE_PARAM)
@@ -109,31 +101,30 @@ class SyncHandler(
                         warnedBadStreamModeValue = true
                         Log.w(TAG, "Некорректное значение режима видеопотока: key=$STREAM_MODE_PARAM value=$raw. Использую fallback 'nav'.")
                     }
-                    StreamMode.nav
+                    ClusterMode.CLASSIC_NAV.streamModeValue
                 }
             } catch (_: Settings.SettingNotFoundException) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
                     Log.w(TAG, "Настройка режима видеопотока отсутствует: key=$STREAM_MODE_PARAM. Использую fallback 'nav'.")
                 }
-                StreamMode.nav
+                ClusterMode.CLASSIC_NAV.streamModeValue
             } catch (inner: Throwable) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
                     Log.w(TAG, "Не удалось прочитать режим видеопотока: key=$STREAM_MODE_PARAM. Использую fallback 'nav'.", inner)
                 }
-                StreamMode.nav
+                ClusterMode.CLASSIC_NAV.streamModeValue
             }
         }
     }
 
     @Throws(StreamModeException::class)
-    private fun getStreamMode(v: Int): StreamMode {
-        return when (v) {
-            0 -> StreamMode.abs
-            1, 3, 5, 7 -> StreamMode.nav
-            2, 4, 6, 8 -> StreamMode.med
-            else -> throw StreamModeException()
+    private fun getStreamMode(v: Int): String {
+        return try {
+            ClusterMode.fromSetting(v).streamModeValue
+        } catch (_: Throwable) {
+            throw StreamModeException()
         }
     }
 

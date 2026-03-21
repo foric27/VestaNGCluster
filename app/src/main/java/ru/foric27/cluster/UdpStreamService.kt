@@ -63,6 +63,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private var sender: UdpSender? = null
     private var screenStateReceiver: BroadcastReceiver? = null
     private var screenStateReceiverRegistered = false
+    private var displayStateReceiver: BroadcastReceiver? = null
+    private var displayStateReceiverRegistered = false
     @Volatile private var screenSleepStartedAtMs = 0L
     @Volatile private var lastWakeRecoveryAtMs = 0L
     @Volatile private var pendingWakeAction: String? = null
@@ -104,6 +106,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         ensureNotificationChannel()
         cancelServiceRecoveryAlarm()
         wakeRecoveryController.register()
+        registerDisplayStateReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -229,6 +232,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             userReason = getString(R.string.app_recovery_restart_reason_service_destroyed),
         )
         wakeRecoveryController.unregister()
+        unregisterDisplayStateReceiver()
         stopInternalFull()
         releaseStreamWakeLock()
         super.onDestroy()
@@ -319,6 +323,39 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 userMessage = "Ethernet-связь потеряна. Перезапуск стрима…",
             )
         }
+    }
+
+    private fun registerDisplayStateReceiver() {
+        if (displayStateReceiverRegistered) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != VdspState.ACTION_VDSP_STATE_CHANGED) return
+                val state = intent.getStringExtra(VdspState.EXTRA_STATE).orEmpty()
+                val displayId = intent.getIntExtra(VdspState.EXTRA_DISPLAY_ID, -1)
+                Log.i(TAG, "Состояние cluster display изменилось: state=$state, displayId=$displayId")
+                if (state == VdspState.DisplayState.REMOVED.wireValue && streamActive && !startInProgress) {
+                    requestImmediateRecovery(
+                        reason = "cluster_display_removed",
+                        minBackoffMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
+                        userMessage = "Cluster display исчез. Перезапускаю трансляцию…",
+                    )
+                }
+            }
+        }
+        try {
+            registerLocalReceiver(receiver, IntentFilter(VdspState.ACTION_VDSP_STATE_CHANGED))
+            displayStateReceiver = receiver
+            displayStateReceiverRegistered = true
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось зарегистрировать receiver состояния cluster display", t)
+        }
+    }
+
+    private fun unregisterDisplayStateReceiver() {
+        if (!displayStateReceiverRegistered) return
+        unregisterReceiverBestEffort(displayStateReceiver, "cluster display state")
+        displayStateReceiver = null
+        displayStateReceiverRegistered = false
     }
 
     private fun scheduleRestart(reason: String, cause: Throwable?) {

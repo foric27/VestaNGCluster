@@ -15,38 +15,44 @@ class ClusterFocusRequestReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         RuntimeConfig.init(context.applicationContext)
+        val action = intent?.action.orEmpty()
 
-        when (intent?.action) {
-            ACTION_REQUEST_FOCUS -> handleRequestFocus(context)
-            ACTION_ABANDON_FOCUS -> handleAbandonFocus()
+        when (action) {
+            in REQUEST_FOCUS_ACTIONS -> handleRequestFocus(context, action)
+            in ABANDON_FOCUS_ACTIONS -> handleAbandonFocus(action)
         }
     }
 
-    private fun handleRequestFocus(context: Context) {
-        Log.i(TAG, "Получен внешний запрос cluster focus")
+    private fun handleRequestFocus(context: Context, action: String) {
+        Log.i(TAG, "Получен внешний запрос cluster focus: action=$action")
 
-        val activityIntent = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
+        val activityIntent = MainActivity.createLaunchIntent(context, keepInForeground = false)
         try {
             context.startActivity(activityIntent)
-            Log.i(TAG, "MainActivity поднята по внешнему запросу cluster focus")
+            UdpStreamService.startServiceCompat(context)
+            Log.i(TAG, "MainActivity и сервис активированы по внешнему запросу cluster focus: action=$action")
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось поднять MainActivity по внешнему запросу cluster focus", t)
+            Log.w(TAG, "Не удалось активировать приложение по внешнему запросу cluster focus: action=$action", t)
         }
     }
 
-    private fun handleAbandonFocus() {
-        Log.i(TAG, "Получен внешний запрос abandon focus; действие только задокументировано")
+    private fun handleAbandonFocus(action: String) {
+        Log.i(TAG, "Получен внешний запрос abandon focus: action=$action")
     }
 
     private companion object {
         private const val TAG = "ClusterFocusReceiver"
-        private const val ACTION_REQUEST_FOCUS: String =
-            "com.humaxdigital.cluster.action.CLUSTER_REQUEST_FOCUS"
-        private const val ACTION_ABANDON_FOCUS: String =
-            "com.humaxdigital.cluster.action.CLUSTER_ABANDON_FOCUS"
+        private val REQUEST_FOCUS_ACTIONS = setOf(
+            "com.humaxdigital.cluster.action.CLUSTER_REQUEST_FOCUS",
+            "ru.yandex.yandexnavi.action.CLUSTER_REQUEST_FOCUS",
+            "yandex.auto.uma.action.CLUSTER_REQUEST_FOCUS",
+            "com.humaxdigital.connectivity.action.CLUSTER_REQUEST_FOCUS",
+        )
+        private val ABANDON_FOCUS_ACTIONS = setOf(
+            "com.humaxdigital.cluster.action.CLUSTER_ABANDON_FOCUS",
+            "ru.yandex.yandexnavi.action.CLUSTER_ABANDON_FOCUS",
+            "yandex.auto.uma.action.CLUSTER_ABANDON_FOCUS",
+            "com.humaxdigital.connectivity.action.CLUSTER_ABANDON_FOCUS",
+        )
     }
 }
