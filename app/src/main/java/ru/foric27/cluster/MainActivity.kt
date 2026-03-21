@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity() {
 
         bindNoticePanel()
         bindModeSelector()
+        bindActions()
         bindFooterInfo()
         refreshScreenState()
         renderNoticePanel()
@@ -122,6 +123,14 @@ class MainActivity : AppCompatActivity() {
                     showInlineNotice(result.details, isError = false)
                 }
             }
+        }
+    }
+
+    private fun bindActions() {
+        binding.restartStreamBtn.setOnClickListener {
+            UdpStreamService.restartServiceCompat(this)
+            showInlineNotice(getString(R.string.main_restart_stream_requested), isError = false)
+            refreshScreenState(refreshFtp = false, consumeWarnings = false)
         }
     }
 

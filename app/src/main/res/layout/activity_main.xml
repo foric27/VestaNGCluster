@@ -132,6 +132,14 @@
                 </RadioGroup>
             </LinearLayout>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/restartStreamBtn"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/screen_section_spacing"
+                android:text="@string/main_restart_stream_button" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

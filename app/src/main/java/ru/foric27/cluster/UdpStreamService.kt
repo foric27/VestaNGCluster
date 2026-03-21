@@ -137,7 +137,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             synchronized(serviceLock) {
                 if (!forceRestart && lastCfg == cfg && (streamActive || startInProgress || sender != null)) {
                     Log.i(TAG, "Игнорирую повторный startCommand: стрим уже активен или запускается")
-                    updateNotification(getString(R.string.service_notification_stream_starting_fmt, targetHost, targetPort))
+                    updateNotification(getNotificationStateText())
                     return START_STICKY
                 }
 
@@ -154,7 +154,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             ensureNotificationChannel()
             startForegroundCompat(
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-                buildNotification(getString(R.string.service_notification_stream_preparing_fmt, targetHost, targetPort)),
+                buildNotification(),
             )
 
             startDetachedWorker("StartupWorker") {
@@ -1182,7 +1182,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     acquireStreamWakeLock()
                     cancelPendingRestart()
                     cancelServiceRecoveryAlarm()
-                    updateNotification(getString(R.string.service_notification_stream_active_fmt, hostValue, port))
+                    updateNotification(getNotificationStateText())
                     if (AppWarningCenter.contains(getString(R.string.msg_root_required))) {
                         notifyRootRequiredOnce()
                     }
@@ -1496,7 +1496,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         notificationManager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(text: String): Notification {
+    private fun buildNotification(): Notification {
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -1505,7 +1505,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(text)
+            .setContentText(getNotificationStateText())
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -1513,10 +1513,18 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             .build()
     }
 
-    private fun updateNotification(text: String) {
+    private fun getNotificationStateText(): String {
+        return if (streamActive) {
+            getString(R.string.service_notification_stream_running)
+        } else {
+            getString(R.string.service_notification_stream_stopped)
+        }
+    }
+
+    private fun updateNotification(@Suppress("UNUSED_PARAMETER") text: String) {
         try {
             val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(NOTIF_ID, buildNotification(text))
+            notificationManager.notify(NOTIF_ID, buildNotification())
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось обновить foreground-уведомление", t)
         }

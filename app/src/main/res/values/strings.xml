@@ -48,8 +48,8 @@
     <string name="main_all_files_access_granted">Доступ ко всем файлам выдан</string>
     <string name="main_open_files_settings_failed">Не удалось открыть настройки доступа к файлам</string>
 
-    <string name="service_notification_stream_starting_fmt">Стрим уже запускается: %1$s:%2$d</string>
-    <string name="service_notification_stream_preparing_fmt">Подготовка стрима: %1$s:%2$d</string>
+    <string name="service_notification_stream_running">Стрим запущен</string>
+    <string name="service_notification_stream_stopped">Стрим не запущен</string>
     <string name="service_notification_no_link_restart_fmt">Нет связи или маршрута. Перезапуск через %1$dс</string>
     <string name="service_notification_ftp_restarted_fmt">FTP обновление запущено повторно: %1$s</string>
     <string name="service_notification_iface_missing_fmt">%1$s отсутствует. Повтор через %2$dс</string>
@@ -58,8 +58,9 @@
     <string name="service_notification_wake_recovery">Телефон вышел из сна. Перезапускаю трансляцию и сеть…</string>
     <string name="service_notification_wake_recovery_failed">После выхода из сна поток не восстановился. Перезапускаю трансляцию и сеть…</string>
     <string name="service_notification_no_route_fmt">Нет маршрута до %1$s. Повтор через %2$dс</string>
-    <string name="service_notification_stream_active_fmt">Стрим активен: %1$s:%2$d</string>
     <string name="service_notification_service_recovery_fmt">Восстановление стрима через %1$dс</string>
+    <string name="main_restart_stream_button">Перезапустить трансляцию и сеть</string>
+    <string name="main_restart_stream_requested">Перезапуск трансляции и сети запрошен</string>
 
     <string name="app_settings_source_shared_prefs">SharedPreferences</string>
     <string name="app_settings_source_memory">Память приложения</string>
