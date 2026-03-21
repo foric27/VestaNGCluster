@@ -5,6 +5,8 @@
     <string name="status_starting_subline">Подготовка потока.</string>
     <string name="status_recovering_headline">Идёт восстановление стрима</string>
     <string name="status_recovering_subline">Автовосстановление после ошибки.</string>
+    <string name="status_trip_headline">Активен бортовой компьютер</string>
+    <string name="status_trip_subline">Видеотрансляция отключена для режима TRIP. Продолжаю status sync и служебные сервисы.</string>
     <string name="status_running_headline">Трансляция активна</string>
     <string name="status_running_subline">Вывод идёт на дисплей №%1$d.</string>
     <string name="status_running_subline_no_display">Поток активен.</string>

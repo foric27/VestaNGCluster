@@ -302,6 +302,12 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun buildWakeRecoverySnapshot(): UdpWakeRecoverySnapshot {
+        if (!isVideoStreamModeSelected()) {
+            return UdpWakeRecoverySnapshot(
+                streamHealthy = true,
+                requiresFullRecovery = false,
+            )
+        }
         val currentSender = sender
         val snapshot = currentSender?.snapshot()
         val recentVideoTraffic = snapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
@@ -744,11 +750,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun handleScreenOff() {
+        if (!isVideoStreamModeSelected()) return
         screenSleepStartedAtMs = SystemClock.elapsedRealtime()
         Log.i(TAG, "Экран выключен; отслеживаю восстановление после выхода из сна")
     }
 
     private fun handleWakeEvent(action: String) {
+        if (!isVideoStreamModeSelected()) return
         val sleptAt = screenSleepStartedAtMs
         if (sleptAt == 0L) return
 
@@ -1199,6 +1207,33 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     return@post
                 }
 
+                if (!isVideoStreamModeSelected()) {
+                    try {
+                        closeSenderQuietly(localSender)
+                        if (sender === localSender) {
+                            sender = null
+                        }
+                        stopTransportStatsLogging()
+                        stopConnectivityWatchdog()
+                        startStatusSyncBestEffort(network, bindIp, hostValue)
+                        streamActive = false
+                        sStreamActive = false
+                        startInProgress = false
+                        restartBackoffMs = RESTART_BACKOFF_START_MS
+                        noLinkNotified = false
+                        releaseStreamWakeLock()
+                        cancelPendingRestart()
+                        cancelServiceRecoveryAlarm()
+                        updateNotification(getNotificationStateText())
+                        Log.i(TAG, "Активен режим бортового компьютера: видеотрансляция отключена")
+                    } catch (t: Throwable) {
+                        startInProgress = false
+                        Log.e(TAG, "Ошибка запуска status-only режима бортового компьютера", t)
+                        scheduleRestart("trip_mode_start", t)
+                    }
+                    return@post
+                }
+
                 try {
                     encoder = VideoEncoder(
                         context = this@UdpStreamService,
@@ -1397,6 +1432,15 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось извлечь IP из CIDR: $cidr", t)
             null
+        }
+    }
+
+    private fun isVideoStreamModeSelected(): Boolean {
+        return try {
+            AppSettings.getSelectedClusterMode(applicationContext).isVideoStreamMode
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось определить cluster mode, оставляю видеотрансляцию включённой", t)
+            true
         }
     }
 

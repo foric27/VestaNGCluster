@@ -1,6 +1,8 @@
 package ru.foric27.cluster
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ClusterModeTest {
@@ -19,5 +21,13 @@ class ClusterModeTest {
         assertEquals(ClusterMode.CLASSIC_MEDIA, ClusterMode.fromPref("med"))
         assertEquals(ClusterMode.TRIP, ClusterMode.fromPref("abs"))
         assertEquals(ClusterMode.CLASSIC_NAV, ClusterMode.fromPref("other"))
+    }
+
+    @Test
+    fun videoStreamMode_matchesOemTripBehavior() {
+        assertFalse(ClusterMode.TRIP.isVideoStreamMode)
+        assertFalse(ClusterMode.NOT_USED.isVideoStreamMode)
+        assertTrue(ClusterMode.CLASSIC_NAV.isVideoStreamMode)
+        assertTrue(ClusterMode.CLASSIC_MEDIA.isVideoStreamMode)
     }
 }

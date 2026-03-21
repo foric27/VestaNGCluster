@@ -27,6 +27,9 @@ enum class ClusterMode(
     val isTrip: Boolean
         get() = streamModeValue == "abs"
 
+    val isVideoStreamMode: Boolean
+        get() = settingValue in 1..8
+
     companion object {
         fun fromPref(value: String?): ClusterMode {
             return when (value?.trim()?.lowercase()) {

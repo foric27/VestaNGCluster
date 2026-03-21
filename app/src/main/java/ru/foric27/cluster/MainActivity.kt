@@ -119,6 +119,9 @@ class MainActivity : AppCompatActivity() {
         binding.modeRadioGroup.setOnCheckedChangeListener { _, checkedId ->
             val mode = radioIdToMode(checkedId) ?: return@setOnCheckedChangeListener
             val result = AppSettings.applySelectedMode(this, mode)
+            if (result.ok || result.savedLocally) {
+                UdpStreamService.restartServiceCompat(this)
+            }
             refreshScreenState(refreshFtp = false)
 
             if (result.ok) {
@@ -213,6 +216,13 @@ class MainActivity : AppCompatActivity() {
         val displayId = VdspState.getDisplayId()
         val running = UdpStreamService.isServiceRunning()
         val streaming = UdpStreamService.isStreamActive()
+        val selectedClusterMode = AppSettings.getSelectedClusterMode(this)
+
+        if (!selectedClusterMode.isVideoStreamMode && running) {
+            binding.statusHeadline.text = getString(R.string.status_trip_headline)
+            binding.statusSubline.text = getString(R.string.status_trip_subline)
+            return
+        }
 
         binding.statusHeadline.text = when {
             streaming -> getString(R.string.status_running_headline)
