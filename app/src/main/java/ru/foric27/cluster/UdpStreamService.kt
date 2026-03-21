@@ -1104,6 +1104,15 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                 if (cfg.useRootNet) {
                     val activeProbeState = RootNetUtil.getIfaceProbeState(force = false)
+                    if (!activeProbeState.rootRequired && activeProbeState.exists && !activeProbeState.linkUp) {
+                        Log.w(TAG, "Watchdog: link ${activeProbeState.iface} down во время активного стрима")
+                        requestImmediateRecovery(
+                            reason = "root_iface_link_down",
+                            minBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
+                            userMessage = "Сетевой линк ${activeProbeState.iface} потерян. Перезапускаю стрим…",
+                        )
+                        continue
+                    }
                     if (!activeProbeState.rootRequired && !activeProbeState.exists) {
                         Log.w(TAG, "Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
                         requestImmediateRecovery(
@@ -1139,6 +1148,15 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     }
 
                     val probeState = RootNetUtil.getIfaceProbeState(force = false)
+                    if (!probeState.rootRequired && probeState.exists && !probeState.linkUp) {
+                        Log.w(TAG, "Watchdog: link ${probeState.iface} down во время активного стрима")
+                        requestImmediateRecovery(
+                            reason = "root_iface_link_down",
+                            minBackoffMs = IFACE_MISSING_RESTART_BACKOFF_MIN_MS,
+                            userMessage = "Сетевой линк ${probeState.iface} потерян. Перезапускаю стрим…",
+                        )
+                        continue
+                    }
                     if (!probeState.rootRequired && !probeState.exists) {
                         Log.w(TAG, "Watchdog: ${probeState.iface} пропал во время активного стрима")
                         requestImmediateRecovery(

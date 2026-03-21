@@ -39,6 +39,7 @@ object RootNetUtil {
     data class ProbeState(
         val iface: String,
         val exists: Boolean,
+        val linkUp: Boolean,
         val rootRequired: Boolean,
         val details: String,
     )
@@ -208,6 +209,7 @@ object RootNetUtil {
             return ProbeState(
                 iface = RuntimeConfig.Root.IFACE,
                 exists = false,
+                linkUp = false,
                 rootRequired = false,
                 details = buildString {
                     append("iface=").append(RuntimeConfig.Root.IFACE).append('\n')
@@ -222,20 +224,29 @@ object RootNetUtil {
             return ProbeState(
                 iface = iface,
                 exists = exists,
+                linkUp = exists,
                 rootRequired = false,
                 details = buildString {
                     append("iface=").append(iface).append('\n')
                     append(buildIfaceExistsLabel(iface)).append('=').append(exists).append('\n')
+                    append(buildIfaceLinkLabel(iface)).append('=').append(exists).append('\n')
                     append("selection=").append(selection.summary())
                 },
             )
         }
 
-        val result = RootShell.su(listOf("ip link show dev $iface"), logOnFailure = false)
+        val result = RootShell.su(
+            listOf(
+                "ip link show dev $iface",
+                "cat /sys/class/net/$iface/carrier 2>/dev/null || true",
+            ),
+            logOnFailure = false,
+        )
         if (result.isRootDeniedOrMissing()) {
             return ProbeState(
                 iface = iface,
                 exists = false,
+                linkUp = false,
                 rootRequired = true,
                 details = buildString {
                     append("iface=").append(iface).append('\n')
@@ -248,16 +259,19 @@ object RootNetUtil {
         }
 
         val ok = result.ok() && result.out.lowercase(Locale.US).contains("$iface:")
+        val linkUp = ok && isIfaceLinkUp(result.out)
         cachedIfaceName = iface
         cachedIfaceExists = ok
         cachedIfaceCheckAtMs = now
         return ProbeState(
             iface = iface,
             exists = ok,
+            linkUp = linkUp,
             rootRequired = false,
             details = buildString {
                 append("iface=").append(iface).append('\n')
                 append(buildIfaceExistsLabel(iface)).append('=').append(ok).append('\n')
+                append(buildIfaceLinkLabel(iface)).append('=').append(linkUp).append('\n')
                 append("selection=").append(selection.summary()).append('\n')
                 append("[STDOUT]\n").append(result.out)
                 append("\n[STDERR]\n").append(result.err)
@@ -274,6 +288,16 @@ object RootNetUtil {
     }
 
     private fun buildIfaceExistsLabel(iface: String): String = "${iface}_exists"
+
+    private fun buildIfaceLinkLabel(iface: String): String = "${iface}_link_up"
+
+    internal fun isIfaceLinkUp(output: String): Boolean {
+        val normalized = output.lowercase(Locale.US)
+        if (normalized.contains("lower_up")) return true
+        return output.lineSequence()
+            .map { it.trim() }
+            .any { it == "1" }
+    }
 
     private fun parseIpv4Cidr(value: String): Ipv4Cidr? {
         val raw = value.trim()
