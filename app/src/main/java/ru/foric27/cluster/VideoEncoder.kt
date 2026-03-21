@@ -205,9 +205,11 @@ class VideoEncoder(
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, streamConfig.bitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, streamConfig.fps)
-            try {
-                setInteger(MediaFormat.KEY_CAPTURE_RATE, streamConfig.fps)
-            } catch (_: Throwable) {
+            if (streamConfig.dynamicFps) {
+                try {
+                    setInteger(MediaFormat.KEY_CAPTURE_RATE, streamConfig.fps)
+                } catch (_: Throwable) {
+                }
             }
             try {
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec)
@@ -350,7 +352,14 @@ class VideoEncoder(
         val surfaceTexture = vdSurfaceTexture ?: return
         val composer = glComposer ?: return
         try {
-            composer.drawSurfaceFrame(surfaceTexture)
+            composer.drawSurfaceFrame(
+                surfaceTexture = surfaceTexture,
+                presentationTimestampNs = if (streamConfig.dynamicFps) {
+                    null
+                } else {
+                    frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime())
+                },
+            )
             hasRenderedAnyFrame = true
             hasPendingSurfaceFrame = false
             frameTimingController.markRendered(SystemClock.elapsedRealtime())
@@ -366,11 +375,14 @@ class VideoEncoder(
         val composer = glComposer ?: return
         try {
             if (hasPendingSurfaceFrame || !hasRenderedAnyFrame) {
-                composer.drawSurfaceFrame(surfaceTexture)
+                composer.drawSurfaceFrame(
+                    surfaceTexture = surfaceTexture,
+                    presentationTimestampNs = frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime()),
+                )
                 hasPendingSurfaceFrame = false
                 hasRenderedAnyFrame = true
             } else {
-                composer.drawLastFrame()
+                composer.drawLastFrame(frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime()))
             }
             frameTimingController.markRendered(SystemClock.elapsedRealtime())
         } catch (t: Throwable) {
@@ -509,7 +521,7 @@ class VideoEncoder(
     }
 
     private fun drawKeepaliveFrame(nowMs: Long) {
-        glComposer?.drawLastFrame()
+        glComposer?.drawLastFrame(frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime()))
         hasRenderedAnyFrame = true
         hasPendingSurfaceFrame = false
         frameTimingController.markRendered(nowMs)
@@ -605,17 +617,20 @@ class VideoEncoder(
             )
         }
 
-        fun drawSurfaceFrame(surfaceTexture: SurfaceTexture) {
+        fun drawSurfaceFrame(surfaceTexture: SurfaceTexture, presentationTimestampNs: Long? = null) {
             makeCurrent()
             surfaceTexture.updateTexImage()
             surfaceTexture.getTransformMatrix(transformMatrix)
-            val timestampNs = surfaceTexture.timestamp.takeIf { it > 0L } ?: System.nanoTime()
+            val timestampNs = presentationTimestampNs
+                ?: surfaceTexture.timestamp.takeIf { it > 0L }
+                ?: System.nanoTime()
             drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(timestampNs))
         }
 
-        fun drawLastFrame() {
+        fun drawLastFrame(presentationTimestampNs: Long? = null) {
             makeCurrent()
-            drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(System.nanoTime()))
+            val timestampNs = presentationTimestampNs ?: System.nanoTime()
+            drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(timestampNs))
         }
 
         private fun drawPreparedFrame(timestampNs: Long) {

@@ -6,6 +6,7 @@ internal class VideoFrameTimingController(
 ) {
 
     private val minRenderIntervalMs: Long = (1000L / fps.coerceAtLeast(1)).coerceAtLeast(1L)
+    private val frameIntervalNs: Long = (1_000_000_000L / fps.coerceAtLeast(1)).coerceAtLeast(1L)
 
     private var lastRenderAtMs: Long = 0L
     private var lastPresentationTimestampNs: Long = 0L
@@ -37,6 +38,15 @@ internal class VideoFrameTimingController(
         }
         lastPresentationTimestampNs = sanitizedTimestamp
         return sanitizedTimestamp
+    }
+
+    fun nextScheduledPresentationTimestampNs(nowNs: Long): Long {
+        val scheduledCandidate = if (lastPresentationTimestampNs <= 0L) {
+            nowNs.coerceAtLeast(1L)
+        } else {
+            lastPresentationTimestampNs + frameIntervalNs
+        }
+        return sanitizePresentationTimestamp(scheduledCandidate)
     }
 
     fun reset() {

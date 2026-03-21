@@ -41,4 +41,15 @@ class VideoFrameTimingControllerTest {
         assertEquals(10_001L, second)
         assertEquals(10_002L, third)
     }
+
+    @Test
+    fun `scheduled presentation timestamps follow target frame interval`() {
+        val controller = VideoFrameTimingController(fps = 8, keepalivePeriodMs = 1_500L)
+
+        val first = controller.nextScheduledPresentationTimestampNs(1_000_000_000L)
+        val second = controller.nextScheduledPresentationTimestampNs(1_000_001_000L)
+
+        assertEquals(1_000_000_000L, first)
+        assertEquals(1_125_000_000L, second)
+    }
 }
