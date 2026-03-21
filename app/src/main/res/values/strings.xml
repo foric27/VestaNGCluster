@@ -11,10 +11,10 @@
     <string name="status_running_subline_display_removed">Поток активен, но cluster display исчез. Ожидаю восстановление.</string>
     <string name="status_running_subline_display_changed">Поток активен, cluster display обновлён.</string>
 
-    <string name="stream_mode_title">Режим</string>
-    <string name="stream_mode_nav">Навигатор</string>
-    <string name="stream_mode_med">Медиа</string>
-    <string name="stream_mode_abs">ABS</string>
+    <string name="stream_mode_title">Режим комбинации приборов</string>
+    <string name="stream_mode_nav">Навигация</string>
+    <string name="stream_mode_med">Мультимедиа</string>
+    <string name="stream_mode_abs">Бортовой компьютер</string>
     <string name="stream_mode_apply_ok_fmt">Режим %1$s сохранён</string>
     <string name="stream_mode_apply_fail_fmt">Не удалось применить режим %1$s напрямую. Локальное сохранение выполнено.</string>
     <string name="msg_vdsp_ready">VDSP готов</string>

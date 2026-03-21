@@ -30,4 +30,12 @@
         <item name="cornerRadius">18dp</item>
     </style>
 
+    <style name="Widget.Foric27Cluster.Radio.Mode" parent="@android:style/Widget.CompoundButton.RadioButton">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:buttonTint">@color/secondary</item>
+        <item name="android:drawableTint">@color/primary</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
 </resources>

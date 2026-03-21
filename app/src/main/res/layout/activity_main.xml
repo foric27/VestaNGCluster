@@ -111,22 +111,31 @@
 
                     <RadioButton
                         android:id="@+id/modeNavRadio"
+                        style="@style/Widget.Foric27Cluster.Radio.Mode"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:drawableStart="@drawable/ic_mode_navigation"
+                        android:drawablePadding="12dp"
                         android:text="@string/stream_mode_nav"
                         android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/modeMedRadio"
+                        style="@style/Widget.Foric27Cluster.Radio.Mode"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:drawableStart="@drawable/ic_mode_media"
+                        android:drawablePadding="12dp"
                         android:text="@string/stream_mode_med"
                         android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/modeAbsRadio"
+                        style="@style/Widget.Foric27Cluster.Radio.Mode"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:drawableStart="@drawable/ic_mode_trip"
+                        android:drawablePadding="12dp"
                         android:text="@string/stream_mode_abs"
                         android:textColor="@color/text_primary" />
                 </RadioGroup>
