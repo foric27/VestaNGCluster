@@ -34,7 +34,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Сервис переднего плана, который кодирует изображение в H.264 и отправляет его по UDP.
+ * Главный foreground-сервис cluster-проекта.
+ *
+ * Сервис оркестрирует жизненный цикл стрима, root-сети, FTP-обновлений, wake
+ * recovery, watchdog и публикацию состояния в уведомлении. Это одна из самых
+ * чувствительных точек проекта, поэтому здесь важнее предсказуемость и
+ * наблюдаемость, чем красивая абстрактная архитектура.
  */
 class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
@@ -97,6 +102,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private lateinit var updateCoordinator: UdpUpdateServerCoordinator
     private lateinit var wakeRecoveryController: UdpWakeRecoveryController
 
+    /**
+     * Готовит сервисный runtime: wake lock, coordinators, receivers и канал
+     * foreground-уведомления.
+     */
     override fun onCreate() {
         super.onCreate()
         RuntimeConfig.init(applicationContext)
@@ -112,6 +121,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         registerUsbMediaReceiver()
     }
 
+    /**
+     * Главная точка входа сервиса. Разруливает команды refresh/restart и
+     * запускает подготовку сети перед стартом видеопайплайна.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
             val action = intent?.action

@@ -18,7 +18,12 @@ import ru.foric27.cluster.databinding.ActivityMainBinding
 import java.util.ArrayDeque
 
 /**
- * Минимальный экран управления трансляцией навигатора на комбинацию приборов.
+ * Главный экран приложения.
+ *
+ * Экран остаётся намеренно компактным: он показывает текущее состояние стрима,
+ * позволяет выбрать режим панели, вручную перезапустить сеть со стримом и
+ * служит входом в экран разработчика. После обычного launcher-запуска окно
+ * уходит в фон, а реальная работа продолжается в foreground-сервисе.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -185,6 +190,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Поднимает foreground-сервис при открытии UI, если он ещё не запущен.
+     */
     private fun ensureStreamingRunning() {
         if (UdpStreamService.isServiceRunning()) {
             refreshScreenState()
@@ -212,6 +220,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Отрисовывает текущее состояние стрима и cluster display.
+     */
     private fun renderDynamicState() {
         val displayId = VdspState.getDisplayId()
         val running = UdpStreamService.isServiceRunning()
@@ -242,6 +253,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Показывает состояние FTP-сервера и найденного update-пакета.
+     */
     private fun renderFtpState() {
         val state = UpdateServerManager.getServerState()
         binding.ftpStatusText.text = buildString {
@@ -290,6 +304,10 @@ class MainActivity : AppCompatActivity() {
         AppWarningCenter.consumeAll().forEach { showInlineNotice(it, isError = true) }
     }
 
+    /**
+     * Добавляет уведомление в локальную очередь, устраняя дубликаты и сохраняя
+     * наверху самые свежие сообщения.
+     */
     private fun showInlineNotice(msg: String, isError: Boolean) {
         val normalized = msg.trim()
         if (normalized.isEmpty()) return
@@ -308,6 +326,9 @@ class MainActivity : AppCompatActivity() {
         renderNoticePanel()
     }
 
+    /**
+     * Отрисовывает сводную панель пользовательских предупреждений и статусов.
+     */
     private fun renderNoticePanel() {
         if (inlineNotices.isEmpty()) {
             binding.noticePanel.visibility = View.GONE
@@ -350,6 +371,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Проверяет состояние MANAGE_EXTERNAL_STORAGE и обновляет UI/FTP-path после
+     * выдачи разрешения.
+     */
     private fun handleAllFilesAccessState() {
         val hasAccess = StorageAccessManager.isAllFilesAccessGranted()
         val accessJustGranted = hasAccess && !hadAllFilesAccess
@@ -410,6 +435,10 @@ class MainActivity : AppCompatActivity() {
         tryMoveTaskToBackIfNeeded()
     }
 
+    /**
+     * Обычный launcher-старт переводит задачу в фон, когда UI уже выполнил свою
+     * роль по запуску сервиса и запросу обязательных разрешений.
+     */
     private fun tryMoveTaskToBackIfNeeded() {
         if (backgroundLaunchHandled) return
         if (intent.getBooleanExtra(EXTRA_KEEP_IN_FOREGROUND, false)) return

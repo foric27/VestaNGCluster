@@ -5,10 +5,11 @@ import android.util.Log
 import java.util.Locale
 
 /**
- * Root-настройка сети для cluster-проекта.
+ * Низкоуровневая root-настройка сети для cluster-пайплайна.
  *
- * Сначала учитывает явно заданный интерфейс, а если он отсутствует,
- * выбирает подходящий автоматически по приоритетам проекта.
+ * Утилита работает только с явно заданным интерфейсом из runtime-конфига,
+ * применяет статический IP и кеширует дорогие root-проверки, чтобы сервис не
+ * спамил su без необходимости.
  */
 object RootNetUtil {
 
@@ -158,6 +159,10 @@ object RootNetUtil {
 
     fun isIfacePresent(force: Boolean = false): Boolean = getIfaceProbeState(force = force).exists
 
+    /**
+     * Проверяет, что маршрут до приёмника проходит через нужный интерфейс и,
+     * при необходимости, с ожидаемым source IP.
+     */
     fun canRouteTo(dstIp: String, expectedSrcIp: String? = null, forceProbe: Boolean = false): Boolean {
         val ip = dstIp.trim()
         if (!isValidIpv4(ip)) return false

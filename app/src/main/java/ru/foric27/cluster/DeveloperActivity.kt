@@ -17,8 +17,10 @@ import com.google.android.material.textfield.TextInputLayout
 import ru.foric27.cluster.databinding.ActivityDeveloperBinding
 
 /**
- * Скрытый экран для настроек разработчика.
- * Все поля применяются сразу после завершения редактирования.
+ * Скрытый экран разработчика для runtime-настроек.
+ *
+ * Все изменения применяются сразу после завершения редактирования поля. Экран
+ * не хранит собственную копию конфигурации, а работает поверх [RuntimeConfig].
  */
 class DeveloperActivity : AppCompatActivity() {
 
@@ -64,6 +66,10 @@ class DeveloperActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Строит экран настроек из описаний полей RuntimeConfig, чтобы UI и набор
+     * доступных параметров не расходились между собой.
+     */
     private fun buildDynamicSettingsEditor() {
         binding.settingsContainer.removeAllViews()
         runtimeInputs.clear()
@@ -198,6 +204,9 @@ class DeveloperActivity : AppCompatActivity() {
         return rowCard
     }
 
+    /**
+     * Применяет изменения сразу по потере фокуса или по действию клавиатуры.
+     */
     private fun bindImmediateApply(
         layout: TextInputLayout,
         input: TextInputEditText,
@@ -266,6 +275,10 @@ class DeveloperActivity : AppCompatActivity() {
         return appliedValue
     }
 
+    /**
+     * Перезапускает только ту часть приложения, которая зависит от изменённого
+     * поля, чтобы не дёргать весь пайплайн без необходимости.
+     */
     private fun handleAppliedChange(spec: RuntimeConfig.FieldSpec) {
         val title = RuntimeConfig.getFieldTitle(this, spec)
         when (applyTargetFor(spec)) {
@@ -321,6 +334,10 @@ class DeveloperActivity : AppCompatActivity() {
         binding.developerStatusText.text = getString(R.string.developer_reset_success)
     }
 
+    /**
+     * Используется после полного сброса настроек, когда безопаснее обновить и
+     * стрим, и FTP-сценарий одним штатным путём.
+     */
     private fun restartRuntimeDrivenServices() {
         UdpStreamService.restartServiceCompat(this)
         UdpStreamService.refreshFtpCompat(this)

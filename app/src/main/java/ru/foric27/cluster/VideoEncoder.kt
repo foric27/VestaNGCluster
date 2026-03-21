@@ -24,13 +24,11 @@ import java.nio.FloatBuffer
 import java.util.Locale
 
 /**
- * Выводит целевую activity на `VirtualDisplay`, а затем композит кадр через OpenGL
- * в `Surface` энкодера.
+ * Координатор видеопайплайна VirtualDisplay -> OpenGL -> MediaCodec -> UDP.
  *
- * Такой подход позволяет независимо от содержимого activity принудительно
- * закрашивать нижнюю область кадра чёрным прямо перед подачей в `MediaCodec`.
- * Значение FPS в конфигурации используется как верхняя граница для кодека,
- * а фактический FPS остаётся динамическим и определяется реальными обновлениями UI.
+ * Класс держит наружный фасад start/stop/relaunch/forceOutputFrame, а детали
+ * display-launch, тайминга кадров и обработки выходных буферов делегирует
+ * специализированным helper-компонентам в этом же пакете.
  */
 class VideoEncoder(
     private val context: Context,
@@ -70,6 +68,10 @@ class VideoEncoder(
     @Volatile private var hasRenderedAnyFrame: Boolean = false
     @Volatile private var dynamicRenderScheduled: Boolean = false
 
+    /**
+     * Поднимает codec thread, настраивает MediaCodec и присоединяет к нему
+     * persistent VirtualDisplay через GL-компоновщик.
+     */
     fun start() {
         if (running) return
         stopping = false
@@ -134,6 +136,10 @@ class VideoEncoder(
         }
     }
 
+    /**
+     * Останавливает кодек и освобождает связанные поверхности, не уничтожая
+     * persistent VirtualDisplay без явной необходимости.
+     */
     fun stop() {
         stopping = true
         running = false
@@ -141,6 +147,10 @@ class VideoEncoder(
         stopping = false
     }
 
+    /**
+     * Повторно активирует целевую activity на текущем display после recovery,
+     * если сам VirtualDisplay всё ещё валиден.
+     */
     fun relaunchTargetActivityIfNeeded(reason: String) {
         val displayId = virtualDisplay?.display?.displayId ?: VdspState.getDisplayId()
         if (displayId < 0) {
@@ -159,6 +169,9 @@ class VideoEncoder(
         runOnCodecThread(relaunch)
     }
 
+    /**
+     * Принудительно просит кодек отдать кадр после wake/recovery-сценариев.
+     */
     fun forceOutputFrame(reason: String) {
         val render = Runnable {
             if (!running || stopping) return@Runnable

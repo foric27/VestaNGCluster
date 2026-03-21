@@ -4,10 +4,11 @@ import android.content.Context
 import android.graphics.Rect
 
 /**
- * Переопределяемая runtime-конфигурация.
+ * Единая runtime-конфигурация приложения.
  *
- * Значения по умолчанию берутся из ProductConfig, а изменённые пользователем
- * настройки сохраняются в SharedPreferences и применяются сразу через нужную часть приложения.
+ * Значения по умолчанию берутся из [ProductConfig], а локальные переопределения
+ * сохраняются в SharedPreferences. Через этот объект приложение получает и
+ * метаданные для developer-экрана, и уже нормализованные runtime-значения.
  */
 object RuntimeConfig {
 
@@ -176,10 +177,16 @@ object RuntimeConfig {
     @Volatile
     private var rawValues: Map<String, String> = emptyMap()
 
+    /**
+     * Инициализирует кеш runtime-значений при старте процесса или экрана.
+     */
     fun init(context: Context) {
         reload(context)
     }
 
+    /**
+     * Полностью перечитывает пользовательские overrides из SharedPreferences.
+     */
     fun reload(context: Context) {
         val prefs = getPrefs(context)
         rawValues = buildMap {
@@ -191,6 +198,9 @@ object RuntimeConfig {
         }
     }
 
+    /**
+     * Возвращает описание всех полей для динамического построения developer UI.
+     */
     fun getFieldSpecs(): List<FieldSpec> = fieldSpecs
 
     fun getFieldValue(spec: FieldSpec): String {
@@ -209,6 +219,9 @@ object RuntimeConfig {
         }
     }
 
+    /**
+     * Валидирует и сохраняет одно runtime-поле, сразу обновляя внутренний кеш.
+     */
     fun saveField(context: Context, spec: FieldSpec, rawValue: String): SaveResult {
         val fieldTitle = getFieldTitle(context, spec)
         val normalizedValue = normalizeFieldValue(spec, rawValue) ?: return when (spec.type) {
@@ -229,6 +242,9 @@ object RuntimeConfig {
         return SaveResult(true, context.getString(R.string.runtime_save_setting_ok_fmt, fieldTitle), spec.key, normalizedValue)
     }
 
+    /**
+     * Сбрасывает все runtime-overrides и возвращает проект к ProductConfig.
+     */
     fun resetToDefaults(context: Context): SaveResult {
         val ok = getPrefs(context).edit().clear().commit()
         if (!ok) {
@@ -238,43 +254,6 @@ object RuntimeConfig {
         return SaveResult(true, context.getString(R.string.runtime_reset_defaults_ok))
     }
 
-    fun saveAll(context: Context, editedValues: Map<String, String>): SaveResult {
-        val normalized = LinkedHashMap<String, String>()
-        for (spec in fieldSpecs) {
-            val input = editedValues[spec.key]?.trim().orEmpty()
-            val fieldTitle = getFieldTitle(context, spec)
-            val normalizedValue = when (spec.type) {
-                ValueType.STRING -> input
-                ValueType.INT -> {
-                    val source = input.ifBlank { spec.defaultValue }
-                    val parsed = source.toIntOrNull()
-                        ?: return SaveResult(false, context.getString(R.string.runtime_error_int_field_fmt, fieldTitle), spec.key)
-                    parsed.toString()
-                }
-
-                ValueType.LONG -> {
-                    val source = input.ifBlank { spec.defaultValue }
-                    val parsed = source.toLongOrNull()
-                        ?: return SaveResult(false, context.getString(R.string.runtime_error_long_field_fmt, fieldTitle), spec.key)
-                    parsed.toString()
-                }
-
-                ValueType.BOOLEAN -> normalizeBooleanString(input, spec)
-                    ?: return SaveResult(false, context.getString(R.string.runtime_error_boolean_field_fmt, fieldTitle), spec.key)
-            }
-            normalized[spec.key] = normalizedValue
-        }
-
-        val prefs = getPrefs(context)
-        val editor = prefs.edit().clear()
-        normalized.forEach { (key, value) -> editor.putString(key, value) }
-        val ok = editor.commit()
-        if (!ok) {
-            return SaveResult(false, context.getString(R.string.runtime_error_save_all))
-        }
-        reload(context)
-        return SaveResult(true, context.getString(R.string.runtime_save_all_ok))
-    }
 
     private fun normalizeFieldValue(spec: FieldSpec, rawValue: String): String? {
         val input = rawValue.trim()
@@ -316,6 +295,10 @@ object RuntimeConfig {
         return parseBooleanValue(rawValues[key], default)
     }
 
+    /**
+     * Разбирает булево значение с учётом старых человекочитаемых форматов вроде
+     * yes/no и on/off, которые могут остаться в пользовательских prefs.
+     */
     internal fun parseBooleanValue(rawValue: String?, default: Boolean): Boolean {
         return when ((rawValue ?: default.toString()).trim().lowercase()) {
             "true", "1", "yes", "on" -> true
