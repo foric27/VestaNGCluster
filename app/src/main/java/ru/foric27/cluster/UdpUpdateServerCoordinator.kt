@@ -118,7 +118,7 @@ internal class UdpUpdateServerCoordinator(
 
         startDetachedWorker("UpdatePollWorker") {
             try {
-                val result = UpdateServerManager.pollInternalStorage(context)
+                val result = UpdateServerManager.pollAvailableStorage(context)
                 val report = (if (result.success) "ok:" else "fail:") + result.message
                 if (report != lastInternalUpdatePollReport) {
                     lastInternalUpdatePollReport = report

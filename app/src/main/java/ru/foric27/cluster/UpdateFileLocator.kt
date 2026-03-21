@@ -118,7 +118,7 @@ class UpdateFileLocator {
 
         File("/storage").listFiles()
             ?.asSequence()
-            ?.filter { it.isDirectory && it.canRead() }
+            ?.filter { it.isDirectory }
             ?.forEach(::addUsbRoot)
 
         return result.sortedBy { it.absolutePath.lowercase(Locale.US) }
@@ -126,39 +126,29 @@ class UpdateFileLocator {
 
     private fun inspectRoot(root: ScanRoot): LocatedUpdatePair? {
         val directory = root.fileRoot
-        val rootExists = directory.exists()
-        val rootIsDirectory = directory.isDirectory
-        val rootCanRead = directory.canRead()
-        if (!rootExists || !rootIsDirectory || !rootCanRead) {
+        val rootProbe = probePath(directory, expectDirectory = true)
+        if (!rootProbe.exists || !rootProbe.isDirectory) {
             Log.i(
                 TAG,
-                "Корень недоступен: ${root.label}; exists=$rootExists, isDirectory=$rootIsDirectory, canRead=$rootCanRead",
+                "Корень недоступен: ${root.label}; exists=${rootProbe.exists}, isDirectory=${rootProbe.isDirectory}, canRead=${rootProbe.canRead}",
             )
             return null
         }
 
         val zip = File(directory, RuntimeConfig.UpdateFtp.UPDATE_ZIP_NAME)
         val sig = File(directory, RuntimeConfig.UpdateFtp.UPDATE_SIG_NAME)
-        val zipExists = zip.exists()
-        val zipIsFile = zip.isFile
-        val zipCanRead = zip.canRead()
-        val sigExists = sig.exists()
-        val sigIsFile = sig.isFile
-        val sigCanRead = sig.canRead()
+        val zipProbe = probePath(zip, expectDirectory = false)
+        val sigProbe = probePath(sig, expectDirectory = false)
 
         Log.i(
             TAG,
             "Проверяю корень: ${directory.absolutePath}, " +
-                "zip=${zip.absolutePath}[exists=$zipExists,isFile=$zipIsFile,canRead=$zipCanRead], " +
-                "sig=${sig.absolutePath}[exists=$sigExists,isFile=$sigIsFile,canRead=$sigCanRead]",
+                "zip=${zip.absolutePath}[exists=${zipProbe.exists},isFile=${zipProbe.isFile},canRead=${zipProbe.canRead}], " +
+                "sig=${sig.absolutePath}[exists=${sigProbe.exists},isFile=${sigProbe.isFile},canRead=${sigProbe.canRead}]",
         )
 
-        if (!zipExists || !zipIsFile || !zipCanRead) {
-            return null
-        }
-        if (!sigExists || !sigIsFile || !sigCanRead) {
-            return null
-        }
+        if (!zipProbe.exists || !zipProbe.isFile) return null
+        if (!sigProbe.exists || !sigProbe.isFile) return null
 
         Log.i(
             TAG,
@@ -168,9 +158,9 @@ class UpdateFileLocator {
             sourceKind = root.sourceKind,
             sourceLabel = root.label,
             directoryLabel = directory.absolutePath,
-            zipFile = FileSourceFile(zip),
-            sigFile = FileSourceFile(sig),
-            lastModified = maxOf(zip.lastModified(), sig.lastModified()),
+            zipFile = FileSourceFile(zip, zipProbe),
+            sigFile = FileSourceFile(sig, sigProbe),
+            lastModified = maxOf(zipProbe.lastModified, sigProbe.lastModified),
         )
     }
 
@@ -185,7 +175,8 @@ class UpdateFileLocator {
         } else {
             file
         }
-        return candidate.takeIf { it.exists() && it.isDirectory && it.canRead() }
+        val probe = probePath(candidate, expectDirectory = true)
+        return candidate.takeIf { probe.exists && probe.isDirectory }
     }
 
     private fun isLikelyUsbRoot(root: File): Boolean {
@@ -209,13 +200,20 @@ class UpdateFileLocator {
 
     private data class FileSourceFile(
         private val file: File,
+        private val probe: PathProbe,
     ) : UpdateSourceFile {
         override val name: String = file.name
         override val debugPath: String = file.absolutePath
-        override val lastModified: Long = file.lastModified()
-        override val size: Long = file.length()
+        override val lastModified: Long = probe.lastModified
+        override val size: Long = probe.size
 
-        override fun openInputStream(context: Context): InputStream = FileInputStream(file)
+        override fun openInputStream(context: Context): InputStream {
+            return if (file.canRead()) {
+                FileInputStream(file)
+            } else {
+                Companion.openRootInputStream(file)
+            }
+        }
     }
 
     private companion object {
@@ -227,5 +225,79 @@ class UpdateFileLocator {
             "self",
             "enc_emulated",
         )
+
+        private data class PathProbe(
+            val exists: Boolean,
+            val isFile: Boolean,
+            val isDirectory: Boolean,
+            val canRead: Boolean,
+            val lastModified: Long,
+            val size: Long,
+        )
+
+        private class ProcessInputStream(
+            private val process: Process,
+            private val delegate: InputStream,
+        ) : InputStream() {
+            override fun read(): Int = delegate.read()
+
+            override fun read(b: ByteArray): Int = delegate.read(b)
+
+            override fun read(b: ByteArray, off: Int, len: Int): Int = delegate.read(b, off, len)
+
+            override fun close() {
+                try {
+                    delegate.close()
+                } finally {
+                    runCatching { process.destroy() }
+                }
+            }
+        }
+
+        private fun openRootInputStream(file: File): InputStream {
+            val command = "cat ${shellQuote(file.absolutePath)}"
+            val process = ProcessBuilder("su", "-c", command)
+                .redirectErrorStream(true)
+                .start()
+            return ProcessInputStream(process, process.inputStream)
+        }
+
+        private fun probePath(file: File, expectDirectory: Boolean): PathProbe {
+            val exists = file.exists()
+            val isDirectory = file.isDirectory
+            val isFile = file.isFile
+            val canRead = file.canRead()
+            val lastModified = file.lastModified()
+            val size = file.length()
+            if (exists && ((expectDirectory && isDirectory) || (!expectDirectory && isFile))) {
+                return PathProbe(exists, isFile, isDirectory, canRead, lastModified, size)
+            }
+            if (!UsbStoragePathMatcher.isUsbStoragePath(file.absolutePath)) {
+                return PathProbe(exists, isFile, isDirectory, canRead, lastModified, size)
+            }
+            return probePathViaRoot(file, expectDirectory)
+                ?: PathProbe(exists, isFile, isDirectory, canRead, lastModified, size)
+        }
+
+        private fun probePathViaRoot(file: File, expectDirectory: Boolean): PathProbe? {
+            val typeFlag = if (expectDirectory) "-d" else "-f"
+            val command = "if [ $typeFlag ${shellQuote(file.absolutePath)} ]; then stat -c '%Y:%s' ${shellQuote(file.absolutePath)}; fi"
+            val result = RootShell.su(listOf(command), logOnFailure = false)
+            val output = result.out.trim()
+            if (!result.ok() || output.isBlank()) return null
+            val parts = output.split(':', limit = 2)
+            return PathProbe(
+                exists = true,
+                isFile = !expectDirectory,
+                isDirectory = expectDirectory,
+                canRead = false,
+                lastModified = (parts.getOrNull(0)?.toLongOrNull() ?: 0L) * 1000L,
+                size = parts.getOrNull(1)?.toLongOrNull() ?: 0L,
+            )
+        }
+
+        private fun shellQuote(value: String): String {
+            return "'" + value.replace("'", "'\\''") + "'"
+        }
     }
 }

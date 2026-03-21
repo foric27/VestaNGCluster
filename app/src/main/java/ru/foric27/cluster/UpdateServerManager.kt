@@ -120,14 +120,12 @@ object UpdateServerManager {
         return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY)
     }
 
-    fun pollInternalStorage(context: Context): Result {
+    fun pollAvailableStorage(context: Context): Result {
         synchronized(lock) {
             val applicationContext = context.applicationContext
             appContext = applicationContext
 
-            if (lastSearchPolicy != UpdateFileLocator.SearchPolicy.INTERNAL_ONLY) {
-                return resultFromState(currentState.get())
-            }
+            val searchPolicy = UpdateFileLocator.SearchPolicy.USB_FIRST
 
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
                 return stopServerAndFailLocked(
@@ -137,7 +135,7 @@ object UpdateServerManager {
             }
 
             return try {
-                val searchResult = locateFirstValidPair(applicationContext, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY)
+                val searchResult = locateFirstValidPair(applicationContext, searchPolicy)
                 lastDetectedLocation = searchResult.detectedLocation
                 val validatedPair = searchResult.validatedPair
                 if (validatedPair == null) {
@@ -155,7 +153,7 @@ object UpdateServerManager {
                     TAG,
                     "Периодический опрос обнаружил новое или изменённое обновление во внутренней памяти: ${validatedPair.pair.directoryLabel}",
                 )
-                reloadValidatedPairLocked(applicationContext, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY, validatedPair)
+                reloadValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
             } catch (t: Throwable) {
                 Log.e(TAG, "Ошибка периодического опроса обновления во внутренней памяти", t)
                 val retrySuggested = isTransientFtpStartError(t)

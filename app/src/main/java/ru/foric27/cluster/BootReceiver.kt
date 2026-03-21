@@ -72,7 +72,7 @@ class BootReceiver : BroadcastReceiver() {
 
     private fun handleUsbMounted(context: Context, intent: Intent) {
         val path = intent.data?.path.orEmpty()
-        if (!isUsbPath(path)) {
+        if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
             Log.i(TAG, "Пропускаю mount не-USB носителя: $path")
             return
         }
@@ -82,22 +82,12 @@ class BootReceiver : BroadcastReceiver() {
 
     private fun handleUsbRemoved(context: Context, intent: Intent) {
         val path = intent.data?.path.orEmpty()
-        if (path.isNotBlank() && !isUsbPath(path)) {
+        if (path.isNotBlank() && !UsbStoragePathMatcher.isUsbStoragePath(path)) {
             Log.i(TAG, "Пропускаю remove не-USB носителя: $path")
             return
         }
         val result = UpdateServerManager.handleUsbRemoved(context.applicationContext)
         Log.i(TAG, "USB извлечён: $path, результат FTP: ${result.message}")
-    }
-
-    private fun isUsbPath(path: String): Boolean {
-        if (path.isBlank()) return false
-        val normalized = path.lowercase()
-        if (!normalized.startsWith("/storage/")) return false
-        if (normalized.startsWith("/storage/emulated")) return false
-        if (normalized.startsWith("/storage/self")) return false
-        if (normalized.startsWith("/storage/enc_emulated")) return false
-        return true
     }
 
     private companion object {

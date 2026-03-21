@@ -65,6 +65,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private var screenStateReceiverRegistered = false
     private var displayStateReceiver: BroadcastReceiver? = null
     private var displayStateReceiverRegistered = false
+    private var usbMediaReceiver: BroadcastReceiver? = null
+    private var usbMediaReceiverRegistered = false
     @Volatile private var screenSleepStartedAtMs = 0L
     @Volatile private var lastWakeRecoveryAtMs = 0L
     @Volatile private var pendingWakeAction: String? = null
@@ -107,6 +109,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         cancelServiceRecoveryAlarm()
         wakeRecoveryController.register()
         registerDisplayStateReceiver()
+        registerUsbMediaReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -233,6 +236,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
         wakeRecoveryController.unregister()
         unregisterDisplayStateReceiver()
+        unregisterUsbMediaReceiver()
         stopInternalFull()
         releaseStreamWakeLock()
         super.onDestroy()
@@ -364,6 +368,70 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         displayStateReceiverRegistered = false
     }
 
+    private fun registerUsbMediaReceiver() {
+        if (usbMediaReceiverRegistered) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val action = intent.action.orEmpty()
+                val path = intent.data?.path.orEmpty()
+                when (action) {
+                    Intent.ACTION_MEDIA_MOUNTED -> {
+                        if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
+                            Log.i(TAG, "Пропускаю runtime mount не-USB носителя: $path")
+                            return
+                        }
+                        startDetachedWorker("UsbMountedRefresh") {
+                            val result = UpdateServerManager.handleUsbInserted(applicationContext)
+                            Log.i(TAG, "USB вставлен во время работы приложения: $path, результат FTP: ${result.message}")
+                        }
+                    }
+                    Intent.ACTION_MEDIA_REMOVED,
+                    Intent.ACTION_MEDIA_UNMOUNTED,
+                    Intent.ACTION_MEDIA_EJECT -> {
+                        if (path.isNotBlank() && !UsbStoragePathMatcher.isUsbStoragePath(path)) {
+                            Log.i(TAG, "Пропускаю runtime remove не-USB носителя: $path")
+                            return
+                        }
+                        startDetachedWorker("UsbRemovedRefresh") {
+                            val result = UpdateServerManager.handleUsbRemoved(applicationContext)
+                            Log.i(TAG, "USB извлечён во время работы приложения: $path, результат FTP: ${result.message}")
+                        }
+                    }
+                }
+            }
+        }
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_MEDIA_MOUNTED)
+            addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+            addAction(Intent.ACTION_MEDIA_REMOVED)
+            addAction(Intent.ACTION_MEDIA_EJECT)
+            addDataScheme("file")
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(receiver, filter)
+            }
+            usbMediaReceiver = receiver
+            usbMediaReceiverRegistered = true
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось зарегистрировать USB media receiver", t)
+            usbMediaReceiver = null
+            usbMediaReceiverRegistered = false
+        }
+    }
+
+    private fun unregisterUsbMediaReceiver() {
+        if (!usbMediaReceiverRegistered) return
+        unregisterReceiverBestEffort(usbMediaReceiver, "usb media")
+        usbMediaReceiver = null
+        usbMediaReceiverRegistered = false
+    }
+
     private fun scheduleRestart(reason: String, cause: Throwable?) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastRestartRequestMs < RESTART_REQUEST_DEBOUNCE_MS) {
@@ -460,7 +528,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         startDetachedWorker("UpdatePollWorker") {
             try {
-                val result = UpdateServerManager.pollInternalStorage(applicationContext)
+                val result = UpdateServerManager.pollAvailableStorage(applicationContext)
                 val report = (if (result.success) "ok:" else "fail:") + result.message
                 if (report != lastInternalUpdatePollReport) {
                     lastInternalUpdatePollReport = report
@@ -655,7 +723,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun startOrRefreshUpdateServer() {
         val result = UpdateServerManager.prepareAndStartServer(
             applicationContext,
-            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
+            UpdateFileLocator.SearchPolicy.USB_FIRST,
         )
         if (result.success) {
             Log.i(TAG, "FTP обновление активно: ${result.boundAddress?.host}:${result.boundAddress?.port}")
