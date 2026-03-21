@@ -15,3 +15,6 @@
 # Apache FtpServer / SLF4J могут ссылаться на optional binder-классы.
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 -dontwarn org.slf4j.impl.StaticMDCBinder
+
+# Apache MINA использует reflection-sensitive путь для NIO processor при старте FTP listener.
+-keep class org.apache.mina.transport.socket.nio.NioProcessor { *; }
