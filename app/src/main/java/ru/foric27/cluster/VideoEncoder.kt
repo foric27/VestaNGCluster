@@ -214,12 +214,6 @@ class VideoEncoder(
             } catch (_: Throwable) {
                 setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec.toFloat())
             }
-            if (!streamConfig.dynamicFps) {
-                try {
-                    setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 125_000L)
-                } catch (_: Throwable) {
-                }
-            }
             try {
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
             } catch (_: Throwable) {
