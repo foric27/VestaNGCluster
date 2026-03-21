@@ -49,6 +49,7 @@ class VideoEncoder(
     private val dpi: Int = streamConfig.dpi
     private val displayLauncher = VideoDisplayLauncher(context, streamConfig, preferredLaunchComponent)
     private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::updateDynamicFpsStats)
+    private val frameTimingController = VideoFrameTimingController(streamConfig.fps, DYNAMIC_KEEPALIVE_PERIOD_MS)
 
     private var encoder: MediaCodec? = null
     private var virtualDisplay: VirtualDisplay? = null
@@ -67,12 +68,13 @@ class VideoEncoder(
     @Volatile private var fpsWindowFrames: Int = 0
     @Volatile private var hasPendingSurfaceFrame: Boolean = false
     @Volatile private var hasRenderedAnyFrame: Boolean = false
-    @Volatile private var lastRenderedFrameAtMs: Long = 0L
+    @Volatile private var dynamicRenderScheduled: Boolean = false
 
     fun start() {
         if (running) return
         stopping = false
         running = true
+        resetFrameTrackingState()
 
         try {
             val handlerThread = HandlerThread("ClusterCodec", Process.THREAD_PRIORITY_URGENT_DISPLAY)
@@ -101,10 +103,9 @@ class VideoEncoder(
             vdInputSurface = Surface(surfaceTexture)
             surfaceTexture.setOnFrameAvailableListener(
                 {
+                    hasPendingSurfaceFrame = true
                     if (streamConfig.dynamicFps) {
-                        renderLatestFrame()
-                    } else {
-                        hasPendingSurfaceFrame = true
+                        scheduleDynamicFrameRender()
                     }
                 },
                 codecHandler,
@@ -213,9 +214,11 @@ class VideoEncoder(
             } catch (_: Throwable) {
                 setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec.toFloat())
             }
-            try {
-                setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 125_000L)
-            } catch (_: Throwable) {
+            if (!streamConfig.dynamicFps) {
+                try {
+                    setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 125_000L)
+                } catch (_: Throwable) {
+                }
             }
             try {
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
@@ -356,7 +359,7 @@ class VideoEncoder(
             composer.drawSurfaceFrame(surfaceTexture)
             hasRenderedAnyFrame = true
             hasPendingSurfaceFrame = false
-            lastRenderedFrameAtMs = SystemClock.elapsedRealtime()
+            frameTimingController.markRendered(SystemClock.elapsedRealtime())
         } catch (t: Throwable) {
             Log.e(TAG, "Ошибка GL-композиции кадра -> рестарт", t)
             safeRequestRestart()
@@ -375,7 +378,7 @@ class VideoEncoder(
             } else {
                 composer.drawLastFrame()
             }
-            lastRenderedFrameAtMs = SystemClock.elapsedRealtime()
+            frameTimingController.markRendered(SystemClock.elapsedRealtime())
         } catch (t: Throwable) {
             Log.e(TAG, "Ошибка постоянного FPS -> рестарт", t)
             safeRequestRestart()
@@ -387,6 +390,26 @@ class VideoEncoder(
         val delayMs = (1000L / streamConfig.fps.coerceAtLeast(1)).coerceAtLeast(1L)
         handler.removeCallbacks(constantFpsRunnable)
         handler.postDelayed(constantFpsRunnable, if (initial) delayMs else 0L)
+    }
+
+    private fun scheduleDynamicFrameRender() {
+        val handler = codecHandler ?: return
+        val delayMs = frameTimingController.delayUntilNextDynamicRender(SystemClock.elapsedRealtime())
+
+        if (dynamicRenderScheduled) {
+            if (delayMs <= 0L) {
+                handler.removeCallbacks(dynamicFrameRunnable)
+                handler.post(dynamicFrameRunnable)
+            }
+            return
+        }
+
+        dynamicRenderScheduled = true
+        if (delayMs <= 0L) {
+            handler.post(dynamicFrameRunnable)
+        } else {
+            handler.postDelayed(dynamicFrameRunnable, delayMs)
+        }
     }
 
     private fun scheduleDynamicKeepaliveTick() {
@@ -416,8 +439,8 @@ class VideoEncoder(
             if (!running || stopping || !streamConfig.dynamicFps) return
 
             val nowMs = SystemClock.elapsedRealtime()
-            val idleMs = nowMs - lastRenderedFrameAtMs
-            if (lastRenderedFrameAtMs > 0L && idleMs >= DYNAMIC_KEEPALIVE_PERIOD_MS) {
+            val idleMs = frameTimingController.idleDurationMs(nowMs)
+            if (frameTimingController.shouldEmitKeepalive(nowMs)) {
                 try {
                     drawKeepaliveFrame(nowMs)
                     Log.i(TAG, "Отправляю keepalive-кадр для живого потока, idle=${idleMs}ms")
@@ -429,6 +452,25 @@ class VideoEncoder(
             }
 
             scheduleDynamicKeepaliveTick()
+        }
+    }
+
+    private val dynamicFrameRunnable = object : Runnable {
+        override fun run() {
+            dynamicRenderScheduled = false
+            if (!running || stopping || !streamConfig.dynamicFps) return
+            if (!hasPendingSurfaceFrame) return
+
+            val remainingDelayMs = frameTimingController.delayUntilNextDynamicRender(SystemClock.elapsedRealtime())
+            if (remainingDelayMs > 0L) {
+                scheduleDynamicFrameRender()
+                return
+            }
+
+            renderLatestFrame()
+            if (hasPendingSurfaceFrame) {
+                scheduleDynamicFrameRender()
+            }
         }
     }
 
@@ -476,7 +518,7 @@ class VideoEncoder(
         glComposer?.drawLastFrame()
         hasRenderedAnyFrame = true
         hasPendingSurfaceFrame = false
-        lastRenderedFrameAtMs = nowMs
+        frameTimingController.markRendered(nowMs)
     }
 
     private fun resetFrameTrackingState() {
@@ -484,7 +526,8 @@ class VideoEncoder(
         fpsWindowFrames = 0
         hasPendingSurfaceFrame = false
         hasRenderedAnyFrame = false
-        lastRenderedFrameAtMs = 0L
+        dynamicRenderScheduled = false
+        frameTimingController.reset()
     }
 
     private fun safeRequestRestart() {
@@ -514,6 +557,7 @@ class VideoEncoder(
         private val positionLoc: Int
         private val texCoordLoc: Int
         private val textureMatrixLoc: Int
+        private val timestampSanitizer = VideoFrameTimingController(fps = 1, keepalivePeriodMs = 1L)
 
         init {
             val recordableConfig = IntArray(1)
@@ -572,12 +616,12 @@ class VideoEncoder(
             surfaceTexture.updateTexImage()
             surfaceTexture.getTransformMatrix(transformMatrix)
             val timestampNs = surfaceTexture.timestamp.takeIf { it > 0L } ?: System.nanoTime()
-            drawPreparedFrame(timestampNs)
+            drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(timestampNs))
         }
 
         fun drawLastFrame() {
             makeCurrent()
-            drawPreparedFrame(System.nanoTime())
+            drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(System.nanoTime()))
         }
 
         private fun drawPreparedFrame(timestampNs: Long) {
