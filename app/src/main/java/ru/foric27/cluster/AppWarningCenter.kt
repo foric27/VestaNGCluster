@@ -13,7 +13,7 @@ import java.util.LinkedHashSet
 object AppWarningCenter {
 
     private const val TAG = "AppWarningCenter"
-    private const val MAX_QUEUE_SIZE = 32
+    private const val MAX_QUEUE_SIZE = 128
 
     interface WarningListener {
         fun onWarningPublished(message: String)
@@ -72,6 +72,12 @@ object AppWarningCenter {
                 out += queue.removeFirst()
             }
             return out
+        }
+    }
+
+    fun clear() {
+        synchronized(lock) {
+            queue.clear()
         }
     }
 }

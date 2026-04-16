@@ -36,7 +36,7 @@
 
     <string name="inline_notice_title_warning">Уведомления</string>
     <string name="inline_notice_title_info">Состояние</string>
-    <string name="inline_notice_dismiss">Скрыть</string>
+    <string name="inline_notice_clear">Очистить</string>
     <string name="inline_notice_item_fmt">• %1$s</string>
     <string name="developer_title">Для разработчиков</string>
     <string name="developer_back">Назад</string>
@@ -51,6 +51,10 @@
     <string name="main_open_telegram_failed">Не удалось открыть ссылку Telegram разработчика</string>
     <string name="main_all_files_access_granted">Доступ ко всем файлам выдан</string>
     <string name="main_open_files_settings_failed">Не удалось открыть настройки доступа к файлам</string>
+    <string name="main_battery_optimization_granted">Исключение из энергосбережения выдано</string>
+    <string name="main_open_battery_settings_failed">Не удалось открыть настройки энергосбережения</string>
+    <string name="main_notifications_granted">Разрешение на уведомления выдано</string>
+    <string name="main_notifications_missing">Нужно разрешить уведомления для корректной работы foreground-сервиса</string>
 
     <string name="service_notification_stream_running">Стрим запущен</string>
     <string name="service_notification_stream_stopped">Стрим не запущен</string>
@@ -59,7 +63,7 @@
     <string name="service_notification_iface_missing_fmt">%1$s отсутствует. Повтор через %2$dс</string>
     <string name="service_notification_no_connection_retry_fmt">Нет связи. Повтор через %1$dс</string>
     <string name="service_notification_ftp_message_fmt">FTP обновление: %1$s</string>
-    <string name="service_notification_wake_recovery">Телефон вышел из сна. Перезапускаю трансляцию и сеть…</string>
+    <string name="service_notification_wake_recovery">Устройство вышло из сна. Перезапускаю трансляцию и сеть…</string>
     <string name="service_notification_wake_recovery_failed">После выхода из сна поток не восстановился. Перезапускаю трансляцию и сеть…</string>
     <string name="service_notification_no_route_fmt">Нет маршрута до %1$s. Повтор через %2$dс</string>
     <string name="service_notification_service_recovery_fmt">Восстановление стрима через %1$dс</string>
@@ -82,7 +86,7 @@
     <string name="app_settings_details_no_global_write_permission_fmt">Нет прав на запись в Settings.Global: %1$s</string>
     <string name="app_settings_details_direct_write_error_fmt">Ошибка прямой записи: %1$s</string>
     <string name="common_null">null</string>
-    <string name="common_unknown">unknown</string>
+    <string name="common_unknown">неизвестно</string>
 
     <string name="runtime_section_target_app">Целевое приложение</string>
     <string name="runtime_section_visible_area">Видимая область</string>
@@ -92,38 +96,37 @@
     <string name="runtime_section_ftp_update">FTP обновление</string>
     <string name="runtime_section_service">Сервис</string>
 
-    <string name="runtime_field_target_action_main">Action MAIN</string>
-    <string name="runtime_field_target_category_cluster_navigation">Категория cluster navigation</string>
+    <string name="runtime_field_target_action_main">Действие запуска</string>
+    <string name="runtime_field_target_category_cluster_navigation">Категория кластерной навигации</string>
     <string name="runtime_field_target_package_name">Имя пакета</string>
-    <string name="runtime_field_target_cluster_component">Cluster component</string>
-    <string name="runtime_field_visible_left">LEFT</string>
-    <string name="runtime_field_visible_top">TOP</string>
-    <string name="runtime_field_visible_right">RIGHT</string>
-    <string name="runtime_field_visible_bottom">BOTTOM</string>
+    <string name="runtime_field_target_cluster_component">Компонент кластера</string>
+    <string name="runtime_field_visible_left">Левая граница</string>
+    <string name="runtime_field_visible_top">Верхняя граница</string>
+    <string name="runtime_field_visible_right">Правая граница</string>
+    <string name="runtime_field_visible_bottom">Нижняя граница</string>
     <string name="runtime_field_video_width">Ширина кадра</string>
     <string name="runtime_field_video_height">Высота кадра</string>
     <string name="runtime_field_video_fps_limit">FPS</string>
     <string name="runtime_field_video_dynamic_fps">Динамический FPS</string>
-    <string name="runtime_field_video_default_dpi">DPI</string>
+    <string name="runtime_field_video_default_dpi">Плотность DPI</string>
     <string name="runtime_field_video_bitrate">Битрейт</string>
-    <string name="runtime_field_video_iframe_interval_sec">I-frame interval, сек</string>
+    <string name="runtime_field_video_iframe_interval_sec">Интервал I-кадров, сек</string>
     <string name="runtime_field_video_black_bottom_px">Чёрная маска снизу, px</string>
-    <string name="runtime_field_network_target_ip">Target IP</string>
+    <string name="runtime_field_network_target_ip">Целевой IP</string>
     <string name="runtime_field_network_video_port">Видео UDP-порт</string>
-    <string name="runtime_field_network_status_port">Status UDP-порт</string>
-    <string name="runtime_field_network_use_root_net">Использовать root-сеть</string>
+    <string name="runtime_field_network_status_port">UDP-порт статуса</string>
     <string name="runtime_field_network_local_cidr">Локальный CIDR</string>
-    <string name="runtime_field_network_gateway">Gateway</string>
-    <string name="runtime_field_network_bind_ip">Bind IP</string>
-    <string name="runtime_field_network_udp_max_payload_bytes">UDP max payload</string>
-    <string name="runtime_field_network_udp_pacing_max_bps">UDP pacing max bps</string>
+    <string name="runtime_field_network_gateway">IP приёмника для маршрута</string>
+    <string name="runtime_field_network_bind_ip">Локальный bind IP</string>
+    <string name="runtime_field_network_udp_max_payload_bytes">Максимальная нагрузка UDP</string>
+    <string name="runtime_field_network_udp_pacing_max_bps">Ограничение pacing UDP, бит/с</string>
     <string name="runtime_field_root_iface">Имя root-интерфейса</string>
     <string name="runtime_field_root_iface_cache_ttl_ms">Кеш интерфейса, мс</string>
     <string name="runtime_field_root_route_cache_ttl_ms">Кеш маршрута, мс</string>
     <string name="runtime_field_root_su_timeout_ms">Таймаут su, мс</string>
     <string name="runtime_field_ftp_update_zip_name">Имя архива обновления</string>
     <string name="runtime_field_ftp_update_sig_name">Имя файла подписи</string>
-    <string name="runtime_field_ftp_port">FTP control-port</string>
+    <string name="runtime_field_ftp_port">Управляющий FTP-порт</string>
     <string name="runtime_field_ftp_passive_port_start">Пассивный порт: начало</string>
     <string name="runtime_field_ftp_passive_port_end">Пассивный порт: конец</string>
     <string name="runtime_field_ftp_user">FTP пользователь</string>
@@ -131,27 +134,32 @@
     <string name="runtime_field_ftp_root_dir_name">Имя FTP root</string>
     <string name="runtime_field_ftp_internal_poll_period_ms">Опрос внутренней памяти, мс</string>
     <string name="runtime_field_ftp_retry_delay_ms">Повторный запуск FTP, мс</string>
-    <string name="runtime_field_service_notification_id">ID уведомления</string>
-    <string name="runtime_field_service_notification_channel_id">ID канала уведомлений</string>
+    <string name="runtime_field_service_notification_id">Идентификатор уведомления</string>
+    <string name="runtime_field_service_notification_channel_id">Идентификатор канала уведомлений</string>
     <string name="runtime_field_service_notification_channel_name">Имя канала уведомлений</string>
     <string name="runtime_field_service_restart_backoff_start_ms">Начальный backoff, мс</string>
     <string name="runtime_field_service_restart_backoff_max_ms">Максимальный backoff, мс</string>
-    <string name="runtime_field_service_recovery_delay_ms">Service recovery, мс</string>
-    <string name="runtime_field_service_task_removed_recovery_delay_ms">Task removed recovery, мс</string>
-    <string name="runtime_field_service_recovery_request_code">Request code recovery</string>
-    <string name="runtime_field_service_restart_request_debounce_ms">Debounce рестарта, мс</string>
+    <string name="runtime_field_service_recovery_delay_ms">Задержка восстановления сервиса, мс</string>
+    <string name="runtime_field_service_task_removed_recovery_delay_ms">Восстановление после удаления задачи, мс</string>
+    <string name="runtime_field_service_recovery_request_code">Код восстановления</string>
+    <string name="runtime_field_service_restart_request_debounce_ms">Защита от повторного рестарта, мс</string>
     <string name="runtime_field_service_route_wait_timeout_ms">Ожидание маршрута, мс</string>
     <string name="runtime_field_service_route_wait_step_ms">Шаг ожидания маршрута, мс</string>
-    <string name="runtime_field_service_no_route_restart_backoff_min_ms">Backoff без маршрута, мс</string>
-    <string name="runtime_field_service_iface_missing_restart_backoff_min_ms">Backoff без интерфейса, мс</string>
-    <string name="runtime_field_service_network_lost_restart_backoff_ms">Backoff при потере сети, мс</string>
+    <string name="runtime_field_service_no_route_restart_backoff_min_ms">Задержка без маршрута, мс</string>
+    <string name="runtime_field_service_iface_missing_restart_backoff_min_ms">Задержка без интерфейса, мс</string>
     <string name="runtime_field_service_connectivity_watchdog_period_ms">Период watchdog, мс</string>
+    <string name="runtime_field_service_peer_ping_timeout_ms">Таймаут ping до приёмника, мс</string>
+    <string name="runtime_field_service_peer_ping_cache_ttl_ms">Кеш ping до приёмника, мс</string>
     <string name="runtime_field_service_route_recent_send_grace_ms">Окно свежей отправки, мс</string>
     <string name="runtime_field_service_route_failures_before_restart">Ошибок маршрута до рестарта</string>
-    <string name="runtime_field_service_thread_join_timeout_ms">Thread join timeout, мс</string>
-    <string name="runtime_field_service_status_period_ms">Период status sync, мс</string>
-    <string name="runtime_field_service_status_key_sync_interval">Интервал key sync</string>
-    <string name="runtime_field_service_status_error_log_every">Частота лога ошибок status</string>
+    <string name="runtime_field_service_thread_join_timeout_ms">Ожидание завершения потоков, мс</string>
+    <string name="runtime_field_service_status_period_ms">Период синхронизации статуса, мс</string>
+    <string name="runtime_field_service_status_key_sync_interval">Интервал полной синхронизации статуса</string>
+    <string name="runtime_field_service_status_error_log_every">Частота лога ошибок синхронизации</string>
+    <string name="runtime_field_service_process_crash_recovery_delay_ms">Задержка восстановления после падения процесса, мс</string>
+    <string name="runtime_field_service_process_crash_window_ms">Окно crash loop, мс</string>
+    <string name="runtime_field_service_process_crash_max_in_window">Падений в окне до блокировки</string>
+    <string name="runtime_field_service_process_crash_suppress_ms">Подавление после crash loop, мс</string>
 
     <string name="runtime_error_int_field_fmt">Поле «%1$s» должно быть целым числом</string>
     <string name="runtime_error_long_field_fmt">Поле «%1$s» должно быть числом</string>
@@ -167,4 +175,24 @@
     <string name="app_recovery_restart_reason_task_removed">Приложение закрыто из списка недавних</string>
     <string name="app_recovery_restart_reason_service_destroyed">Сервис был уничтожен системой</string>
     <string name="storage_access_missing_message">Нужно выдать приложению доступ ко всем файлам (MANAGE_EXTERNAL_STORAGE)</string>
+    <string name="battery_optimization_missing_message">Нужно исключить приложение из энергосбережения, чтобы стрим и автовосстановление работали стабильно</string>
+    <string name="main_notifications_missing_settings_message">Разрешение на уведомления не выдано. Откройте настройки приложения и разрешите уведомления.</string>
+    <string name="main_permissions_all_set">Все обязательные разрешения выданы</string>
+    <string name="main_battery_optimization_not_supported">На этом устройстве нет системного экрана отключения энергосбережения. Продолжаю работу без этого шага.</string>
+    <string name="msg_root_tool_missing_fmt">Root-команда недоступна: %1$s</string>
+    <string name="sync_invalid_stream_mode_value_fmt">Некорректное значение режима видеопотока: key=%1$s value=%2$d. Использую fallback &quot;nav&quot;.</string>
+    <string name="sync_missing_stream_mode_setting_fmt">Настройка режима видеопотока отсутствует: key=%1$s. Использую fallback &quot;nav&quot;.</string>
+    <string name="sync_read_stream_mode_failed_fmt">Не удалось прочитать режим видеопотока: key=%1$s. Использую fallback &quot;nav&quot;.</string>
+    <string name="update_server_not_running">FTP-сервер не запущен</string>
+    <string name="update_server_stopped">FTP-сервер остановлен</string>
+    <string name="update_server_context_not_initialized">Контекст приложения ещё не инициализирован</string>
+    <string name="update_server_preparing_internal">Подготовка FTP-сервера обновления: поиск во внутренней памяти</string>
+    <string name="update_server_preparing_usb_first">Подготовка FTP-сервера обновления: поиск на USB и во внутренней памяти</string>
+    <string name="update_server_started_fmt">FTP-сервер обновления запущен: %1$s:%2$d; источник %3$s</string>
+    <string name="update_server_poll_new_update_fmt">Периодический опрос обнаружил новое или изменённое обновление: %1$s</string>
+    <string name="update_server_rejection_fmt">Кандидат отклонён: %1$s. %2$s. expected=%3$s, actual=%4$s</string>
+    <string name="update_server_no_valid_pair">Валидная пара ICUpdate.zip и ICUpdate.zip.sig не найдена</string>
+    <string name="update_server_start_failed">FTP-сервер обновления не запущен</string>
+    <string name="update_server_start_failed_retry">FTP-сервер обновления не запущен: сеть ещё не готова, будет повторная попытка запуска</string>
+    <string name="update_server_start_failed_retry_details_fmt">FTP-сервер обновления не запущен: %1$s. Будет повторная попытка запуска</string>
 </resources>

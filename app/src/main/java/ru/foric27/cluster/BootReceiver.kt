@@ -48,6 +48,7 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private fun handleServiceAutostart(context: Context, action: String) {
+        logMissingPrerequisites(context, action)
         try {
             UdpStreamService.startServiceCompat(context)
             Log.i(TAG, "$action: foreground-сервис запущен")
@@ -58,6 +59,15 @@ class BootReceiver : BroadcastReceiver() {
                 return
             }
             Log.w(TAG, "$action: не удалось запустить foreground-сервис", t)
+        }
+    }
+
+    private fun logMissingPrerequisites(context: Context, action: String) {
+        if (!StorageAccessManager.isAllFilesAccessGranted()) {
+            Log.w(TAG, "$action: нет MANAGE_EXTERNAL_STORAGE, FTP и update-path будут ограничены")
+        }
+        if (!BatteryOptimizationManager.isIgnoringOptimizations(context)) {
+            Log.w(TAG, "$action: приложение не выведено из энергосбережения, автоподъём после сна может быть нестабилен")
         }
     }
 

@@ -19,6 +19,8 @@ object RootShell {
     private const val TAG = "RootShell"
     const val ROOT_REQUIRED_WARNING = "Нужно дать приложению права root (su)"
     @Volatile private var rootUnavailableCached = false
+    private val availableToolCache = HashSet<String>()
+    private val missingToolCache = HashSet<String>()
 
     data class Result(
         val code: Int,
@@ -47,6 +49,38 @@ object RootShell {
 
     fun publishUserWarning(message: String) {
         AppWarningCenter.publish(message)
+    }
+
+    fun ensureToolAvailable(tool: String): Boolean {
+        val normalized = tool.trim().lowercase(Locale.US)
+        if (normalized.isEmpty()) return false
+
+        synchronized(this) {
+            if (availableToolCache.contains(normalized)) return true
+            if (missingToolCache.contains(normalized)) return false
+        }
+
+        val result = su(listOf(buildToolProbeCommand(normalized)), logOnFailure = false)
+        val available = result.ok()
+        synchronized(this) {
+            if (available) {
+                availableToolCache += normalized
+                missingToolCache -= normalized
+            } else {
+                missingToolCache += normalized
+            }
+        }
+        if (!available) {
+            publishUserWarning(ClusterApp.appContext.getString(R.string.msg_root_tool_missing_fmt, normalized))
+        }
+        return available
+    }
+
+    fun clearToolCache() {
+        synchronized(this) {
+            availableToolCache.clear()
+            missingToolCache.clear()
+        }
     }
 
     private fun publishRootWarningIfNeeded(result: Result) {
@@ -178,4 +212,11 @@ object RootShell {
     private const val FORCE_DESTROY_GRACE_MS = 300L
     private const val READER_JOIN_TIMEOUT_MS = 500L
     private const val EXIT_CODE_TIMEOUT = -2
+
+    private fun buildToolProbeCommand(tool: String): String {
+        return when (tool) {
+            "ping" -> "if command -v ping >/dev/null 2>&1; then exit 0; elif [ -x /system/bin/ping ]; then exit 0; else exit 127; fi"
+            else -> "command -v $tool >/dev/null 2>&1"
+        }
+    }
 }

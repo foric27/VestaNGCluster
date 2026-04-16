@@ -99,20 +99,20 @@ class SyncHandler(
                 } catch (_: StreamModeException) {
                     if (!warnedBadStreamModeValue) {
                         warnedBadStreamModeValue = true
-                        Log.w(TAG, "Некорректное значение режима видеопотока: key=$STREAM_MODE_PARAM value=$raw. Использую fallback 'nav'.")
+                        Log.w(TAG, context.getString(R.string.sync_invalid_stream_mode_value_fmt, STREAM_MODE_PARAM, raw))
                     }
                     ClusterMode.CLASSIC_NAV.streamModeValue
                 }
             } catch (_: Settings.SettingNotFoundException) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
-                    Log.w(TAG, "Настройка режима видеопотока отсутствует: key=$STREAM_MODE_PARAM. Использую fallback 'nav'.")
+                    Log.w(TAG, context.getString(R.string.sync_missing_stream_mode_setting_fmt, STREAM_MODE_PARAM))
                 }
                 ClusterMode.CLASSIC_NAV.streamModeValue
             } catch (inner: Throwable) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
-                    Log.w(TAG, "Не удалось прочитать режим видеопотока: key=$STREAM_MODE_PARAM. Использую fallback 'nav'.", inner)
+                    Log.w(TAG, context.getString(R.string.sync_read_stream_mode_failed_fmt, STREAM_MODE_PARAM), inner)
                 }
                 ClusterMode.CLASSIC_NAV.streamModeValue
             }

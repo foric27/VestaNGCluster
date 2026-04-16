@@ -5,6 +5,7 @@
     <dimen name="screen_footer_spacing">24dp</dimen>
     <dimen name="screen_card_padding">16dp</dimen>
     <dimen name="screen_notice_spacing">10dp</dimen>
+    <dimen name="screen_notice_log_height">180dp</dimen>
     <dimen name="screen_title_size">28sp</dimen>
     <dimen name="screen_headline_size">22sp</dimen>
     <dimen name="screen_body_size">14sp</dimen>

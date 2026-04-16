@@ -81,7 +81,7 @@ class VideoEncoder(
         try {
             val handlerThread = HandlerThread("ClusterCodec", Process.THREAD_PRIORITY_URGENT_DISPLAY)
             handlerThread.start()
-            Log.i(TAG, "Приоритет codec thread повышен: ClusterCodec -> ${Process.THREAD_PRIORITY_URGENT_DISPLAY}")
+            Log.i(TAG, "Приоритет потока кодека повышен: ClusterCodec -> ${Process.THREAD_PRIORITY_URGENT_DISPLAY}")
             codecThread = handlerThread
             codecHandler = Handler(handlerThread.looper)
 
@@ -128,7 +128,7 @@ class VideoEncoder(
                 scheduleDynamicKeepaliveTick()
             }
         } catch (t: Throwable) {
-            Log.e(TAG, "Не удалось запустить VideoEncoder", t)
+            Log.e(TAG, "Не удалось запустить видеокодер", t)
             safeStopInternal(releasePersistentDisplay = false)
             running = false
             stopping = false
@@ -154,7 +154,7 @@ class VideoEncoder(
     fun relaunchTargetActivityIfNeeded(reason: String) {
         val displayId = virtualDisplay?.display?.displayId ?: VdspState.getDisplayId()
         if (displayId < 0) {
-            Log.w(TAG, "Пропускаю relaunch навигатора: displayId недоступен, reason=$reason")
+            Log.w(TAG, "Пропускаю повторный запуск навигатора: displayId недоступен, reason=$reason")
             return
         }
 
@@ -180,9 +180,9 @@ class VideoEncoder(
                     drawKeepaliveFrame(SystemClock.elapsedRealtime())
                 }
                 requestSyncFrame()
-                Log.i(TAG, "Принудительно отправляю кадр после wake, reason=$reason")
+                Log.i(TAG, "Принудительно отправляю кадр после выхода из сна, reason=$reason")
             } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось принудительно отправить кадр после wake, reason=$reason", t)
+                Log.w(TAG, "Не удалось принудительно отправить кадр после выхода из сна, reason=$reason", t)
             }
         }
         runOnCodecThread(render)
@@ -195,7 +195,7 @@ class VideoEncoder(
             try {
                 onEncoderOutput(codec, index, info)
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка onOutputBufferAvailable -> рестарт", t)
+                Log.e(TAG, "Ошибка обработки output buffer -> рестарт", t)
                 releaseOutputBufferQuietly(codec, index)
                 safeRequestRestart()
             }
@@ -285,14 +285,14 @@ class VideoEncoder(
         try {
             glComposer?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить GL composer", t)
+            Log.w(TAG, "Не удалось освободить GL-компоновщик", t)
         }
         glComposer = null
 
         try {
             encoderInputSurface?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить input Surface кодека", t)
+            Log.w(TAG, "Не удалось освободить входной Surface кодека", t)
         }
         encoderInputSurface = null
 
@@ -314,7 +314,7 @@ class VideoEncoder(
                 thread.quitSafely()
                 thread.join(CODEC_THREAD_JOIN_TIMEOUT_MS)
             } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось корректно завершить codecThread", t)
+            Log.w(TAG, "Не удалось корректно завершить поток кодека", t)
             }
         }
         codecThread = null
@@ -491,7 +491,7 @@ class VideoEncoder(
             if (frameTimingController.shouldEmitKeepalive(nowMs)) {
                 try {
                     drawKeepaliveFrame(nowMs)
-                    Log.i(TAG, "Отправляю keepalive-кадр для живого потока, idle=${idleMs}ms")
+                    Log.i(TAG, "Отправляю keepalive-кадр для поддержания потока, idle=${idleMs}ms")
                 } catch (t: Throwable) {
                     Log.e(TAG, "Ошибка keepalive-кадра в dynamicFps -> рестарт", t)
                     safeRequestRestart()
@@ -539,7 +539,7 @@ class VideoEncoder(
         val fps = fpsWindowFrames * 1000.0 / elapsedMs.toDouble()
         Log.i(
             TAG,
-            "VD capture active: actualFps=${String.format(Locale.US, "%.2f", fps)}, ${if (streamConfig.dynamicFps) "dynamicMaxFps" else "constantFps"}=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
+            "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, ${if (streamConfig.dynamicFps) "dynamicMaxFps" else "constantFps"}=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
         )
         fpsWindowStartedAtMs = nowMs
         fpsWindowFrames = 0
@@ -595,7 +595,7 @@ class VideoEncoder(
         try {
             restartCallback.requestRestart()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось запросить перезапуск пайплайна", t)
+            Log.w(TAG, "Не удалось запросить перезапуск видеопайплайна", t)
         }
     }
 

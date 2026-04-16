@@ -18,11 +18,11 @@ object ProductConfig {
         const val CATEGORY_CLUSTER_NAVIGATION: String = "android.car.cluster.NAVIGATION"
 
         /** Имя пакета целевого приложения Яндекс Навигатор Auto. */
-        const val PACKAGE_NAME: String = "ru.yandex.yandexnavi.auto"
+        const val PACKAGE_NAME: String = "ru.yandex.yandexnavi"
 
         /** Полное имя cluster-activity, которую нужно запускать на `VirtualDisplay`. */
         const val CLUSTER_COMPONENT: String =
-            "ru.yandex.yandexnavi.auto/com.yandex.navi.cluster.ClusterNavigationActivity"
+            "ru.yandex.yandexnavi/com.yandex.navi.cluster.ClusterNavigationActivity"
     }
 
     object VisibleArea {
@@ -89,9 +89,6 @@ object ProductConfig {
 
         /** Короткая строка адреса синхронизации статуса для логов и диагностики. */
         val STATUS_ENDPOINT: String = "$TARGET_IP:$STATUS_PORT"
-
-        /** По умолчанию использовать root-схему, потому что статический IP на интерфейсе назначается через `su`. */
-        const val USE_ROOT_NET: Boolean = true
 
         /** Локальный адрес и маска интерфейса в формате CIDR. */
         const val LOCAL_CIDR: String = "192.168.40.1/24"
@@ -172,7 +169,7 @@ object ProductConfig {
         const val NOTIFICATION_CHANNEL_ID: String = "cluster_stream"
 
         /** Отображаемое имя канала уведомлений. */
-        const val NOTIFICATION_CHANNEL_NAME: String = "Cluster Stream"
+        const val NOTIFICATION_CHANNEL_NAME: String = "Трансляция кластера"
 
         /** Начальная задержка перед первой попыткой перезапуска. */
         const val RESTART_BACKOFF_START_MS: Long = 700L
@@ -204,11 +201,14 @@ object ProductConfig {
         /** Минимальная задержка повторного запуска, если не найден сетевой интерфейс. */
         const val IFACE_MISSING_RESTART_BACKOFF_MIN_MS: Long = 4_000L
 
-        /** Задержка перезапуска после потери сетевого `NetworkCallback`. */
-        const val NETWORK_LOST_RESTART_BACKOFF_MS: Long = 700L
-
         /** Период работы watchdog проверки связности. */
         const val CONNECTIVITY_WATCHDOG_PERIOD_MS: Long = 1_500L
+
+        /** Таймаут root ping до приёмника. */
+        const val PEER_PING_TIMEOUT_MS: Long = 1_500L
+
+        /** Время кеширования результата root ping. */
+        const val PEER_PING_CACHE_TTL_MS: Long = 3_000L
 
         /** Окно, в течение которого свежая отправка считается актуальной. */
         const val ROUTE_RECENT_SEND_GRACE_MS: Long = 5_000L
@@ -227,5 +227,17 @@ object ProductConfig {
 
         /** Как часто логировать повторяющиеся ошибки синхронизации статуса. */
         const val STATUS_ERROR_LOG_EVERY: Int = 10
+
+        /** Задержка перед восстановлением после падения процесса. */
+        const val PROCESS_CRASH_RECOVERY_DELAY_MS: Long = 1_500L
+
+        /** Окно наблюдения crash loop для всего процесса. */
+        const val PROCESS_CRASH_WINDOW_MS: Long = 60_000L
+
+        /** Максимум падений в окне до временного подавления recovery. */
+        const val PROCESS_CRASH_MAX_IN_WINDOW: Int = 3
+
+        /** На сколько подавлять автоподъём после crash loop. */
+        const val PROCESS_CRASH_SUPPRESS_MS: Long = 180_000L
     }
 }

@@ -1,6 +1,5 @@
 package ru.foric27.cluster
 
-import android.net.Network
 import android.util.Log
 import java.io.IOException
 import java.net.BindException
@@ -23,7 +22,6 @@ class UdpSender(
     private val host: String,
     private val port: Int,
     bindIp: String?,
-    private val bindNetwork: Network? = null,
     private val maxPayloadBytes: Int = RuntimeConfig.Network.UDP_MAX_PAYLOAD_BYTES,
     private val pacingMaxBps: Int = RuntimeConfig.Network.UDP_PACING_MAX_BPS,
 ) {
@@ -60,10 +58,10 @@ class UdpSender(
         socket = if (bindIp != null) {
             try {
                 DatagramSocket(InetSocketAddress(InetAddress.getByName(bindIp), 0)).also {
-                    Log.i(TAG, "Сокет привязан к локальному IP $bindIp")
+                    Log.i(TAG, "UDP-сокет привязан к локальному адресу $bindIp")
                 }
             } catch (be: BindException) {
-                Log.w(TAG, "Не удалось привязаться к $bindIp (${be.message}), использую bind 0.0.0.0")
+                Log.w(TAG, "Не удалось привязать UDP-сокет к $bindIp (${be.message}), использую bind 0.0.0.0")
                 DatagramSocket()
             }
         } else {
@@ -76,17 +74,8 @@ class UdpSender(
         } catch (_: Throwable) {
         }
 
-        if (bindNetwork != null) {
-            try {
-                bindNetwork.bindSocket(socket)
-                Log.i(TAG, "Сокет привязан к Network=$bindNetwork")
-            } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось привязать сокет к Network (продолжаю без привязки): $t")
-            }
-        }
-
         resetPacing()
-        Log.i(TAG, "Сокет создан для $host:$port, payload=$safePayloadBytes, pacingMax=${safePacingMaxBps}бит/с")
+        Log.i(TAG, "UDP-сокет создан для $host:$port, payload=$safePayloadBytes, pacingMax=${safePacingMaxBps}бит/с")
     }
 
     @Synchronized
@@ -155,9 +144,9 @@ class UdpSender(
         try {
             socket?.close()
             createSocket()
-            Log.i(TAG, "Сокет перезапущен")
+            Log.i(TAG, "UDP-сокет перезапущен")
         } catch (e: IOException) {
-            Log.e(TAG, "Не удалось перезапустить сокет", e)
+            Log.e(TAG, "Не удалось перезапустить UDP-сокет", e)
         }
     }
 

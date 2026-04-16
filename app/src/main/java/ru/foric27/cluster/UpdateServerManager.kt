@@ -2,6 +2,7 @@ package ru.foric27.cluster
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.StringRes
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -103,7 +104,7 @@ object UpdateServerManager {
     fun stopServer() {
         synchronized(lock) {
             stopServerLocked(clearPrepared = true)
-            currentState.set(State(Status.STOPPED, "FTP-сервер остановлен", detectedLocation = lastDetectedLocation))
+            currentState.set(State(Status.STOPPED, str(R.string.update_server_stopped), detectedLocation = lastDetectedLocation))
         }
     }
 
@@ -151,7 +152,7 @@ object UpdateServerManager {
 
                 Log.i(
                     TAG,
-                    "Периодический опрос обнаружил новое или изменённое обновление во внутренней памяти: ${validatedPair.pair.directoryLabel}",
+                    str(R.string.update_server_poll_new_update_fmt, validatedPair.pair.directoryLabel),
                 )
                 reloadValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
             } catch (t: Throwable) {
@@ -191,7 +192,12 @@ object UpdateServerManager {
         lastDetectedLocation = validatedPair.pair.directoryLabel
 
         val sourceText = "${validatedPair.pair.sourceKind.displayName}: ${validatedPair.pair.directoryLabel}"
-        val message = "FTP-сервер обновления запущен: ${server.boundAddress.host}:${server.boundAddress.port}; источник $sourceText"
+        val message = str(
+            R.string.update_server_started_fmt,
+            server.boundAddress.host,
+            server.boundAddress.port,
+            sourceText,
+        )
         Log.i(TAG, message)
         val successState = State(
             status = Status.RUNNING,
@@ -276,15 +282,21 @@ object UpdateServerManager {
         candidate: UpdateFileLocator.LocatedUpdatePair,
         verification: Sha256Verifier.VerificationResult,
     ): String {
-        return "Кандидат отклонён: ${candidate.directoryLabel}. ${verification.details}. expected=${verification.expectedSha256}, actual=${verification.actualSha256}"
+        return str(
+            R.string.update_server_rejection_fmt,
+            candidate.directoryLabel,
+            verification.details,
+            verification.expectedSha256,
+            verification.actualSha256,
+        )
     }
 
     private fun buildNoValidPairMessage(rejectionMessages: List<String>): String {
         if (rejectionMessages.isEmpty()) {
-            return "Валидная пара ICUpdate.zip и ICUpdate.zip.sig не найдена"
+            return str(R.string.update_server_no_valid_pair)
         }
         return buildString {
-            append("Валидная пара ICUpdate.zip и ICUpdate.zip.sig не найдена.")
+            append(str(R.string.update_server_no_valid_pair)).append('.')
             rejectionMessages.forEach { rejectionMessage ->
                 append('\n')
                 append(rejectionMessage)
@@ -345,8 +357,8 @@ object UpdateServerManager {
 
     private fun buildPreparingMessage(searchPolicy: UpdateFileLocator.SearchPolicy): String {
         return when (searchPolicy) {
-            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY -> "Подготовка FTP-сервера обновления: поиск во внутренней памяти"
-            UpdateFileLocator.SearchPolicy.USB_FIRST -> "Подготовка FTP-сервера обновления: поиск на USB и во внутренней памяти"
+            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY -> str(R.string.update_server_preparing_internal)
+            UpdateFileLocator.SearchPolicy.USB_FIRST -> str(R.string.update_server_preparing_usb_first)
         }
     }
 
@@ -375,12 +387,35 @@ object UpdateServerManager {
     private fun buildStartFailureMessage(t: Throwable, retrySuggested: Boolean): String {
         val details = (t.message ?: t.javaClass.simpleName).orEmpty().trim()
         if (!retrySuggested) {
-            return details.ifBlank { "FTP-сервер обновления не запущен" }
+            return details.ifBlank { str(R.string.update_server_start_failed) }
         }
         return if (details.isBlank()) {
-            "FTP-сервер обновления не запущен: сеть ещё не готова, будет повторная попытка запуска"
+            str(R.string.update_server_start_failed_retry)
         } else {
-            "FTP-сервер обновления не запущен: $details. Будет повторная попытка запуска"
+            str(R.string.update_server_start_failed_retry_details_fmt, details)
+        }
+    }
+
+    private fun str(@StringRes resId: Int, vararg args: Any?): String {
+        val context = appContext ?: return fallbackString(resId, args)
+        return if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
+    }
+
+    private fun fallbackString(@StringRes resId: Int, args: Array<out Any?>): String {
+        return when (resId) {
+            R.string.update_server_not_running -> "FTP-сервер не запущен"
+            R.string.update_server_stopped -> "FTP-сервер остановлен"
+            R.string.update_server_context_not_initialized -> "Контекст приложения ещё не инициализирован"
+            R.string.update_server_preparing_internal -> "Подготовка FTP-сервера обновления: поиск во внутренней памяти"
+            R.string.update_server_preparing_usb_first -> "Подготовка FTP-сервера обновления: поиск на USB и во внутренней памяти"
+            R.string.update_server_started_fmt -> "FTP-сервер обновления запущен: ${args[0]}:${args[1]}; источник ${args[2]}"
+            R.string.update_server_poll_new_update_fmt -> "Периодический опрос обнаружил новое или изменённое обновление: ${args[0]}"
+            R.string.update_server_rejection_fmt -> "Кандидат отклонён: ${args[0]}. ${args[1]}. expected=${args[2]}, actual=${args[3]}"
+            R.string.update_server_no_valid_pair -> "Валидная пара ICUpdate.zip и ICUpdate.zip.sig не найдена"
+            R.string.update_server_start_failed -> "FTP-сервер обновления не запущен"
+            R.string.update_server_start_failed_retry -> "FTP-сервер обновления не запущен: сеть ещё не готова, будет повторная попытка запуска"
+            R.string.update_server_start_failed_retry_details_fmt -> "FTP-сервер обновления не запущен: ${args[0]}. Будет повторная попытка запуска"
+            else -> resId.toString()
         }
     }
 

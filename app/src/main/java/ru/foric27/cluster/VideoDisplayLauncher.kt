@@ -22,7 +22,7 @@ internal class VideoDisplayLauncher(
             val direct = launchViaIntentBestEffort(displayId, command)
             if (direct.success) {
                 started = command
-                Log.i(TAG, "Proxy activity запрошена через Context.startActivity на display=$displayId: ${command.component}, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+                Log.i(TAG, "Proxy-activity запрошена через Context.startActivity на дисплее $displayId: ${command.component}, видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
                 break
             }
             lastDirectError = direct.error
@@ -31,17 +31,21 @@ internal class VideoDisplayLauncher(
                 continue
             }
 
+            if (!RootShell.ensureToolAvailable("am")) {
+                continue
+            }
+
             val shellResult = RootShell.su(listOf(YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)))
             lastShellResult = shellResult
             if (shellResult.ok()) {
                 started = command
-                Log.i(TAG, "Proxy activity запрошена через su/am start на display=$displayId после отказа direct-launch: ${command.component}, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+                Log.i(TAG, "Proxy-activity запрошена через su/am start на дисплее $displayId после отказа прямого запуска: ${command.component}, видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
                 break
             }
         }
 
         if (started != null) {
-            Log.i(TAG, "Запрос на активацию activity для вывода отправлен на display=$displayId: ${started.component} (${started.note}), visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+            Log.i(TAG, "Запрос на активацию activity для вывода отправлен на дисплей $displayId: ${started.component} (${started.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
             return
         }
 
@@ -79,9 +83,6 @@ internal class VideoDisplayLauncher(
     }
 
     private fun shouldTryRootLaunchFallback(error: Throwable?): Boolean {
-        if (!streamConfig.useRootNet) {
-            return false
-        }
         val message = error?.message?.lowercase().orEmpty()
         return error is SecurityException ||
             message.contains("permission denial") ||

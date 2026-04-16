@@ -52,20 +52,29 @@
                         android:textStyle="bold" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/noticeDismissBtn"
+                        android:id="@+id/noticeClearBtn"
                         style="@style/Widget.Foric27Cluster.Button.Dismiss"
                         android:layout_width="wrap_content"
                         android:layout_height="40dp"
-                        android:text="@string/inline_notice_dismiss" />
+                        android:text="@string/inline_notice_clear" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/noticeText"
+                <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="@dimen/screen_notice_log_height"
                     android:layout_marginTop="@dimen/screen_notice_spacing"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/screen_body_size" />
+                    android:fillViewport="true"
+                    android:scrollbars="vertical">
+
+                    <TextView
+                        android:id="@+id/noticeText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingEnd="4dp"
+                        android:textColor="@color/text_primary"
+                        android:textIsSelectable="true"
+                        android:textSize="@dimen/screen_body_size" />
+                </ScrollView>
             </LinearLayout>
 
             <TextView

@@ -4,59 +4,39 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import ru.foric27.cluster.AppSettings.UiStreamMode
 import ru.foric27.cluster.databinding.ActivityMainBinding
-import java.util.ArrayDeque
 
 /**
  * Главный экран приложения.
  *
- * Экран остаётся намеренно компактным: он показывает текущее состояние стрима,
- * позволяет выбрать режим панели, вручную перезапустить сеть со стримом и
- * служит входом в экран разработчика. После обычного launcher-запуска окно
- * уходит в фон, а реальная работа продолжается в foreground-сервисе.
+ * Activity намеренно остается тонкой: она связывает lifecycle, рендерит текущее
+ * состояние сервиса и делегирует preflight доступа и журнал предупреждений
+ * отдельным helper-классам.
  */
 class MainActivity : AppCompatActivity() {
 
-    private data class InlineNotice(
-        val text: String,
-        val isError: Boolean,
-    )
-
     private lateinit var binding: ActivityMainBinding
-    private val inlineNotices = ArrayDeque<InlineNotice>()
+    private lateinit var noticeLog: MainNoticeLog
+    private lateinit var accessPreflight: MainAccessPreflight
     private var vdspReceiverRegistered = false
-    private var manageStorageSettingsOpened = false
-    private var hadAllFilesAccess = false
     private var versionTapCount = 0
     private var lastVersionTapAt = 0L
-    private var notificationsPermissionPending = false
     private var backgroundLaunchHandled = false
-
-    private val warningListener = object : AppWarningCenter.WarningListener {
-        override fun onWarningPublished(message: String) {
-            runOnUiThread {
-                showInlineNotice(message, isError = true)
-            }
-        }
-    }
 
     private val vdspReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 VdspState.ACTION_VDSP_READY -> {
                     refreshScreenState()
-                    showInlineNotice(getString(R.string.msg_vdsp_ready), isError = false)
+                    noticeLog.show(getString(R.string.msg_vdsp_ready), isError = false)
                 }
+
                 VdspState.ACTION_VDSP_STATE_CHANGED -> {
                     refreshScreenState()
                 }
@@ -70,29 +50,39 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        bindNoticePanel()
+        noticeLog = MainNoticeLog(this, binding)
+        accessPreflight = MainAccessPreflight(
+            activity = this,
+            showNotice = noticeLog::show,
+            onAllFilesAccessGranted = {
+                UdpStreamService.startServiceCompat(this)
+                UpdateServerManager.restartServer()
+                renderFtpState()
+            },
+        )
+
+        noticeLog.bindClearAction()
         bindModeSelector()
         bindActions()
         bindFooterInfo()
         refreshScreenState()
-        renderNoticePanel()
+        noticeLog.render()
 
-        requestNotificationsPermissionIfNeeded()
-        handleAllFilesAccessState()
+        accessPreflight.run()
         ensureStreamingRunning()
         tryMoveTaskToBackIfNeeded()
     }
 
     override fun onStart() {
         super.onStart()
-        AppWarningCenter.registerListener(warningListener)
+        AppWarningCenter.registerListener(noticeLog.warningListener)
         registerVdspReceiverSafely()
         refreshScreenState()
     }
 
     override fun onResume() {
         super.onResume()
-        handleAllFilesAccessState()
+        accessPreflight.run()
         refreshScreenState()
         tryMoveTaskToBackIfNeeded()
     }
@@ -104,16 +94,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        AppWarningCenter.unregisterListener(warningListener)
+        AppWarningCenter.unregisterListener(noticeLog.warningListener)
         unregisterVdspReceiverSafely()
         super.onStop()
-    }
-
-    private fun bindNoticePanel() {
-        binding.noticeDismissBtn.setOnClickListener {
-            inlineNotices.clear()
-            renderNoticePanel()
-        }
     }
 
     private fun bindModeSelector() {
@@ -130,11 +113,11 @@ class MainActivity : AppCompatActivity() {
             refreshScreenState(refreshFtp = false)
 
             if (result.ok) {
-                showInlineNotice(getString(R.string.stream_mode_apply_ok_fmt, modeLabel(mode)), isError = false)
+                noticeLog.show(getString(R.string.stream_mode_apply_ok_fmt, modeLabel(mode)), isError = false)
             } else {
-                showInlineNotice(getString(R.string.stream_mode_apply_fail_fmt, modeLabel(mode)), isError = true)
+                noticeLog.show(getString(R.string.stream_mode_apply_fail_fmt, modeLabel(mode)), isError = true)
                 if (result.savedLocally) {
-                    showInlineNotice(result.details, isError = false)
+                    noticeLog.show(result.details, isError = false)
                 }
             }
         }
@@ -143,7 +126,7 @@ class MainActivity : AppCompatActivity() {
     private fun bindActions() {
         binding.restartStreamBtn.setOnClickListener {
             UdpStreamService.restartServiceCompat(this)
-            showInlineNotice(getString(R.string.main_restart_stream_requested), isError = false)
+            noticeLog.show(getString(R.string.main_restart_stream_requested), isError = false)
             refreshScreenState(refreshFtp = false, consumeWarnings = false)
         }
     }
@@ -173,12 +156,12 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, DeveloperActivity::class.java))
         }.onFailure { error ->
             Log.w(TAG, "Не удалось открыть экран разработчика", error)
-            showInlineNotice(getString(R.string.main_open_developer_failed), isError = true)
+            noticeLog.show(getString(R.string.main_open_developer_failed), isError = true)
         }
     }
 
     private fun openDeveloperTelegram() {
-        val telegramUri = Uri.parse(getString(R.string.developer_telegram_link))
+        val telegramUri = android.net.Uri.parse(getString(R.string.developer_telegram_link))
         val launchIntent = Intent(Intent.ACTION_VIEW, telegramUri).apply {
             addCategory(Intent.CATEGORY_BROWSABLE)
         }
@@ -186,25 +169,18 @@ class MainActivity : AppCompatActivity() {
             startActivity(launchIntent)
         }.onFailure { error ->
             Log.w(TAG, "Не удалось открыть ссылку Telegram разработчика", error)
-            showInlineNotice(getString(R.string.main_open_telegram_failed), isError = true)
+            noticeLog.show(getString(R.string.main_open_telegram_failed), isError = true)
         }
     }
 
-    /**
-     * Поднимает foreground-сервис при открытии UI, если он ещё не запущен.
-     */
     private fun ensureStreamingRunning() {
         if (UdpStreamService.isServiceRunning()) {
             refreshScreenState()
             return
         }
 
-        startStreamingService()
-        refreshScreenState()
-    }
-
-    private fun startStreamingService() {
         UdpStreamService.startServiceCompat(this)
+        refreshScreenState()
     }
 
     private fun refreshScreenState(
@@ -216,13 +192,10 @@ class MainActivity : AppCompatActivity() {
             renderFtpState()
         }
         if (consumeWarnings) {
-            showPendingWarnings()
+            noticeLog.consumePendingWarnings()
         }
     }
 
-    /**
-     * Отрисовывает текущее состояние стрима и cluster display.
-     */
     private fun renderDynamicState() {
         val displayId = VdspState.getDisplayId()
         val running = UdpStreamService.isServiceRunning()
@@ -248,14 +221,12 @@ class MainActivity : AppCompatActivity() {
                 VdspState.DisplayState.CHANGED -> getString(R.string.status_running_subline_display_changed)
                 else -> getString(R.string.status_running_subline_no_display)
             }
+
             running -> getString(R.string.status_starting_subline)
             else -> getString(R.string.status_recovering_subline)
         }
     }
 
-    /**
-     * Показывает состояние FTP-сервера и найденного update-пакета.
-     */
     private fun renderFtpState() {
         val state = UpdateServerManager.getServerState()
         binding.ftpStatusText.text = buildString {
@@ -300,59 +271,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showPendingWarnings() {
-        AppWarningCenter.consumeAll().forEach { showInlineNotice(it, isError = true) }
-    }
-
-    /**
-     * Добавляет уведомление в локальную очередь, устраняя дубликаты и сохраняя
-     * наверху самые свежие сообщения.
-     */
-    private fun showInlineNotice(msg: String, isError: Boolean) {
-        val normalized = msg.trim()
-        if (normalized.isEmpty()) return
-
-        val existing = inlineNotices.firstOrNull { it.text == normalized }
-        if (existing != null && (!isError || existing.isError)) {
-            renderNoticePanel()
-            return
-        }
-
-        inlineNotices.removeAll { it.text == normalized }
-        inlineNotices.addFirst(InlineNotice(normalized, isError))
-        while (inlineNotices.size > MAX_INLINE_NOTICES) {
-            inlineNotices.removeLast()
-        }
-        renderNoticePanel()
-    }
-
-    /**
-     * Отрисовывает сводную панель пользовательских предупреждений и статусов.
-     */
-    private fun renderNoticePanel() {
-        if (inlineNotices.isEmpty()) {
-            binding.noticePanel.visibility = View.GONE
-            binding.noticeText.text = ""
-            return
-        }
-
-        val hasErrors = inlineNotices.any { it.isError }
-        binding.noticePanel.visibility = View.VISIBLE
-        binding.noticeTitle.text = if (hasErrors) {
-            getString(R.string.inline_notice_title_warning)
-        } else {
-            getString(R.string.inline_notice_title_info)
-        }
-        binding.noticeText.text = inlineNotices.joinToString("\n\n") {
-            getString(R.string.inline_notice_item_fmt, it.text)
-        }
-    }
-
     private fun registerVdspReceiverSafely() {
         if (vdspReceiverRegistered) return
         try {
-            val filter = IntentFilter(VdspState.ACTION_VDSP_READY)
-            filter.addAction(VdspState.ACTION_VDSP_STATE_CHANGED)
+            val filter = IntentFilter(VdspState.ACTION_VDSP_READY).apply {
+                addAction(VdspState.ACTION_VDSP_STATE_CHANGED)
+            }
             ContextCompat.registerReceiver(this, vdspReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             vdspReceiverRegistered = true
         } catch (t: Throwable) {
@@ -371,79 +295,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Проверяет состояние MANAGE_EXTERNAL_STORAGE и обновляет UI/FTP-path после
-     * выдачи разрешения.
-     */
-    private fun handleAllFilesAccessState() {
-        val hasAccess = StorageAccessManager.isAllFilesAccessGranted()
-        val accessJustGranted = hasAccess && !hadAllFilesAccess
-        hadAllFilesAccess = hasAccess
-
-        if (!hasAccess) {
-            showInlineNotice(StorageAccessManager.buildMissingAccessMessage(this), isError = true)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !manageStorageSettingsOpened) {
-                manageStorageSettingsOpened = true
-                openManageAllFilesAccessSettings()
-            }
-            renderFtpState()
-            return
-        }
-
-        if (accessJustGranted) {
-            showInlineNotice(getString(R.string.main_all_files_access_granted), isError = false)
-            UdpStreamService.startServiceCompat(this)
-            UpdateServerManager.restartServer()
-            renderFtpState()
-        }
-    }
-
-    private fun openManageAllFilesAccessSettings() {
-        runCatching {
-            startActivity(StorageAccessManager.buildManageAllFilesAccessIntent(this))
-        }.recoverCatching {
-            startActivity(StorageAccessManager.buildManageAllFilesAccessFallbackIntent())
-        }.onFailure { error ->
-            Log.w(TAG, "Не удалось открыть настройки доступа ко всем файлам", error)
-            showInlineNotice(getString(R.string.main_open_files_settings_failed), isError = true)
-        }
-    }
-
-    private fun requestNotificationsPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < 33) return
-        if (
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-        notificationsPermissionPending = true
-        requestPermissions(
-            arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-            REQUEST_NOTIFICATIONS_CODE,
-        )
-    }
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_NOTIFICATIONS_CODE) return
-        notificationsPermissionPending = false
+        if (!accessPreflight.handlePermissionsResult(requestCode, grantResults)) return
         tryMoveTaskToBackIfNeeded()
     }
 
-    /**
-     * Обычный launcher-старт переводит задачу в фон, когда UI уже выполнил свою
-     * роль по запуску сервиса и запросу обязательных разрешений.
-     */
     private fun tryMoveTaskToBackIfNeeded() {
         if (backgroundLaunchHandled) return
         if (intent.getBooleanExtra(EXTRA_KEEP_IN_FOREGROUND, false)) return
-        if (notificationsPermissionPending) return
-        if (!StorageAccessManager.isAllFilesAccessGranted()) return
+        if (!accessPreflight.isReadyToBackground()) return
 
         backgroundLaunchHandled = true
         binding.root.post {
@@ -454,8 +319,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        private const val REQUEST_NOTIFICATIONS_CODE = 10
-        private const val MAX_INLINE_NOTICES = 6
         private const val DEVELOPER_TAP_COUNT = 7
         private const val VERSION_TAP_TIMEOUT_MS = 1_500L
         const val EXTRA_KEEP_IN_FOREGROUND = "ru.foric27.cluster.extra.KEEP_IN_FOREGROUND"
