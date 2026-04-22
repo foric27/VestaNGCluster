@@ -16,6 +16,8 @@ internal class UdpUpdateServerCoordinator(
     @Volatile private var lastFtpRetryReport: String? = null
     @Volatile private var internalUpdatePollScheduled = false
     @Volatile private var ftpRetryScheduled = false
+    @Volatile private var lastKnownUpdateSha256: String? = null
+    @Volatile private var lastAlertShownTime: Long = 0L
 
     private val internalUpdatePollRunnable = Runnable { performInternalUpdatePoll() }
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
@@ -128,6 +130,7 @@ internal class UdpUpdateServerCoordinator(
                 }
                 if (result.success) {
                     cancelFtpRetry()
+                    checkAndShowUpdateAlert(result)
                 } else {
                     scheduleFtpRetry("internal_poll")
                 }
@@ -141,7 +144,35 @@ internal class UdpUpdateServerCoordinator(
         }
     }
 
+    private fun checkAndShowUpdateAlert(result: UpdateServerManager.Result) {
+        val fileInfo = result.fileInfo ?: return
+        val currentSha256 = fileInfo.sha256
+        if (currentSha256 == lastKnownUpdateSha256) return
+        lastKnownUpdateSha256 = currentSha256
+
+        val now = System.currentTimeMillis()
+        if (now - lastAlertShownTime < ALERT_THROTTLE_MS) {
+            Log.i(TAG, "Новое обновление обнаружено, но диалог недавно показывался; пропускаю")
+            return
+        }
+        lastAlertShownTime = now
+
+        val location = result.detectedLocation ?: fileInfo.path
+        Log.i(TAG, "Новое обновление обнаружено: $location, показываю диалог")
+        try {
+            val intent = UpdateAlertActivity.createIntent(
+                context,
+                location,
+                UpdateFileLocator.SearchPolicy.USB_FIRST,
+            )
+            context.startActivity(intent)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Не удалось показать диалог обновления", t)
+        }
+    }
+
     private companion object {
         private const val TAG = "UdpUpdateServerCoord"
+        private const val ALERT_THROTTLE_MS = 5 * 60 * 1000L // 5 минут
     }
 }

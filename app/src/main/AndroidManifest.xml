@@ -49,6 +49,13 @@
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
+        <activity
+            android:name=".UpdateAlertActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".UdpStreamService"
             android:exported="false"

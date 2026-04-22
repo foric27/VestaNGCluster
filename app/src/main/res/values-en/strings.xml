@@ -197,4 +197,12 @@
 
     <string name="signature_mismatch_title">Security error</string>
     <string name="signature_mismatch_close">Close</string>
+
+    <string name="main_read_storage_granted">Storage read permission granted</string>
+    <string name="main_read_storage_missing">Storage read permission required for internal memory and USB drives</string>
+
+    <string name="update_alert_title">Update available</string>
+    <string name="update_alert_message_fmt">New update detected: %1$s\n\nUpdate now?</string>
+    <string name="update_alert_update">Update</string>
+    <string name="update_alert_cancel">Cancel</string>
 </resources>

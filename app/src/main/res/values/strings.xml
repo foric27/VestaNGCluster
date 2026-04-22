@@ -197,4 +197,12 @@
 
     <string name="signature_mismatch_title">Ошибка безопасности</string>
     <string name="signature_mismatch_close">Закрыть</string>
+
+    <string name="main_read_storage_granted">Разрешение на чтение памяти получено</string>
+    <string name="main_read_storage_missing">Требуется разрешение на чтение внутренней памяти и USB-накопителей</string>
+
+    <string name="update_alert_title">Доступно обновление</string>
+    <string name="update_alert_message_fmt">Обнаружено новое обновление: %1$s\n\nОбновить сейчас?</string>
+    <string name="update_alert_update">Обновить</string>
+    <string name="update_alert_cancel">Отмена</string>
 </resources>
