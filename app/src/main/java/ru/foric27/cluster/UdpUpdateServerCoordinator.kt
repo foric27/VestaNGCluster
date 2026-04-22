@@ -12,10 +12,10 @@ internal class UdpUpdateServerCoordinator(
     private val publishWarning: (String) -> Unit,
 ) {
 
-    private var lastInternalUpdatePollReport: String? = null
-    private var lastFtpRetryReport: String? = null
-    private var internalUpdatePollScheduled = false
-    private var ftpRetryScheduled = false
+    @Volatile private var lastInternalUpdatePollReport: String? = null
+    @Volatile private var lastFtpRetryReport: String? = null
+    @Volatile private var internalUpdatePollScheduled = false
+    @Volatile private var ftpRetryScheduled = false
 
     private val internalUpdatePollRunnable = Runnable { performInternalUpdatePoll() }
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
