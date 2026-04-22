@@ -161,6 +161,13 @@ object ProductConfig {
         const val RETRY_DELAY_MS: Long = 3_000L
     }
 
+    object Security {
+        /** Ожидаемый SHA-256 хеш подписи APK (нижний регистр, без двоеточий).
+         *  Пустая строка = проверка отключена (debug-режим).
+         *  Для release-сборки заполните актуальным хешем подписи. */
+        const val EXPECTED_SIGNATURE_SHA256: String = ""
+    }
+
     object Service {
         /** Идентификатор foreground-уведомления сервиса. */
         const val NOTIFICATION_ID: Int = 1201

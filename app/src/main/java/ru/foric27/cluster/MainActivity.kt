@@ -47,6 +47,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val sigResult = SignatureVerifier.verify(this)
+        if (!sigResult.valid) {
+            Log.e(TAG, "Несовпадение подписи APK: expected=${sigResult.expectedSha256}, actual=${sigResult.actualSha256}")
+            showSignatureMismatchDialog(sigResult.actualSha256, sigResult.expectedSha256)
+            return
+        }
+
         RuntimeConfig.init(applicationContext)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -152,6 +160,26 @@ class MainActivity : AppCompatActivity() {
             versionTapCount = 0
             openDeveloperScreen()
         }
+    }
+
+    private fun showSignatureMismatchDialog(actual: String, expected: String) {
+        val message = buildString {
+            append("Обнаружено несовпадение цифровой подписи приложения.\n\n")
+            append("Приложение было изменено или подписано неизвестным ключом.\n\n")
+            append("Expected: ${expected.takeIf { it.isNotBlank() } ?: "not set"}\n")
+            append("Actual:   ${actual.takeIf { it.isNotBlank() } ?: "unavailable"}\n\n")
+            append("Приложение будет закрыто.")
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.signature_mismatch_title)
+            .setMessage(message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.signature_mismatch_close) { _, _ ->
+                finish()
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
+            .show()
     }
 
     private fun openDeveloperScreen() {

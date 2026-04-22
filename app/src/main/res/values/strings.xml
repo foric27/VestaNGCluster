@@ -194,4 +194,7 @@
     <string name="update_server_start_failed">FTP-сервер обновления не запущен</string>
     <string name="update_server_start_failed_retry">FTP-сервер обновления не запущен: сеть ещё не готова, будет повторная попытка запуска</string>
     <string name="update_server_start_failed_retry_details_fmt">FTP-сервер обновления не запущен: %1$s. Будет повторная попытка запуска</string>
+
+    <string name="signature_mismatch_title">Ошибка безопасности</string>
+    <string name="signature_mismatch_close">Закрыть</string>
 </resources>
