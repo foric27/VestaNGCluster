@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.provider.Settings
 import android.util.Log
+import androidx.core.content.edit
 
 /**
  * Пользовательские настройки UI, которые влияют на штатный cluster-stream.
@@ -76,10 +77,10 @@ object AppSettings {
 
     fun saveSelectedMode(context: Context, mode: UiStreamMode): Boolean {
         return try {
-            getPrefs(context)
-                .edit()
-                .putString(KEY_STREAM_MODE, mode.prefValue)
-                .commit()
+            getPrefs(context).edit(commit = true) {
+                putString(KEY_STREAM_MODE, mode.prefValue)
+            }
+            true
         } catch (t: Throwable) {
             Log.e(TAG, "Не удалось сохранить режим ${mode.prefValue} в SharedPreferences", t)
             false

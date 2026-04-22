@@ -20,7 +20,8 @@
     <string name="stream_mode_apply_ok_fmt">Режим %1$s сохранён</string>
     <string name="stream_mode_apply_fail_fmt">Не удалось применить режим %1$s напрямую. Локальное сохранение выполнено.</string>
     <string name="msg_vdsp_ready">VDSP готов</string>
-    <string name="msg_root_required">Нужно дать приложению права root (su)</string>
+    <string name="msg_root_required">Для этой операции нужен root через su</string>
+    <string name="msg_privileged_access_required">Нужен privileged/root-доступ через su</string>
     <string name="msg_output_app_not_found_fmt">Приложение для вывода не найдено: %1$s</string>
     <string name="msg_yandex_navigator_not_found_fmt">Яндекс Навигатор не найден: %1$s</string>
     <string name="msg_output_app_launch_failed_fmt">Не удалось запустить приложение вывода: %1$s</string>
@@ -169,8 +170,6 @@
     <string name="runtime_save_setting_ok_fmt">Настройка «%1$s» сохранена</string>
     <string name="runtime_error_reset_defaults">Не удалось сбросить настройки по умолчанию</string>
     <string name="runtime_reset_defaults_ok">Настройки разработчика сброшены к значениям по умолчанию</string>
-    <string name="runtime_error_save_all">Не удалось сохранить настройки разработчика</string>
-    <string name="runtime_save_all_ok">Настройки разработчика сохранены</string>
 
     <string name="app_recovery_restart_reason_task_removed">Приложение закрыто из списка недавних</string>
     <string name="app_recovery_restart_reason_service_destroyed">Сервис был уничтожен системой</string>
@@ -179,7 +178,7 @@
     <string name="main_notifications_missing_settings_message">Разрешение на уведомления не выдано. Откройте настройки приложения и разрешите уведомления.</string>
     <string name="main_permissions_all_set">Все обязательные разрешения выданы</string>
     <string name="main_battery_optimization_not_supported">На этом устройстве нет системного экрана отключения энергосбережения. Продолжаю работу без этого шага.</string>
-    <string name="msg_root_tool_missing_fmt">Root-команда недоступна: %1$s</string>
+    <string name="msg_root_tool_missing_fmt">Privileged-команда недоступна: %1$s</string>
     <string name="sync_invalid_stream_mode_value_fmt">Некорректное значение режима видеопотока: key=%1$s value=%2$d. Использую fallback &quot;nav&quot;.</string>
     <string name="sync_missing_stream_mode_setting_fmt">Настройка режима видеопотока отсутствует: key=%1$s. Использую fallback &quot;nav&quot;.</string>
     <string name="sync_read_stream_mode_failed_fmt">Не удалось прочитать режим видеопотока: key=%1$s. Использую fallback &quot;nav&quot;.</string>

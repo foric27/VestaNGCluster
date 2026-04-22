@@ -24,8 +24,8 @@ class SyncHandler(
 ) {
 
     private var periodicSyncCount: Long = 0
-    private var timeChanged: Boolean = false
-    private var langChanged: Boolean = false
+    @Volatile private var timeChanged: Boolean = false
+    @Volatile private var langChanged: Boolean = false
 
     class SyncTime(
         private val utcInst: Instant,

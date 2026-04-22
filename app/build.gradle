@@ -6,6 +6,10 @@ def signingProps = new Properties()
 def signingPropsFile = rootProject.file('keystore.properties')
 if (signingPropsFile.exists()) {
     signingPropsFile.withReader('UTF-8') { signingProps.load(it) }
+    def bomStoreFile = signingProps.remove('\uFEFFstoreFile')
+    if (bomStoreFile != null && signingProps.getProperty('storeFile') == null) {
+        signingProps.setProperty('storeFile', bomStoreFile.toString())
+    }
 }
 
 def releaseStoreFile = System.getenv('ANDROID_KEYSTORE_FILE') ?: signingProps.getProperty('storeFile')
@@ -97,6 +101,5 @@ dependencies {
     implementation 'androidx.transition:transition:1.7.0'
     implementation 'org.apache.ftpserver:ftpserver-core:1.2.1'
     implementation 'org.apache.mina:mina-core:2.2.5'
-
     testImplementation 'junit:junit:4.13.2'
 }

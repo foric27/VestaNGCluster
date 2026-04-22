@@ -286,7 +286,9 @@ object RootNetUtil {
 
         val result = RootShell.su(listOf("ip route get $ip"), logOnFailure = false)
         if (!result.ok()) {
-            updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = false, checkedAtMs = now)
+            if (!result.timedOut) {
+                updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = false, checkedAtMs = now)
+            }
             return RouteCheckResult(
                 iface = probeState.iface,
                 dstIp = ip,
@@ -312,7 +314,9 @@ object RootNetUtil {
         val srcRegex = normalizedSrcIp?.let { Regex("""\bsrc\s+${Regex.escape(it)}\b""") }
         val srcOk = srcRegex == null || srcRegex.containsMatchIn(output)
         val ok = devOk && srcOk
-        updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = ok, checkedAtMs = now)
+        if (!result.timedOut) {
+            updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = ok, checkedAtMs = now)
+        }
         return RouteCheckResult(
             iface = probeState.iface,
             dstIp = ip,
@@ -390,9 +394,11 @@ object RootNetUtil {
 
         val ok = result.ok() && result.out.lowercase(Locale.US).contains("$iface:")
         val linkUp = ok && isIfaceLinkUp(result.out)
-        cachedIfaceName = iface
-        cachedIfaceExists = ok
-        cachedIfaceCheckAtMs = now
+        if (!result.timedOut) {
+            cachedIfaceName = iface
+            cachedIfaceExists = ok
+            cachedIfaceCheckAtMs = now
+        }
         return ProbeState(
             iface = iface,
             exists = ok,

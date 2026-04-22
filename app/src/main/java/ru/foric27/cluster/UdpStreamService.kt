@@ -38,9 +38,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     @Volatile private var streamActive = false
     @Volatile private var startInProgress = false
+    @Volatile private var restartInProgress = false
 
     private var encoder: VideoEncoder? = null
-    private var sender: UdpSender? = null
+    @Volatile private var sender: UdpSender? = null
     private var displayStateReceiver: BroadcastReceiver? = null
     private var displayStateReceiverRegistered = false
     private var usbMediaReceiver: BroadcastReceiver? = null
@@ -88,6 +89,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
      * запускает подготовку сети перед стартом видеопайплайна.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureNotificationChannel()
+        startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
         try {
             val action = intent?.action
             if (action == ACTION_REFRESH_FTP_NOW) {
@@ -106,7 +109,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 Log.w(TAG, "onStartCommand(): получен null intent, использую fixedConfig(context)")
             }
             val cfg = readConfig(safeIntent)
-            val targetHost = cfg.ip.trim()
+            val targetHost = cfg.ip?.trim().orEmpty()
             val targetPort = cfg.port
             if (targetHost.isEmpty() || targetPort !in 1..65535) {
                 startInProgress = false
@@ -131,19 +134,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 startInProgress = true
             }
 
-            ensureNotificationChannel()
-            startForegroundCompat(
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-                buildNotification(),
-            )
-
             startDetachedWorker("StartupWorker") {
                 try {
                     startOrRefreshUpdateServer()
                     updateCoordinator.scheduleInternalUpdatePoll()
                     val networkPrep = networkPreparationCoordinator.prepare(cfg)
                     mainHandler.post {
-                        if (lastCfg != cfg || !startInProgress) {
+                        if (!sServiceRunning || lastCfg != cfg || !startInProgress) {
                             return@post
                         }
                         if (networkPrep.rootRequired) {
@@ -166,6 +163,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     }
                 } catch (t: Throwable) {
                     mainHandler.post {
+                        if (!sServiceRunning) return@post
                         startInProgress = false
                         Log.e(TAG, "Ошибка подготовки сети", t)
                         restartController.schedule("network_prep", t)
@@ -202,6 +200,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     override fun onDestroy() {
         sStreamActive = false
         sServiceRunning = false
+        synchronized(serviceLock) {
+            restartInProgress = false
+        }
         recoveryScheduler.schedule(
             reason = "service_destroyed",
             delayMs = SERVICE_RECOVERY_DELAY_MS,
@@ -304,9 +305,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             defaultUsbLocalCidr = DEF_USB_LOCAL_CIDR,
         )
         peerReachabilityChecker = UdpPeerReachabilityChecker(
-            ensurePingToolAvailable = { RootShell.ensureToolAvailable("ping") },
+            ensurePingToolAvailable = { RootShell.ensurePrivilegedToolAvailable("ping") },
             executePing = { command, timeoutMs ->
-                RootShell.su(
+                RootShell.exec(
                     cmds = listOf(command),
                     logOnFailure = false,
                     timeoutMs = timeoutMs,
@@ -406,6 +407,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         wakeRecoveryController = UdpWakeRecoveryController(
             context = this,
             mainHandler = mainHandler,
+            startDetachedWorker = ::startDetachedWorker,
+            postToMain = { block -> mainHandler.post { block() } },
             registerLocalReceiver = ::registerLocalReceiver,
             unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
             snapshotProvider = ::buildWakeRecoverySnapshot,
@@ -427,7 +430,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val wakeLock = streamWakeLock ?: return
         if (wakeLock.isHeld) return
         try {
-            wakeLock.acquire()
+            wakeLock.acquire(STREAM_WAKE_LOCK_TIMEOUT_MS)
             Log.i(TAG, "Удерживаю PARTIAL_WAKE_LOCK для активного стрима")
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось захватить PARTIAL_WAKE_LOCK", t)
@@ -475,6 +478,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             recentVideoTraffic = recentVideoTraffic,
             routeReady = routeCheck?.ok ?: true,
             peerCheck = evaluatePeerReachability(targetHost, force = true),
+        )
+        Log.i(
+            TAG,
+            "Wake snapshot: ${ConnectivityHealth.describeWakeSnapshot(runtimeSnapshot)} | " +
+                ConnectivityHealth.describeWakeDecision(runtimeSnapshot),
         )
         return UdpWakeRecoverySnapshot(
             streamHealthy = ConnectivityHealth.isWakeStreamHealthy(runtimeSnapshot),
@@ -580,9 +588,20 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun attemptRestart(reason: String?) {
+        if (!sServiceRunning) {
+            Log.w(TAG, "attemptRestart отменён: сервис уже уничтожен")
+            return
+        }
         if (reason == "net_available" && (streamActive || startInProgress || sender != null)) {
             Log.i(TAG, "Пропускаю отложенный restart(net_available): стрим уже активен")
             return
+        }
+        synchronized(serviceLock) {
+            if (restartInProgress) {
+                Log.i(TAG, "Пропускаю attemptRestart: рестарт уже выполняется")
+                return
+            }
+            restartInProgress = true
         }
 
         stopInternalKeepService()
@@ -596,14 +615,16 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                 if (networkPrep.rootRequired) {
                     mainHandler.post {
+                        if (!sServiceRunning) return@post
                         startInProgress = false
-                            serviceAlerts.notifyRootRequiredOnce()
+                        serviceAlerts.notifyRootRequiredOnce()
                     }
                     return@startDetachedWorker
                 }
 
                 if (!networkPrep.ifacePresent) {
                     mainHandler.post {
+                        if (!sServiceRunning) return@post
                         startInProgress = false
                         val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
                         val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
@@ -615,6 +636,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 }
 
                 mainHandler.post {
+                    if (!sServiceRunning) return@post
                     startPipelineAsync(
                         cfg = cfg,
                         hostValue = targetHost,
@@ -625,11 +647,16 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 }
             } catch (t: Throwable) {
                 mainHandler.post {
+                    if (!sServiceRunning) return@post
                     startInProgress = false
                     val backoffMs = restartController.increaseBackoff()
                     Log.w(TAG, "Попытка рестарта завершилась ошибкой; повторю позже. backoff=${backoffMs}ms", t)
                     serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_no_connection_retry_fmt, backoffMs / 1000))
                     restartController.schedule("retry", t)
+                }
+            } finally {
+                synchronized(serviceLock) {
+                    restartInProgress = false
                 }
             }
         }
@@ -640,32 +667,34 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun stopInternalKeepService() {
-        connectivityWatchdogCoordinator.stop()
-        transportStatsCoordinator.stop()
-        statusSyncCoordinator.stop()
-        updateCoordinator.stop()
-        connectivityWatchdogCoordinator.resetRouteFailureStreak()
-        activeRootIface = null
-        peerReachabilityChecker.resetCache()
-        releaseStreamWakeLock()
+        synchronized(serviceLock) {
+            connectivityWatchdogCoordinator.stop()
+            transportStatsCoordinator.stop()
+            statusSyncCoordinator.stop()
+            updateCoordinator.stop()
+            connectivityWatchdogCoordinator.resetRouteFailureStreak()
+            activeRootIface = null
+            peerReachabilityChecker.resetCache()
+            releaseStreamWakeLock()
 
-        try {
-            encoder?.stop()
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось остановить VideoEncoder", t)
+            try {
+                encoder?.stop()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Не удалось остановить VideoEncoder", t)
+            }
+            encoder = null
+
+            streamActive = false
+            sStreamActive = false
+            startInProgress = false
+
+            try {
+                sender?.close()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Не удалось закрыть UdpSender", t)
+            }
+            sender = null
         }
-        encoder = null
-
-        streamActive = false
-        sStreamActive = false
-        startInProgress = false
-
-        try {
-            sender?.close()
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось закрыть UdpSender", t)
-        }
-        sender = null
     }
 
     private fun stopInternalFull() {
@@ -680,7 +709,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         minBackoffMs: Long,
         userMessage: String,
     ) {
-        mainHandler.post {
+        startDetachedWorker("ImmediateRecovery") {
+            if (!sServiceRunning) return@startDetachedWorker
             restartController.prepareImmediateRecovery(
                 reason = reason,
                 minBackoffMs = minBackoffMs,
@@ -755,7 +785,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 block()
             },
             name,
-        ).also { it.start() }
+        ).apply {
+            isDaemon = true
+            start()
+        }
     }
 
     private fun startDetachedWorker(name: String, block: () -> Unit) {
@@ -822,7 +855,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun ensureNotificationChannel() {
-        if (Build.VERSION.SDK_INT < 26) return
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(CHANNEL_ID, RuntimeConfig.Service.NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW)
         notificationManager.createNotificationChannel(channel)
@@ -879,7 +911,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun pendingIntentImmutableFlag(): Int {
-        return if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
+        return PendingIntent.FLAG_IMMUTABLE
     }
 
     companion object {
@@ -899,39 +931,29 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         fun startServiceCompat(context: Context) {
             val intent = createStartIntent(context)
-            if (Build.VERSION.SDK_INT >= 26) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
         }
 
         fun restartServiceCompat(context: Context) {
             val intent = createStartIntent(context).apply {
                 action = ACTION_RESTART_SERVICE_NOW
             }
-            if (Build.VERSION.SDK_INT >= 26) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
         }
 
         fun refreshFtpCompat(context: Context) {
             val intent = Intent(context, UdpStreamService::class.java).apply {
                 action = ACTION_REFRESH_FTP_NOW
             }
-            if (Build.VERSION.SDK_INT >= 26) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
         }
 
         private const val ACTION_RESTART_SERVICE_NOW = "ru.foric27.cluster.action.RESTART_SERVICE_NOW"
         private const val ACTION_REFRESH_FTP_NOW = "ru.foric27.cluster.action.REFRESH_FTP_NOW"
 
         private const val TAG = "UdpStreamService"
+        private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2
+        private const val STREAM_WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L
         private val CHANNEL_ID: String
             get() = RuntimeConfig.Service.NOTIFICATION_CHANNEL_ID
 

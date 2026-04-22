@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import ru.foric27.cluster.AppSettings.UiStreamMode
 import ru.foric27.cluster.databinding.ActivityMainBinding
 
@@ -56,8 +57,10 @@ class MainActivity : AppCompatActivity() {
             showNotice = noticeLog::show,
             onAllFilesAccessGranted = {
                 UdpStreamService.startServiceCompat(this)
-                UpdateServerManager.restartServer()
-                renderFtpState()
+                Thread({
+                    UpdateServerManager.restartServer()
+                    runOnUiThread { renderFtpState() }
+                }, "MainFtpRestart").apply { isDaemon = true; start() }
             },
         )
 
@@ -161,7 +164,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openDeveloperTelegram() {
-        val telegramUri = android.net.Uri.parse(getString(R.string.developer_telegram_link))
+        val telegramUri = getString(R.string.developer_telegram_link).toUri()
         val launchIntent = Intent(Intent.ACTION_VIEW, telegramUri).apply {
             addCategory(Intent.CATEGORY_BROWSABLE)
         }

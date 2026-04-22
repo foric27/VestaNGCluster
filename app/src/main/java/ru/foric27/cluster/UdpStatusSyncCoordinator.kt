@@ -33,12 +33,12 @@ internal class UdpStatusSyncCoordinator(
         val sendErrors: Long,
     )
 
-    private var statusThread: Thread? = null
+    @Volatile private var statusThread: Thread? = null
     private val statusStop = AtomicBoolean(false)
-    private var syncHandler: SyncHandler? = null
-    private var statusSocket: DatagramSocket? = null
-    private var statusReceiver: BroadcastReceiver? = null
-    private var statusReceiverRegistered = false
+    @Volatile private var syncHandler: SyncHandler? = null
+    @Volatile private var statusSocket: DatagramSocket? = null
+    @Volatile private var statusReceiver: BroadcastReceiver? = null
+    @Volatile private var statusReceiverRegistered = false
     private val statusPacketsSent = AtomicLong(0)
     private val statusBytesSent = AtomicLong(0)
     private val statusSendErrors = AtomicLong(0)

@@ -211,7 +211,7 @@ class UpdateFileLocator {
             return if (file.canRead()) {
                 FileInputStream(file)
             } else {
-                Companion.openRootInputStream(file)
+                RootShell.openInputStream(file)
             }
         }
     }
@@ -235,33 +235,6 @@ class UpdateFileLocator {
             val size: Long,
         )
 
-        private class ProcessInputStream(
-            private val process: Process,
-            private val delegate: InputStream,
-        ) : InputStream() {
-            override fun read(): Int = delegate.read()
-
-            override fun read(b: ByteArray): Int = delegate.read(b)
-
-            override fun read(b: ByteArray, off: Int, len: Int): Int = delegate.read(b, off, len)
-
-            override fun close() {
-                try {
-                    delegate.close()
-                } finally {
-                    runCatching { process.destroy() }
-                }
-            }
-        }
-
-        private fun openRootInputStream(file: File): InputStream {
-            val command = "cat ${shellQuote(file.absolutePath)}"
-            val process = ProcessBuilder("su", "-c", command)
-                .redirectErrorStream(true)
-                .start()
-            return ProcessInputStream(process, process.inputStream)
-        }
-
         private fun probePath(file: File, expectDirectory: Boolean): PathProbe {
             val exists = file.exists()
             val isDirectory = file.isDirectory
@@ -282,7 +255,7 @@ class UpdateFileLocator {
         private fun probePathViaRoot(file: File, expectDirectory: Boolean): PathProbe? {
             val typeFlag = if (expectDirectory) "-d" else "-f"
             val command = "if [ $typeFlag ${shellQuote(file.absolutePath)} ]; then stat -c '%Y:%s' ${shellQuote(file.absolutePath)}; fi"
-            val result = RootShell.su(listOf(command), logOnFailure = false)
+            val result = RootShell.exec(listOf(command), logOnFailure = false)
             val output = result.out.trim()
             if (!result.ok() || output.isBlank()) return null
             val parts = output.split(':', limit = 2)
@@ -299,5 +272,6 @@ class UpdateFileLocator {
         private fun shellQuote(value: String): String {
             return "'" + value.replace("'", "'\\''") + "'"
         }
+
     }
 }

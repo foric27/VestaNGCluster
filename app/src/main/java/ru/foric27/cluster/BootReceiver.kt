@@ -81,11 +81,7 @@ class BootReceiver : BroadcastReceiver() {
                 launchUi = false,
             )
             val triggerAtMillis = SystemClock.elapsedRealtime() + RECOVERY_DELAY_MS
-            if (Build.VERSION.SDK_INT >= 23) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
-            } else {
-                alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
-            }
+            alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             Log.i(TAG, "$action: отложенное восстановление приложения запланировано через ${RECOVERY_DELAY_MS}мс")
         } catch (t: Throwable) {
             Log.w(TAG, "$action: не удалось запланировать отложенное восстановление", t)

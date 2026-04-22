@@ -1,6 +1,7 @@
 package ru.foric27.cluster
 
 import android.util.Log
+import java.lang.ref.WeakReference
 import java.util.ArrayDeque
 import java.util.LinkedHashSet
 
@@ -21,7 +22,7 @@ object AppWarningCenter {
 
     private val lock = Any()
     private val queue = ArrayDeque<String>()
-    private val listeners = LinkedHashSet<WarningListener>()
+    private val listeners = LinkedHashSet<WeakReference<WarningListener>>()
 
     fun publish(message: String) {
         val normalized = message.trim()
@@ -34,7 +35,8 @@ object AppWarningCenter {
                 queue.removeFirst()
             }
             queue.addLast(normalized)
-            listenersSnapshot = listeners.toList()
+            listeners.removeAll { it.get() == null }
+            listenersSnapshot = listeners.mapNotNull { it.get() }.toList()
         }
 
         listenersSnapshot.forEach {
@@ -48,13 +50,13 @@ object AppWarningCenter {
 
     fun registerListener(listener: WarningListener) {
         synchronized(lock) {
-            listeners.add(listener)
+            listeners.add(WeakReference(listener))
         }
     }
 
     fun unregisterListener(listener: WarningListener) {
         synchronized(lock) {
-            listeners.remove(listener)
+            listeners.removeAll { it.get() === listener || it.get() == null }
         }
     }
 

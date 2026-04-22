@@ -49,14 +49,14 @@ class VideoEncoder(
     private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::updateDynamicFpsStats, streamConfig)
     private val frameTimingController = VideoFrameTimingController(streamConfig.fps, DYNAMIC_KEEPALIVE_PERIOD_MS)
 
-    private var encoder: MediaCodec? = null
-    private var virtualDisplay: VirtualDisplay? = null
+    @Volatile private var encoder: MediaCodec? = null
+    @Volatile private var virtualDisplay: VirtualDisplay? = null
     private var encoderInputSurface: Surface? = null
     private var vdInputSurface: Surface? = null
     private var vdSurfaceTexture: SurfaceTexture? = null
     private var glComposer: GlFrameComposer? = null
     private var codecThread: HandlerThread? = null
-    private var codecHandler: Handler? = null
+    @Volatile private var codecHandler: Handler? = null
 
     @Volatile private var running: Boolean = false
     @Volatile private var stopping: Boolean = false
@@ -242,11 +242,9 @@ class VideoEncoder(
                 setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel32)
             } catch (_: Throwable) {
             }
-            if (Build.VERSION.SDK_INT >= 23) {
-                try {
-                    setInteger(MediaFormat.KEY_PRIORITY, 0)
-                } catch (_: Throwable) {
-                }
+            try {
+                setInteger(MediaFormat.KEY_PRIORITY, 0)
+            } catch (_: Throwable) {
             }
         }
     }
@@ -264,12 +262,25 @@ class VideoEncoder(
         }
         virtualDisplay = null
 
+        // Сначала останавливаем кодек, чтобы поток не пытался читать из Surface
         try {
-            vdInputSurface?.release()
+            encoder?.stop()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить surface VirtualDisplay", t)
+            Log.w(TAG, "Не удалось остановить MediaCodec", t)
         }
-        vdInputSurface = null
+
+        // Завершаем поток кодека до освобождения GL-ресурсов
+        val thread = codecThread
+        if (thread != null) {
+            try {
+                thread.quitSafely()
+                thread.join(CODEC_THREAD_JOIN_TIMEOUT_MS)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Не удалось корректно завершить поток кодека", t)
+            }
+        }
+        codecThread = null
+        codecHandler = null
 
         try {
             vdSurfaceTexture?.setOnFrameAvailableListener(null)
@@ -290,6 +301,13 @@ class VideoEncoder(
         glComposer = null
 
         try {
+            vdInputSurface?.release()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Не удалось освободить surface VirtualDisplay", t)
+        }
+        vdInputSurface = null
+
+        try {
             encoderInputSurface?.release()
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось освободить входной Surface кодека", t)
@@ -297,28 +315,12 @@ class VideoEncoder(
         encoderInputSurface = null
 
         try {
-            encoder?.stop()
-        } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось остановить MediaCodec", t)
-        }
-        try {
             encoder?.release()
         } catch (t: Throwable) {
             Log.w(TAG, "Не удалось освободить MediaCodec", t)
         }
         encoder = null
 
-        val thread = codecThread
-        if (thread != null) {
-            try {
-                thread.quitSafely()
-                thread.join(CODEC_THREAD_JOIN_TIMEOUT_MS)
-            } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось корректно завершить поток кодека", t)
-            }
-        }
-        codecThread = null
-        codecHandler = null
         resetFrameTrackingState()
         notifyDisplayRemoved()
     }
@@ -621,55 +623,60 @@ class VideoEncoder(
         private val timestampSanitizer = VideoFrameTimingController(fps = 1, keepalivePeriodMs = 1L)
 
         init {
-            val recordableConfig = IntArray(1)
-            val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
-            val numConfigs = IntArray(1)
+            try {
+                val recordableConfig = IntArray(1)
+                val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
+                val numConfigs = IntArray(1)
 
-            eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
-            require(eglDisplay != EGL14.EGL_NO_DISPLAY) { "eglGetDisplay failed" }
-            require(EGL14.eglInitialize(eglDisplay, IntArray(2), 0, IntArray(2), 0)) { "eglInitialize failed" }
+                eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+                require(eglDisplay != EGL14.EGL_NO_DISPLAY) { "eglGetDisplay failed" }
+                require(EGL14.eglInitialize(eglDisplay, IntArray(2), 0, IntArray(2), 0)) { "eglInitialize failed" }
 
-            val attribList = intArrayOf(
-                EGL14.EGL_RED_SIZE, 8,
-                EGL14.EGL_GREEN_SIZE, 8,
-                EGL14.EGL_BLUE_SIZE, 8,
-                EGL14.EGL_ALPHA_SIZE, 8,
-                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                EGL_RECORDABLE_ANDROID, 1,
-                EGL14.EGL_NONE,
-            )
-            require(EGL14.eglChooseConfig(eglDisplay, attribList, 0, configs, 0, 1, numConfigs, 0) && numConfigs[0] > 0) {
-                "eglChooseConfig failed"
+                val attribList = intArrayOf(
+                    EGL14.EGL_RED_SIZE, 8,
+                    EGL14.EGL_GREEN_SIZE, 8,
+                    EGL14.EGL_BLUE_SIZE, 8,
+                    EGL14.EGL_ALPHA_SIZE, 8,
+                    EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+                    EGL_RECORDABLE_ANDROID, 1,
+                    EGL14.EGL_NONE,
+                )
+                require(EGL14.eglChooseConfig(eglDisplay, attribList, 0, configs, 0, 1, numConfigs, 0) && numConfigs[0] > 0) {
+                    "eglChooseConfig failed"
+                }
+                val config = configs[0] ?: error("EGL config == null")
+
+                val contextAttribs = intArrayOf(
+                    EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+                    EGL14.EGL_NONE,
+                )
+                eglContext = EGL14.eglCreateContext(eglDisplay, config, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
+                require(eglContext != null && eglContext != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed" }
+
+                val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+                eglSurface = EGL14.eglCreateWindowSurface(eglDisplay, config, outputSurface, surfaceAttribs, 0)
+                require(eglSurface != null && eglSurface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
+                makeCurrent()
+
+                inputTextureId = createExternalTexture()
+                program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER_OES)
+                positionLoc = GLES20.glGetAttribLocation(program, "aPosition")
+                texCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord")
+                textureMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix")
+                GLES20.glViewport(0, 0, width, height)
+
+                // Освобождаем EGL-контекст на потоке инициализации.
+                // Дальше drawFrame будет привязывать его на codecHandler-потоке перед updateTexImage().
+                EGL14.eglMakeCurrent(
+                    eglDisplay,
+                    EGL14.EGL_NO_SURFACE,
+                    EGL14.EGL_NO_SURFACE,
+                    EGL14.EGL_NO_CONTEXT,
+                )
+            } catch (t: Throwable) {
+                release()
+                throw t
             }
-            val config = configs[0] ?: error("EGL config == null")
-
-            val contextAttribs = intArrayOf(
-                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
-                EGL14.EGL_NONE,
-            )
-            eglContext = EGL14.eglCreateContext(eglDisplay, config, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
-            require(eglContext != null && eglContext != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed" }
-
-            val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
-            eglSurface = EGL14.eglCreateWindowSurface(eglDisplay, config, outputSurface, surfaceAttribs, 0)
-            require(eglSurface != null && eglSurface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
-            makeCurrent()
-
-            inputTextureId = createExternalTexture()
-            program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER_OES)
-            positionLoc = GLES20.glGetAttribLocation(program, "aPosition")
-            texCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord")
-            textureMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix")
-            GLES20.glViewport(0, 0, width, height)
-
-            // Освобождаем EGL-контекст на потоке инициализации.
-            // Дальше drawFrame будет привязывать его на codecHandler-потоке перед updateTexImage().
-            EGL14.eglMakeCurrent(
-                eglDisplay,
-                EGL14.EGL_NO_SURFACE,
-                EGL14.EGL_NO_SURFACE,
-                EGL14.EGL_NO_CONTEXT,
-            )
         }
 
         fun drawSurfaceFrame(surfaceTexture: SurfaceTexture, presentationTimestampNs: Long? = null) {

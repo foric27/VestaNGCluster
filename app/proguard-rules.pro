@@ -18,3 +18,6 @@
 
 # Apache MINA использует reflection-sensitive путь для NIO processor при старте FTP listener.
 -keep class org.apache.mina.transport.socket.nio.NioProcessor { *; }
+
+# StreamConfig передаётся через Intent extras как Serializable.
+-keep class ru.foric27.cluster.StreamConfig { *; }

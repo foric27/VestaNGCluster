@@ -3,7 +3,6 @@ package ru.foric27.cluster
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
-import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 
@@ -20,11 +19,7 @@ internal class UdpServiceRecoveryScheduler(
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val triggerAtMillis = SystemClock.elapsedRealtime() + delayMs
             val pendingIntent = buildPendingIntent(reason = userReason, launchUi = launchUi)
-            if (Build.VERSION.SDK_INT >= 23) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
-            } else {
-                alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
-            }
+            alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             Log.w(tag, "Запланировано восстановление сервиса через ${delayMs}мс, reason=$reason, launchUi=$launchUi")
             onScheduled((delayMs / 1000L).toInt())
         } catch (t: Throwable) {

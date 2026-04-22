@@ -37,7 +37,7 @@ class ClusterLaunchProxyActivity : Activity() {
 
         try {
             val displayId = resolveCurrentDisplayId()
-            val options = if (Build.VERSION.SDK_INT >= 26 && displayId >= 0) {
+            val options = if (displayId >= 0) {
                 ActivityOptions.makeBasic()
                     .setLaunchDisplayId(displayId)
                     .toBundle()
@@ -58,6 +58,7 @@ class ClusterLaunchProxyActivity : Activity() {
             AppWarningCenter.publish(getString(R.string.msg_output_app_launch_failed_fmt, targetComponent))
         } finally {
             finish()
+            @Suppress("DEPRECATION")
             overridePendingTransition(0, 0)
         }
     }

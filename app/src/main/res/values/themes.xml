@@ -1,29 +1,16 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <style name="Theme.Foric27Cluster" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorOnPrimary">@color/on_primary</item>
         <item name="colorSecondary">@color/secondary</item>
         <item name="colorOnSecondary">@color/on_secondary</item>
-        <item name="android:statusBarColor" tools:targetApi="l">@color/background_dark</item>
+        <item name="android:statusBarColor">@color/background_dark</item>
         <item name="android:navigationBarColor">@color/background_dark</item>
         <item name="android:windowBackground">@color/background_dark</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.Foric27Cluster.MaterialAlertDialog</item>
     </style>
 
     <style name="ThemeOverlay.Foric27Cluster.MaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog" />
-
-    <style name="Widget.Foric27Cluster.Button.Primary" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/primary</item>
-        <item name="android:textColor">@color/on_primary</item>
-        <item name="cornerRadius">22dp</item>
-    </style>
-
-    <style name="Widget.Foric27Cluster.Button.Danger" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/danger</item>
-        <item name="android:textColor">@android:color/white</item>
-        <item name="cornerRadius">22dp</item>
-    </style>
-
 
     <style name="Widget.Foric27Cluster.Button.Dismiss" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/warning</item>

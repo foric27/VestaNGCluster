@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 
 /**
@@ -66,7 +65,7 @@ class AppRecoveryReceiver : BroadcastReceiver() {
         }
 
         private fun immutableFlag(): Int {
-            return if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
+            return PendingIntent.FLAG_IMMUTABLE
         }
     }
 }

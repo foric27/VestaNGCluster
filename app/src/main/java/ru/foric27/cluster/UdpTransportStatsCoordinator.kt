@@ -15,7 +15,7 @@ internal class UdpTransportStatsCoordinator(
     private val joinThreadQuietly: (Thread?, String) -> Unit,
 ) {
 
-    private var statsThread: Thread? = null
+    @Volatile private var statsThread: Thread? = null
     private val statsStop = AtomicBoolean(false)
 
     fun start() {

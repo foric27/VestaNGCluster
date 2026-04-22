@@ -3,7 +3,6 @@ package ru.foric27.cluster
 import android.app.ActivityOptions
 import android.content.ActivityNotFoundException
 import android.content.Context
-import android.os.Build
 import android.util.Log
 
 internal class VideoDisplayLauncher(
@@ -31,11 +30,11 @@ internal class VideoDisplayLauncher(
                 continue
             }
 
-            if (!RootShell.ensureToolAvailable("am")) {
+            if (!RootShell.ensurePrivilegedToolAvailable("am")) {
                 continue
             }
 
-            val shellResult = RootShell.su(listOf(YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)))
+            val shellResult = RootShell.exec(listOf(YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)))
             lastShellResult = shellResult
             if (shellResult.ok()) {
                 started = command
@@ -68,13 +67,9 @@ internal class VideoDisplayLauncher(
         val intent = YandexLaunchTarget.buildProxyIntent(command)
 
         return try {
-            val options = if (Build.VERSION.SDK_INT >= 26) {
-                ActivityOptions.makeBasic()
-                    .setLaunchDisplayId(displayId)
-                    .toBundle()
-            } else {
-                null
-            }
+            val options = ActivityOptions.makeBasic()
+                .setLaunchDisplayId(displayId)
+                .toBundle()
             context.startActivity(intent, options)
             LaunchAttempt(true, null)
         } catch (t: Throwable) {

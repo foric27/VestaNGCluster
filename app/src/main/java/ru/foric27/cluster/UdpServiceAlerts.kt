@@ -9,8 +9,8 @@ internal class UdpServiceAlerts(
     private val updateNotification: (String) -> Unit,
 ) {
 
-    private var noLinkNotified = false
-    private var rootWarningShown = false
+    @Volatile private var noLinkNotified = false
+    @Volatile private var rootWarningShown = false
 
     fun resetNoLinkWarning() {
         noLinkNotified = false

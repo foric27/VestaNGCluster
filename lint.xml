@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <issue id="TrustAllX509TrustManager">
+        <ignore path="**/org/apache/mina/filter/ssl/KeyStoreFactory.class" />
+        <ignore path="**/org/apache/mina/filter/ssl/SslContextFactory.class" />
+    </issue>
+</lint>

@@ -26,7 +26,7 @@ internal class UdpConnectivityWatchdogCoordinator(
     private val defaultUsbLocalCidr: String,
 ) {
 
-    private var watchdogThread: Thread? = null
+    @Volatile private var watchdogThread: Thread? = null
     private val watchdogStop = AtomicBoolean(false)
     @Volatile private var routeFailureStreak = 0
 

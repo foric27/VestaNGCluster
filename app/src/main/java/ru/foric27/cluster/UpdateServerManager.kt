@@ -102,10 +102,12 @@ object UpdateServerManager {
     }
 
     fun stopServer() {
-        synchronized(lock) {
-            stopServerLocked(clearPrepared = true)
+        val server = synchronized(lock) {
+            val s = stopServerLocked(clearPrepared = true)
             currentState.set(State(Status.STOPPED, str(R.string.update_server_stopped), detectedLocation = lastDetectedLocation))
+            s
         }
+        server?.let { performStop(it) }
     }
 
     fun restartServer(): Result {
@@ -313,17 +315,8 @@ object UpdateServerManager {
             preparedInfo.size == validatedPair.pair.zipFile.size
     }
 
-    private fun stopServerLocked(clearPrepared: Boolean) {
-        runningServer?.let { server ->
-            try {
-                server.ftpServer.stop()
-                Log.i(TAG, "FTP-сервер остановлен")
-            } catch (_: UnsupportedOperationException) {
-                Log.i(TAG, "FTP-сервер завершился с известной ошибкой dispose; очищаю состояние без повторного шума")
-            } catch (t: Throwable) {
-                Log.w(TAG, "Ошибка остановки FTP-сервера", t)
-            }
-        }
+    private fun stopServerLocked(clearPrepared: Boolean): EmbeddedFtpServerFactory.RunningServer? {
+        val server = runningServer
         runningServer = null
         preparedSourceKind = null
         preparedSourceDirectory = null
@@ -332,6 +325,18 @@ object UpdateServerManager {
             appContext?.let { repository.clear(it) }
             preparedUpdate = null
         }
+        return server
+    }
+
+    private fun performStop(server: EmbeddedFtpServerFactory.RunningServer) {
+        try {
+            server.ftpServer.stop()
+            Log.i(TAG, "FTP-сервер остановлен")
+        } catch (_: UnsupportedOperationException) {
+            Log.i(TAG, "FTP-сервер завершился с известной ошибкой dispose; очищаю состояние без повторного шума")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Ошибка остановки FTP-сервера", t)
+        }
     }
 
     private fun reloadValidatedPairLocked(
@@ -339,7 +344,8 @@ object UpdateServerManager {
         searchPolicy: UpdateFileLocator.SearchPolicy,
         validatedPair: ValidatedPair,
     ): Result {
-        stopServerLocked(clearPrepared = true)
+        val server = stopServerLocked(clearPrepared = true)
+        server?.let { performStop(it) }
         return startValidatedPairLocked(context, searchPolicy, validatedPair)
     }
     private fun stopServerAndFailLocked(
@@ -347,7 +353,8 @@ object UpdateServerManager {
         retrySuggested: Boolean = false,
         detectedLocation: String? = null,
     ): Result {
-        stopServerLocked(clearPrepared = true)
+        val server = stopServerLocked(clearPrepared = true)
+        server?.let { performStop(it) }
         return failState(
             message = message,
             retrySuggested = retrySuggested,

@@ -16,6 +16,8 @@ internal data class UdpWakeRecoverySnapshot(
 internal class UdpWakeRecoveryController(
     private val context: Context,
     private val mainHandler: Handler,
+    private val startDetachedWorker: (name: String, block: () -> Unit) -> Unit,
+    private val postToMain: (block: () -> Unit) -> Unit,
     private val registerLocalReceiver: (BroadcastReceiver, IntentFilter) -> Unit,
     private val unregisterReceiverBestEffort: (BroadcastReceiver?, String) -> Unit,
     private val snapshotProvider: () -> UdpWakeRecoverySnapshot,
@@ -31,8 +33,9 @@ internal class UdpWakeRecoveryController(
     private var lastWakeRecoveryAtMs = 0L
     private var pendingWakeAction: String? = null
     private var wakeRecoveryStage = 0
+    @Volatile private var wakeRecoveryGeneration = 0L
 
-    private val wakeRecoveryVerifyRunnable = Runnable { verifyWakeRecovery() }
+    private val wakeRecoveryVerifyRunnable = Runnable { launchWakeRecoveryVerification() }
 
     fun register() {
         if (screenStateReceiverRegistered) return
@@ -76,6 +79,7 @@ internal class UdpWakeRecoveryController(
         screenSleepStartedAtMs = 0L
         pendingWakeAction = null
         wakeRecoveryStage = 0
+        wakeRecoveryGeneration += 1L
         mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
     }
 
@@ -98,14 +102,31 @@ internal class UdpWakeRecoveryController(
         Log.i(TAG, "Устройство вышло из сна: action=$action, slept=${now - sleptAt}ms")
         pendingWakeAction = action
         wakeRecoveryStage = 0
+        wakeRecoveryGeneration += 1L
         mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
         mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_VERIFY_DELAY_MS)
     }
 
-    private fun verifyWakeRecovery() {
+    private fun launchWakeRecoveryVerification() {
         val action = pendingWakeAction ?: return
-        val snapshot = snapshotProvider()
+        val generation = wakeRecoveryGeneration
+        val stage = wakeRecoveryStage
+        startDetachedWorker("WakeRecoveryVerify") {
+            val startedAtMs = SystemClock.elapsedRealtime()
+            val snapshot = snapshotProvider()
+            val durationMs = SystemClock.elapsedRealtime() - startedAtMs
+            Log.i(TAG, "Wake health-check завершён за ${durationMs}мс, action=$action, stage=$stage")
+            postToMain {
+                if (pendingWakeAction != action || wakeRecoveryGeneration != generation) {
+                    Log.i(TAG, "Игнорирую устаревший wake health-check, action=$action, stage=$stage")
+                    return@postToMain
+                }
+                verifyWakeRecovery(action, snapshot)
+            }
+        }
+    }
 
+    private fun verifyWakeRecovery(action: String, snapshot: UdpWakeRecoverySnapshot) {
         if (snapshot.streamHealthy) {
             Log.i(TAG, "После выхода из сна поток уже активен; лишний relaunch не нужен")
             pendingWakeAction = null
@@ -137,6 +158,12 @@ internal class UdpWakeRecoveryController(
             relaunchTargetActivity("wake:$action")
             mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
             mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_RELAUNCH_SETTLE_DELAY_MS)
+            return
+        }
+
+        if (!snapshot.requiresFullRecovery) {
+            Log.i(TAG, "Wake recovery завершён без полного рестарта: soft-actions исчерпаны, full recovery не требуется")
+            clearPendingState()
             return
         }
 

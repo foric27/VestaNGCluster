@@ -23,7 +23,7 @@ internal class UdpNetworkPreparationCoordinator(
         val gateway = cfg.gateway?.takeIf { it.isNotBlank() } ?: defaultUsbGateway
         val applyResult = RootNetUtil.applyStaticIfaceNetwork(localCidr, gateway)
         if (applyResult.rootRequired) {
-            Log.w(tag, "Нет доступа к su/root — сетевой root-режим недоступен")
+            Log.w(tag, "Нет privileged backend с root-правами — сетевой root-режим недоступен")
             return UdpNetworkPreparationResult(null, true, true, applyResult.iface)
         }
 
@@ -35,7 +35,7 @@ internal class UdpNetworkPreparationCoordinator(
 
         val probeState = RootNetUtil.getIfaceProbeState()
         if (probeState.rootRequired) {
-            Log.w(tag, "Нет доступа к su/root — проверка ${probeState.iface} недоступна")
+            Log.w(tag, "Нет privileged backend с root-правами — проверка ${probeState.iface} недоступна")
             return UdpNetworkPreparationResult(null, true, true, probeState.iface)
         }
 
