@@ -1,0 +1,19 @@
+<resources>
+    <!-- xxxhdpi: 2K/4K мобильные экраны (640dpi+, QHD/UHD телефоны) -->
+    <!-- Немного увеличенные размеры для лучшей читаемости на очень высокой плотности -->
+    <dimen name="screen_content_padding">24dp</dimen>
+    <dimen name="screen_section_spacing">18dp</dimen>
+    <dimen name="screen_block_spacing">22dp</dimen>
+    <dimen name="screen_footer_spacing">28dp</dimen>
+    <dimen name="screen_card_padding">18dp</dimen>
+    <dimen name="screen_notice_spacing">12dp</dimen>
+    <dimen name="screen_notice_log_height">200dp</dimen>
+    <dimen name="screen_title_size">30sp</dimen>
+    <dimen name="screen_headline_size">24sp</dimen>
+    <dimen name="screen_body_size">15sp</dimen>
+    <dimen name="screen_subline_size">16sp</dimen>
+    <dimen name="screen_caption_size">13sp</dimen>
+    <dimen name="screen_footer_text_size">14sp</dimen>
+    <dimen name="screen_link_text_size">15sp</dimen>
+    <dimen name="developer_title_size">26sp</dimen>
+</resources>
