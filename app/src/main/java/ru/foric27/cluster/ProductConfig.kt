@@ -165,7 +165,7 @@ object ProductConfig {
         /** Ожидаемый SHA-256 хеш подписи APK (нижний регистр, без двоеточий).
          *  Пустая строка = проверка отключена (debug-режим).
          *  Для release-сборки заполните актуальным хешем подписи. */
-        const val EXPECTED_SIGNATURE_SHA256: String = ""
+        const val EXPECTED_SIGNATURE_SHA256: String = "138801ac0f72c364b20412b32ab728e1b349e4ff158351f5e72c3f742b5fd5c3"
     }
 
     object Service {
