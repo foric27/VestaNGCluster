@@ -165,13 +165,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSignatureMismatchDialog(actual: String, expected: String) {
-        val message = buildString {
-            append("Обнаружено несовпадение цифровой подписи приложения.\n\n")
-            append("Приложение было изменено или подписано неизвестным ключом.\n\n")
-            append("Expected: ${expected.takeIf { it.isNotBlank() } ?: "not set"}\n")
-            append("Actual:   ${actual.takeIf { it.isNotBlank() } ?: "unavailable"}\n\n")
-            append("Приложение будет закрыто.")
-        }
+        val expectedFmt = expected.takeIf { it.isNotBlank() } ?: "not set"
+        val actualFmt = actual.takeIf { it.isNotBlank() } ?: "unavailable"
+        val message = getString(R.string.signature_mismatch_message_fmt, expectedFmt, actualFmt)
 
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(R.string.signature_mismatch_title)

@@ -68,8 +68,16 @@
     <string name="service_notification_wake_recovery_failed">После выхода из сна поток не восстановился. Перезапускаю трансляцию и сеть…</string>
     <string name="service_notification_no_route_fmt">Нет маршрута до %1$s. Повтор через %2$dс</string>
     <string name="service_notification_service_recovery_fmt">Восстановление стрима через %1$dс</string>
+    <string name="service_notification_sleep_stopped">Стрим остановлен при засыпании устройства</string>
+    <string name="service_notification_wake_started">Стрим восстановлен после выхода из сна</string>
+    <string name="service_notification_action_restart">Перезапустить стрим</string>
+    <string name="service_notification_action_stop">Остановить стрим</string>
+    <string name="service_notification_action_start">Запустить стрим</string>
+    <string name="service_notification_action_ftp_restart">Перезапустить FTP</string>
+    <string name="service_notification_display_removed_restart">Cluster display исчез. Перезапускаю трансляцию…</string>
     <string name="main_restart_stream_button">Перезапустить трансляцию и сеть</string>
     <string name="main_restart_stream_requested">Перезапуск трансляции и сети запрошен</string>
+    <string name="main_exact_alarm_missing">Нужно разрешить точные alarm для стабильного восстановления после выхода из сна</string>
 
     <string name="app_settings_source_shared_prefs">SharedPreferences</string>
     <string name="app_settings_source_memory">Память приложения</string>
@@ -197,6 +205,7 @@
 
     <string name="signature_mismatch_title">Ошибка безопасности</string>
     <string name="signature_mismatch_close">Закрыть</string>
+    <string name="signature_mismatch_message_fmt">Обнаружено несовпадение цифровой подписи приложения.\n\nПриложение было изменено или подписано неизвестным ключом.\n\nExpected: %1$s\nActual:   %2$s\n\nПриложение будет закрыто.</string>
 
     <string name="main_read_storage_granted">Разрешение на чтение памяти получено</string>
     <string name="main_read_storage_missing">Требуется разрешение на чтение внутренней памяти и USB-накопителей</string>

@@ -14,4 +14,16 @@
     <dimen name="screen_footer_text_size">13sp</dimen>
     <dimen name="screen_link_text_size">14sp</dimen>
     <dimen name="developer_title_size">24sp</dimen>
+    <dimen name="developer_card_padding">16dp</dimen>
+    <dimen name="developer_card_radius">20dp</dimen>
+    <dimen name="developer_card_stroke">1dp</dimen>
+    <dimen name="developer_card_top_margin">16dp</dimen>
+    <dimen name="developer_card_first_top_margin">14dp</dimen>
+    <dimen name="developer_card_text_size">18sp</dimen>
+    <dimen name="developer_value_padding">16dp</dimen>
+    <dimen name="developer_value_padding_top">14dp</dimen>
+    <dimen name="developer_value_text_size">16sp</dimen>
+    <dimen name="developer_value_radius">16dp</dimen>
+    <dimen name="developer_value_stroke">1dp</dimen>
+    <dimen name="developer_value_top_margin">12dp</dimen>
 </resources>

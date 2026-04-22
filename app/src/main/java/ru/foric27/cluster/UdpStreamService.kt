@@ -88,20 +88,55 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
      * Главная точка входа сервиса. Разруливает команды refresh/restart и
      * запускает подготовку сети перед стартом видеопайплайна.
      */
+    @Volatile private var sleepStopped = false
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ensureNotificationChannel()
         startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
         try {
             val action = intent?.action
-            if (action == ACTION_REFRESH_FTP_NOW) {
-                startDetachedWorker("RefreshFtpNow") {
-                    try {
-                        startOrRefreshUpdateServer()
-                    } catch (t: Throwable) {
-                        Log.e(TAG, "Ошибка немедленного обновления FTP", t)
+            when (action) {
+                ACTION_STOP_STREAM -> {
+                    synchronized(serviceLock) {
+                        if (streamActive) {
+                            sleepStopped = true
+                            stopInternalKeepService()
+                            updateNotification(getString(R.string.service_notification_sleep_stopped))
+                        }
                     }
+                    return START_STICKY
                 }
-                return START_STICKY
+                ACTION_START_STREAM -> {
+                    synchronized(serviceLock) {
+                        sleepStopped = false
+                        if (!streamActive && !startInProgress) {
+                            attemptRestart("user_start_from_notification")
+                        } else {
+                            updateNotification(getNotificationStateText())
+                        }
+                    }
+                    return START_STICKY
+                }
+                ACTION_RESTART_FTP_NOW -> {
+                    startDetachedWorker("RestartFtpNow") {
+                        try {
+                            UpdateServerManager.restartServer()
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Ошибка перезапуска FTP", t)
+                        }
+                    }
+                    return START_STICKY
+                }
+                ACTION_REFRESH_FTP_NOW -> {
+                    startDetachedWorker("RefreshFtpNow") {
+                        try {
+                            startOrRefreshUpdateServer()
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Ошибка немедленного обновления FTP", t)
+                        }
+                    }
+                    return START_STICKY
+                }
             }
 
             val forceRestart = action == ACTION_RESTART_SERVICE_NOW
@@ -416,6 +451,25 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             forceOutputFrame = { reason -> encoder?.forceOutputFrame(reason) ?: Unit },
             relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
             requestImmediateRecovery = ::requestImmediateRecovery,
+            stopStream = {
+                synchronized(serviceLock) {
+                    if (streamActive) {
+                        sleepStopped = true
+                        stopInternalKeepService()
+                        updateNotification(getString(R.string.service_notification_sleep_stopped))
+                    }
+                }
+            },
+            startStream = {
+                synchronized(serviceLock) {
+                    sleepStopped = false
+                    if (!streamActive && !startInProgress) {
+                        attemptRestart("wake_recovery")
+                    } else {
+                        updateNotification(getString(R.string.service_notification_wake_started))
+                    }
+                }
+            },
         )
     }
 
@@ -500,9 +554,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 Log.i(TAG, "Состояние cluster display изменилось: state=$state, displayId=$displayId")
                 if (state == VdspState.DisplayState.REMOVED.wireValue && streamActive && !startInProgress) {
                     requestImmediateRecovery(
-                        reason = "cluster_display_removed",
-                        minBackoffMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
-                        userMessage = "Cluster display исчез. Перезапускаю трансляцию…",
+                        "display_removed",
+                        NO_ROUTE_RESTART_BACKOFF_MIN_MS,
+                        getString(R.string.service_notification_display_removed_restart),
                     )
                 }
             }
@@ -867,25 +921,62 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             MainActivity.createLaunchIntent(this, keepInForeground = true),
             PendingIntent.FLAG_UPDATE_CURRENT or pendingIntentImmutableFlag(),
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getNotificationStateText())
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
-            .build()
+        addNotificationActions(builder)
+        return builder.build()
+    }
+
+    private fun addNotificationActions(builder: NotificationCompat.Builder) {
+        if (streamActive) {
+            builder.addAction(
+                0,
+                getString(R.string.service_notification_action_stop),
+                buildServicePendingIntent(ACTION_STOP_STREAM, 1),
+            )
+            builder.addAction(
+                0,
+                getString(R.string.service_notification_action_restart),
+                buildServicePendingIntent(ACTION_RESTART_SERVICE_NOW, 2),
+            )
+        } else {
+            builder.addAction(
+                0,
+                getString(R.string.service_notification_action_start),
+                buildServicePendingIntent(ACTION_START_STREAM, 3),
+            )
+        }
+        builder.addAction(
+            0,
+            getString(R.string.service_notification_action_ftp_restart),
+            buildServicePendingIntent(ACTION_RESTART_FTP_NOW, 4),
+        )
+    }
+
+    private fun buildServicePendingIntent(action: String, requestCode: Int): PendingIntent {
+        return PendingIntent.getService(
+            this,
+            requestCode,
+            Intent(this, UdpStreamService::class.java).apply { this.action = action },
+            PendingIntent.FLAG_UPDATE_CURRENT or pendingIntentImmutableFlag(),
+        )
     }
 
     private fun getNotificationStateText(): String {
-        return if (streamActive) {
-            getString(R.string.service_notification_stream_running)
-        } else {
-            getString(R.string.service_notification_stream_stopped)
+        return when {
+            streamActive && sleepStopped -> getString(R.string.service_notification_wake_started)
+            streamActive -> getString(R.string.service_notification_stream_running)
+            sleepStopped -> getString(R.string.service_notification_sleep_stopped)
+            else -> getString(R.string.service_notification_stream_stopped)
         }
     }
 
-    private fun updateNotification(@Suppress("UNUSED_PARAMETER") text: String) {
+    private fun updateNotification(text: String = getNotificationStateText()) {
         try {
             val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(NOTIF_ID, buildNotification())
@@ -950,6 +1041,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         private const val ACTION_RESTART_SERVICE_NOW = "ru.foric27.cluster.action.RESTART_SERVICE_NOW"
         private const val ACTION_REFRESH_FTP_NOW = "ru.foric27.cluster.action.REFRESH_FTP_NOW"
+        private const val ACTION_STOP_STREAM = "ru.foric27.cluster.action.STOP_STREAM"
+        private const val ACTION_START_STREAM = "ru.foric27.cluster.action.START_STREAM"
+        private const val ACTION_RESTART_FTP_NOW = "ru.foric27.cluster.action.RESTART_FTP_NOW"
 
         private const val TAG = "UdpStreamService"
         private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2

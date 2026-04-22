@@ -1,5 +1,7 @@
 package ru.foric27.cluster
 
+import android.app.AlarmManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -17,6 +19,7 @@ internal class MainAccessPreflight(
 
     private var hadAllFilesAccess = false
     private var hadBatteryOptimizationBypass = false
+    private var exactAlarmJustRequested = false
     private var notificationsPermissionPending = false
     private var readStoragePermissionPending = false
 
@@ -27,6 +30,7 @@ internal class MainAccessPreflight(
         if (ensureReadStorageAccess()) return
         if (ensureAllFilesAccess()) return
         if (ensureBatteryOptimizationBypass()) return
+        if (ensureExactAlarmPermission()) return
         showNotice(activity.getString(R.string.main_permissions_all_set), false)
     }
 
@@ -82,6 +86,7 @@ internal class MainAccessPreflight(
         if (BatteryOptimizationManager.isSettingsFlowAvailable(activity) && !BatteryOptimizationManager.isIgnoringOptimizations(activity)) {
             return false
         }
+        if (!hasExactAlarmPermission()) return false
         return true
     }
 
@@ -179,6 +184,30 @@ internal class MainAccessPreflight(
             Log.w(TAG, "Не удалось открыть настройки энергосбережения", error)
             showNotice(activity.getString(R.string.main_open_battery_settings_failed), true)
         }
+    }
+
+    private fun ensureExactAlarmPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return false
+        if (hasExactAlarmPermission()) return false
+        if (exactAlarmJustRequested) {
+            exactAlarmJustRequested = false
+            return false
+        }
+        showNotice(activity.getString(R.string.main_exact_alarm_missing), true)
+        exactAlarmJustRequested = true
+        runCatching {
+            activity.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${activity.packageName}")
+            })
+        }.onFailure { error ->
+            Log.w(TAG, "Не удалось открыть настройки exact alarm", error)
+        }
+        return true
+    }
+
+    private fun hasExactAlarmPermission(): Boolean {
+        return Build.VERSION.SDK_INT < 33 ||
+            (activity.getSystemService(Context.ALARM_SERVICE) as? AlarmManager)?.canScheduleExactAlarms() == true
     }
 
     private companion object {

@@ -25,6 +25,8 @@ internal class UdpWakeRecoveryController(
     private val forceOutputFrame: (String) -> Unit,
     private val relaunchTargetActivity: (String) -> Unit,
     private val requestImmediateRecovery: (reason: String, minBackoffMs: Long, userMessage: String) -> Unit,
+    private val stopStream: () -> Unit,
+    private val startStream: () -> Unit,
 ) {
 
     private var screenStateReceiver: BroadcastReceiver? = null
@@ -85,7 +87,8 @@ internal class UdpWakeRecoveryController(
 
     private fun handleScreenOff() {
         screenSleepStartedAtMs = SystemClock.elapsedRealtime()
-        Log.i(TAG, "Экран выключен; отслеживаю восстановление после выхода из сна")
+        stopStream()
+        Log.i(TAG, "Экран выключен; стрим остановлен, отслеживаю восстановление после выхода из сна")
     }
 
     private fun handleWakeEvent(action: String) {
@@ -100,11 +103,7 @@ internal class UdpWakeRecoveryController(
         screenSleepStartedAtMs = 0L
 
         Log.i(TAG, "Устройство вышло из сна: action=$action, slept=${now - sleptAt}ms")
-        pendingWakeAction = action
-        wakeRecoveryStage = 0
-        wakeRecoveryGeneration += 1L
-        mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
-        mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_VERIFY_DELAY_MS)
+        startStream()
     }
 
     private fun launchWakeRecoveryVerification() {

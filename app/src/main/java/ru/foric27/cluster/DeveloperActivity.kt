@@ -88,7 +88,7 @@ class DeveloperActivity : AppCompatActivity() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply {
-                    if (index > 0) topMargin = 16.dp
+                    if (index > 0) topMargin = resources.getDimensionPixelSize(R.dimen.developer_card_top_margin)
                 },
             )
         }
@@ -96,22 +96,23 @@ class DeveloperActivity : AppCompatActivity() {
 
     private fun createSectionCard(sectionTitleResId: Int, fields: List<RuntimeConfig.FieldSpec>): MaterialCardView {
         val card = MaterialCardView(this).apply {
-            radius = 20.dp.toFloat()
+            radius = resources.getDimension(R.dimen.developer_card_radius)
             cardElevation = 0f
             setCardBackgroundColor(getColor(R.color.surface_dark_2))
             strokeColor = getColor(R.color.surface_line)
-            strokeWidth = 1.dp
+            strokeWidth = resources.getDimensionPixelSize(R.dimen.developer_card_stroke)
         }
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16.dp, 16.dp, 16.dp, 16.dp)
+            val cardPad = resources.getDimensionPixelSize(R.dimen.developer_card_padding)
+            setPadding(cardPad, cardPad, cardPad, cardPad)
         }
 
         val titleView = TextView(this).apply {
             text = getString(sectionTitleResId)
             setTextColor(getColor(R.color.text_primary))
-            textSize = 18f
+            textSize = resources.getDimension(R.dimen.developer_card_text_size)
             setTypeface(typeface, Typeface.BOLD)
         }
         container.addView(titleView)
@@ -123,7 +124,13 @@ class DeveloperActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { topMargin = if (index == 0) 14.dp else 12.dp },
+                ).apply {
+                    topMargin = if (index == 0) {
+                        resources.getDimensionPixelSize(R.dimen.developer_card_first_top_margin)
+                    } else {
+                        resources.getDimensionPixelSize(R.dimen.developer_value_top_margin)
+                    }
+                },
             )
         }
 
@@ -169,22 +176,24 @@ class DeveloperActivity : AppCompatActivity() {
 
     private fun createCheckboxField(spec: RuntimeConfig.FieldSpec): MaterialCardView {
         val rowCard = MaterialCardView(this).apply {
-            radius = 16.dp.toFloat()
+            radius = resources.getDimension(R.dimen.developer_value_radius)
             cardElevation = 0f
             setCardBackgroundColor(getColor(R.color.surface_dark_3))
             strokeColor = getColor(R.color.surface_line)
-            strokeWidth = 1.dp
+            strokeWidth = resources.getDimensionPixelSize(R.dimen.developer_value_stroke)
         }
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(16.dp, 14.dp, 16.dp, 14.dp)
+            val pad = resources.getDimensionPixelSize(R.dimen.developer_value_padding)
+            val padTop = resources.getDimensionPixelSize(R.dimen.developer_value_padding_top)
+            setPadding(pad, padTop, pad, pad)
         }
 
         val titleView = TextView(this).apply {
             text = RuntimeConfig.getFieldTitle(this@DeveloperActivity, spec)
             setTextColor(getColor(R.color.text_primary))
-            textSize = 16f
+            textSize = resources.getDimension(R.dimen.developer_value_text_size)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
 
