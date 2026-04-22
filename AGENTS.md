@@ -165,3 +165,17 @@
 - `values-sw720dp/dimens.xml` + `layout-sw720dp/` + `layout-sw720dp-land/` — ресурсы для больших планшетов 10" и выше (sw >= 720dp). Двухколоночные layout'ы с увеличенными текстом и отступами.
 - `values-sw800dp/dimens.xml` + `layout-sw800dp/` + `layout-sw800dp-land/` — ресурсы для очень больших планшетов 12"+ и Android TV (sw >= 800dp). Ещё более крупные шрифты и щедрые отступы для комфортного просмотра с расстояния.
 - Все layout'ы для sw720dp/sw800dp используют те же двухколоночные структуры, что и sw600dp, но с разными dimens через соответствующие values-квалификаторы.
+
+## Диалог обнаружения обновления и разрешения (апрель 2026)
+
+### Диалог обновления
+- Добавлен `UpdateAlertActivity` — прозрачная Activity, показывающая `AlertDialog` при обнаружении нового обновления через периодический опрос.
+- Диалог содержит информацию об обновлении (путь, размер, SHA-256) и две кнопки: «Обновить» (перезапускает FTP с политикой `USB_FIRST`) и «Отмена» (закрывает диалог).
+- Activity использует `Theme.Translucent.NoTitleBar`, `excludeFromRecents="true"`, `noHistory="true"` — не остаётся в списке недавних.
+- В `UdpUpdateServerCoordinator` добавлена логика отслеживания `lastKnownUpdateSha256` и throttle 5 минут между показами диалога (`ALERT_THROTTLE_MS`).
+
+### Разрешения хранилища
+- Для Android 10 и ниже (API < 30) добавлен runtime-запрос `READ_EXTERNAL_STORAGE` через `MainAccessPreflight`.
+- На Android 11+ (API 30+) по-прежнему используется `MANAGE_EXTERNAL_STORAGE` с переходом в системные настройки.
+- `StorageAccessManager.isAllFilesAccessGranted()` на API < 30 возвращает `true` без проверок, но теперь `MainAccessPreflight` явно запрашивает `READ_EXTERNAL_STORAGE` до запуска сервиса.
+- Строки `main_read_storage_granted` и `main_read_storage_missing` добавлены в `values/strings.xml` (ru) и `values-en/strings.xml` (en).
