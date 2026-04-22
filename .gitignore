@@ -28,3 +28,5 @@ keystore.properties
 *.tmp
 *.orig
 .sisyphus/
+screenshot_*.png
+screenshot_*.jpg
