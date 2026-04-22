@@ -138,12 +138,12 @@
                             android:text="@string/inline_notice_clear" />
                     </LinearLayout>
 
-                    <ScrollView
-                        android:layout_width="match_parent"
-                        android:layout_height="@dimen/screen_notice_log_height"
-                        android:layout_marginTop="@dimen/screen_notice_spacing"
-                        android:fillViewport="true"
-                        android:scrollbars="vertical">
+                <androidx.core.widget.NestedScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/screen_notice_log_height"
+                    android:layout_marginTop="@dimen/screen_notice_spacing"
+                    android:fillViewport="true"
+                    android:scrollbars="vertical">
 
                         <TextView
                             android:id="@+id/noticeText"
@@ -153,7 +153,7 @@
                             android:textColor="@color/text_primary"
                             android:textIsSelectable="true"
                             android:textSize="@dimen/screen_body_size" />
-                    </ScrollView>
+                    </androidx.core.widget.NestedScrollView>
                 </LinearLayout>
 
                 <TextView
