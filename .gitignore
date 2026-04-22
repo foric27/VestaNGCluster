@@ -30,3 +30,7 @@ keystore.properties
 .sisyphus/
 screenshot_*.png
 screenshot_*.jpg
+device_screenshot*.png
+device_*.png
+crash_log.txt
+full_log.txt
