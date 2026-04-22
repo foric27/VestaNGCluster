@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.Foric27Cluster" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.Foric27Cluster" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorOnPrimary">@color/on_primary</item>
         <item name="colorSecondary">@color/secondary</item>

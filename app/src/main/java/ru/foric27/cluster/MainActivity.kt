@@ -48,11 +48,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val sigResult = SignatureVerifier.verify(this)
-        if (!sigResult.valid) {
-            Log.e(TAG, "Несовпадение подписи APK: expected=${sigResult.expectedSha256}, actual=${sigResult.actualSha256}")
-            showSignatureMismatchDialog(sigResult.actualSha256, sigResult.expectedSha256)
-            return
+        if (!BuildConfig.DEBUG) {
+            val sigResult = SignatureVerifier.verify(this)
+            if (!sigResult.valid) {
+                Log.e(TAG, "Несовпадение подписи APK: expected=${sigResult.expectedSha256}, actual=${sigResult.actualSha256}")
+                showSignatureMismatchDialog(sigResult.actualSha256, sigResult.expectedSha256)
+                return
+            }
         }
 
         RuntimeConfig.init(applicationContext)
