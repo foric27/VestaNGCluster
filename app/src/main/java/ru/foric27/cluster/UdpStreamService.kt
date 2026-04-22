@@ -117,16 +117,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     }
                     return START_STICKY
                 }
-                ACTION_RESTART_FTP_NOW -> {
-                    startDetachedWorker("RestartFtpNow") {
-                        try {
-                            UpdateServerManager.restartServer()
-                        } catch (t: Throwable) {
-                            Log.e(TAG, "Ошибка перезапуска FTP", t)
-                        }
-                    }
-                    return START_STICKY
-                }
                 ACTION_REFRESH_FTP_NOW -> {
                     startDetachedWorker("RefreshFtpNow") {
                         try {
@@ -933,28 +923,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun addNotificationActions(builder: NotificationCompat.Builder) {
-        if (streamActive) {
-            builder.addAction(
-                0,
-                getString(R.string.service_notification_action_stop),
-                buildServicePendingIntent(ACTION_STOP_STREAM, 1),
-            )
-            builder.addAction(
-                0,
-                getString(R.string.service_notification_action_restart),
-                buildServicePendingIntent(ACTION_RESTART_SERVICE_NOW, 2),
-            )
-        } else {
-            builder.addAction(
-                0,
-                getString(R.string.service_notification_action_start),
-                buildServicePendingIntent(ACTION_START_STREAM, 3),
-            )
-        }
         builder.addAction(
             0,
-            getString(R.string.service_notification_action_ftp_restart),
-            buildServicePendingIntent(ACTION_RESTART_FTP_NOW, 4),
+            getString(R.string.service_notification_action_restart),
+            buildServicePendingIntent(ACTION_RESTART_SERVICE_NOW, 1),
         )
     }
 
@@ -1043,7 +1015,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         private const val ACTION_REFRESH_FTP_NOW = "ru.foric27.cluster.action.REFRESH_FTP_NOW"
         private const val ACTION_STOP_STREAM = "ru.foric27.cluster.action.STOP_STREAM"
         private const val ACTION_START_STREAM = "ru.foric27.cluster.action.START_STREAM"
-        private const val ACTION_RESTART_FTP_NOW = "ru.foric27.cluster.action.RESTART_FTP_NOW"
 
         private const val TAG = "UdpStreamService"
         private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2

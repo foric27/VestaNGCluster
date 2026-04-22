@@ -60,6 +60,15 @@ class BootReceiver : BroadcastReceiver() {
             }
             Log.w(TAG, "$action: не удалось запустить foreground-сервис", t)
         }
+        try {
+            context.startActivity(
+                MainActivity.createLaunchIntent(context, keepInForeground = false)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            Log.i(TAG, "$action: UI поднят, будет свёрнут если разрешения уже выданы")
+        } catch (t: Throwable) {
+            Log.w(TAG, "$action: не удалось поднять UI (возможно, экран заблокирован)", t)
+        }
     }
 
     private fun logMissingPrerequisites(context: Context, action: String) {
@@ -81,7 +90,11 @@ class BootReceiver : BroadcastReceiver() {
                 launchUi = false,
             )
             val triggerAtMillis = SystemClock.elapsedRealtime() + RECOVERY_DELAY_MS
-            alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+            if (Build.VERSION.SDK_INT >= 23) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+            } else {
+                alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+            }
             Log.i(TAG, "$action: отложенное восстановление приложения запланировано через ${RECOVERY_DELAY_MS}мс")
         } catch (t: Throwable) {
             Log.w(TAG, "$action: не удалось запланировать отложенное восстановление", t)

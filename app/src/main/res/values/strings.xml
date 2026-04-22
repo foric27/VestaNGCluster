@@ -70,10 +70,7 @@
     <string name="service_notification_service_recovery_fmt">Восстановление стрима через %1$dс</string>
     <string name="service_notification_sleep_stopped">Стрим остановлен при засыпании устройства</string>
     <string name="service_notification_wake_started">Стрим восстановлен после выхода из сна</string>
-    <string name="service_notification_action_restart">Перезапустить стрим</string>
-    <string name="service_notification_action_stop">Остановить стрим</string>
-    <string name="service_notification_action_start">Запустить стрим</string>
-    <string name="service_notification_action_ftp_restart">Перезапустить FTP</string>
+    <string name="service_notification_action_restart">Перезапустить стрим и сеть</string>
     <string name="service_notification_display_removed_restart">Cluster display исчез. Перезапускаю трансляцию…</string>
     <string name="main_restart_stream_button">Перезапустить трансляцию и сеть</string>
     <string name="main_restart_stream_requested">Перезапуск трансляции и сети запрошен</string>

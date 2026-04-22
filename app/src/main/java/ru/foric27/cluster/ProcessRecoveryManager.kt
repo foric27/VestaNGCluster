@@ -69,7 +69,11 @@ object ProcessRecoveryManager {
             launchUi = false,
         )
         val triggerAtMillis = SystemClock.elapsedRealtime() + RuntimeConfig.Service.PROCESS_CRASH_RECOVERY_DELAY_MS
-        alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+        if (Build.VERSION.SDK_INT >= 23) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+        } else {
+            alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
+        }
         Log.w(TAG, "Запланировано восстановление после падения процесса, reason=$reason")
     }
 }
