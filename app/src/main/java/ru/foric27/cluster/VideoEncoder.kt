@@ -45,7 +45,7 @@ internal class VideoEncoder(
     private val width: Int = streamConfig.width
     private val height: Int = streamConfig.height
     private val dpi: Int = streamConfig.dpi
-    private val displayLauncher = VideoDisplayLauncher(context, streamConfig, preferredLaunchComponent)
+    private val displayLauncher = VideoDisplayLauncher(context, preferredLaunchComponent)
     private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::updateDynamicFpsStats, streamConfig)
     private val frameTimingController = VideoFrameTimingController(streamConfig.fps, DYNAMIC_KEEPALIVE_PERIOD_MS)
 

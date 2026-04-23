@@ -2,19 +2,31 @@ package ru.foric27.cluster
 
 import android.app.ActivityOptions
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 
 internal class VideoDisplayLauncher(
     private val context: Context,
-    private val streamConfig: StreamConfig,
     private val preferredLaunchComponent: String?,
+    private val intentStarter: IntentStarter = ActivityOptionsIntentStarter,
 ) {
+
+    internal data class ProxyIntentSpec(
+        val proxyComponent: String,
+        val targetComponent: String,
+        val targetAction: String,
+        val targetCategory: String,
+    )
+
+    internal fun interface IntentStarter {
+        fun start(context: Context, spec: ProxyIntentSpec, displayId: Int)
+    }
 
     fun launchOnDisplay(displayId: Int) {
         val commands = YandexLaunchTarget.buildPreferredCommands(preferredLaunchComponent)
         var started: YandexLaunchTarget.LaunchCommand? = null
-        var lastShellResult = RootShell.Result(-1, "", "not_started")
         var lastDirectError: Throwable? = null
 
         for (command in commands) {
@@ -25,22 +37,6 @@ internal class VideoDisplayLauncher(
                 break
             }
             lastDirectError = direct.error
-
-            if (!shouldTryRootLaunchFallback(direct.error)) {
-                continue
-            }
-
-            if (!RootShell.ensurePrivilegedToolAvailable("am")) {
-                continue
-            }
-
-            val shellResult = RootShell.exec(listOf(YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)))
-            lastShellResult = shellResult
-            if (shellResult.ok()) {
-                started = command
-                Log.i(TAG, "Proxy-activity запрошена через su/am start на дисплее $displayId после отказа прямого запуска: ${command.component}, видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
-                break
-            }
         }
 
         if (started != null) {
@@ -48,15 +44,14 @@ internal class VideoDisplayLauncher(
             return
         }
 
-        if (isLaunchTargetMissing(lastShellResult) || lastDirectError is ActivityNotFoundException) {
+        if (lastDirectError is ActivityNotFoundException) {
             notifyLaunchAppMissing(commands.lastOrNull())
         }
         Log.w(
             TAG,
             "Не удалось запустить Яндекс.Навигатор на display=$displayId. " +
                 "Последняя попытка: ${commands.lastOrNull()?.component ?: "не задана"}. " +
-                "DirectError=${lastDirectError?.message ?: "null"}. " +
-                "STDOUT=${lastShellResult.out} STDERR=${lastShellResult.err}",
+                "DirectError=${lastDirectError?.message ?: "null"}",
         )
     }
 
@@ -64,37 +59,14 @@ internal class VideoDisplayLauncher(
         displayId: Int,
         command: YandexLaunchTarget.LaunchCommand,
     ): LaunchAttempt {
-        val intent = YandexLaunchTarget.buildProxyIntent(command)
+        val spec = buildProxyIntentSpec(command)
 
         return try {
-            val options = ActivityOptions.makeBasic()
-                .setLaunchDisplayId(displayId)
-                .toBundle()
-            context.startActivity(intent, options)
+            intentStarter.start(context, spec, displayId)
             LaunchAttempt(true, null)
         } catch (t: Throwable) {
             LaunchAttempt(false, t)
         }
-    }
-
-    private fun shouldTryRootLaunchFallback(error: Throwable?): Boolean {
-        val message = error?.message?.lowercase().orEmpty()
-        return error is SecurityException ||
-            message.contains("permission denial") ||
-            message.contains("launchdisplayid") ||
-            message.contains("display")
-    }
-
-    private fun isLaunchTargetMissing(result: RootShell.Result): Boolean {
-        val text = buildString {
-            append(result.out)
-            append('\n')
-            append(result.err)
-        }.lowercase()
-
-        return text.contains("error type 3") ||
-            text.contains("does not exist") ||
-            text.contains("activity class")
     }
 
     private fun notifyLaunchAppMissing(command: YandexLaunchTarget.LaunchCommand?) {
@@ -102,7 +74,7 @@ internal class VideoDisplayLauncher(
             R.string.msg_output_app_not_found_fmt,
             command?.component ?: YandexLaunchTarget.COMPONENT_AUTO_CLUSTER,
         )
-        RootShell.publishUserWarning(msg)
+        Log.w(TAG, msg)
     }
 
     private data class LaunchAttempt(
@@ -112,5 +84,42 @@ internal class VideoDisplayLauncher(
 
     private companion object {
         private const val TAG = "VideoDisplayLauncher"
+
+        private fun buildProxyIntentSpec(command: YandexLaunchTarget.LaunchCommand): ProxyIntentSpec {
+            return ProxyIntentSpec(
+                proxyComponent = "${BuildConfig.APPLICATION_ID}/${ClusterLaunchProxyActivity::class.java.name}",
+                targetComponent = command.component,
+                targetAction = command.action,
+                targetCategory = command.category,
+            )
+        }
+
+        private fun buildProxyIntent(spec: ProxyIntentSpec): Intent {
+            return Intent().apply {
+                component = ComponentName.unflattenFromString(spec.proxyComponent)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                putExtra("ru.foric27.cluster.extra.TARGET_COMPONENT", spec.targetComponent)
+                putExtra("ru.foric27.cluster.extra.TARGET_ACTION", spec.targetAction)
+                putExtra("ru.foric27.cluster.extra.TARGET_CATEGORY", spec.targetCategory)
+            }
+        }
+
+        private val ActivityOptionsIntentStarter = IntentStarter { context, spec, displayId ->
+            val intent = buildProxyIntent(spec)
+            val options = ActivityOptions.makeBasic()
+            try {
+                options.setLaunchDisplayId(displayId)
+            } catch (securityException: SecurityException) {
+                Log.w(
+                    TAG,
+                    "Не удалось задать launch display $displayId для ${spec.proxyComponent}: ${securityException.message}",
+                    securityException,
+                )
+            }
+            context.startActivity(intent, options.toBundle())
+        }
     }
 }

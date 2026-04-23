@@ -1,19 +1,20 @@
 package ru.foric27.cluster
 
 import android.content.Context
-import android.os.Environment
+import android.content.Intent
+import android.content.SharedPreferences
+import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
-import java.io.File
-import java.io.FileInputStream
+import androidx.documentfile.provider.DocumentFile
 import java.io.InputStream
-import java.util.Locale
 
 /**
  * Поиск кандидатов ICUpdate.zip / ICUpdate.zip.sig.
  *
  * Product-логика:
  * - внутренняя память проверяется только в корне /storage/emulated/0;
- * - USB-накопители проверяются только в корне каждого тома;
+ * - USB-накопители проверяются только в корне выбранного тома;
  * - рекурсивный обход каталогов не используется.
  */
 internal class UpdateFileLocator {
@@ -70,208 +71,243 @@ internal class UpdateFileLocator {
         context: Context,
         searchPolicy: SearchPolicy,
     ): List<ScanRoot> {
-        val result = ArrayList<ScanRoot>()
-        val seen = LinkedHashSet<String>()
-
-        fun addRoot(sourceKind: SourceKind, label: String, rawRoot: File?) {
-            val normalizedRoot = normalizeStorageRoot(rawRoot) ?: return
-            val key = normalizedRoot.absolutePath
-            if (!seen.add(key)) return
-            result += ScanRoot(sourceKind = sourceKind, label = label, fileRoot = normalizedRoot)
+        val persistedTree = resolvePersistedTree(context) ?: return emptyList()
+        if (searchPolicy == SearchPolicy.INTERNAL_ONLY && persistedTree.sourceKind != SourceKind.INTERNAL) {
+            Log.i(TAG, "Persisted SAF URI не указывает на внутреннюю память; INTERNAL_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
+            return emptyList()
         }
-
-        if (searchPolicy == SearchPolicy.USB_FIRST) {
-            collectUsbRoots(context).forEach { usbRoot ->
-                addRoot(SourceKind.USB, "Корень USB: ${usbRoot.absolutePath}", usbRoot)
-            }
-        }
-
-        addRoot(
-            SourceKind.INTERNAL,
-            "Корень внутренней памяти: ${INTERNAL_STORAGE_ROOT.absolutePath}",
-            INTERNAL_STORAGE_ROOT,
-        )
-
-        return result.sortedBy { it.sourceKind.priority }
+        return listOf(persistedTree)
     }
 
-    private fun collectUsbRoots(context: Context): List<File> {
-        val result = ArrayList<File>()
-        val seen = LinkedHashSet<String>()
-
-        fun addUsbRoot(rawRoot: File?) {
-            val normalizedRoot = normalizeStorageRoot(rawRoot) ?: return
-            if (!isLikelyUsbRoot(normalizedRoot)) return
-            val key = normalizedRoot.absolutePath
-            if (seen.add(key)) {
-                result += normalizedRoot
-            }
-        }
-
-        context.getExternalFilesDirs(null).forEach { dir ->
-            val currentDir = dir ?: return@forEach
-            val removable = runCatching { Environment.isExternalStorageRemovable(currentDir) }.getOrDefault(false)
-            if (removable) {
-                addUsbRoot(currentDir)
-            }
-        }
-
-        File("/storage").listFiles()
-            ?.asSequence()
-            ?.filter { it.isDirectory }
-            ?.forEach(::addUsbRoot)
-
-        return result.sortedBy { it.absolutePath.lowercase(Locale.US) }
-    }
-
-    private fun inspectRoot(root: ScanRoot): LocatedUpdatePair? {
-        val directory = root.fileRoot
-        val rootProbe = probePath(directory, expectDirectory = true)
-        if (!rootProbe.exists || !rootProbe.isDirectory) {
-            Log.i(
-                TAG,
-                "Корень недоступен: ${root.label}; exists=${rootProbe.exists}, isDirectory=${rootProbe.isDirectory}, canRead=${rootProbe.canRead}",
-            )
+    private fun resolvePersistedTree(context: Context): ScanRoot? {
+        val persistedTreeUri = getPersistedTreeUri(context)
+        if (persistedTreeUri == null) {
+            Log.w(TAG, "Persisted SAF URI отсутствует; поиск OTA-файлов пропущен")
             return null
         }
 
-        val zip = File(directory, RuntimeConfig.UpdateFtp.UPDATE_ZIP_NAME)
-        val sig = File(directory, RuntimeConfig.UpdateFtp.UPDATE_SIG_NAME)
-        val zipProbe = probePath(zip, expectDirectory = false)
-        val sigProbe = probePath(sig, expectDirectory = false)
+        if (!hasPersistedReadPermission(context, persistedTreeUri)) {
+            Log.w(TAG, "Persisted SAF URI потерял read permission; очищаю сохранённую ссылку")
+            clearPersistedTreeUri(context)
+            return null
+        }
+
+        val documentRoot = DocumentFile.fromTreeUri(context, persistedTreeUri)
+        if (documentRoot == null || !documentRoot.exists() || !documentRoot.isDirectory) {
+            Log.w(TAG, "Persisted SAF URI недоступен или не является каталогом: $persistedTreeUri")
+            return null
+        }
+
+        val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(persistedTreeUri) }
+            .onFailure { Log.w(TAG, "Не удалось получить treeDocumentId для $persistedTreeUri", it) }
+            .getOrNull()
+            ?: return null
+
+        val rootDescriptor = parseRootDescriptor(treeDocumentId)
+        if (!rootDescriptor.isStorageRoot) {
+            Log.w(TAG, "Persisted SAF URI должен указывать на корень тома, получен=$treeDocumentId")
+            return null
+        }
+
+        val directoryLabel = buildDirectoryLabel(rootDescriptor)
+        val sourceLabel = "${rootDescriptor.sourceKind.displayName}: $directoryLabel"
+        return ScanRoot(
+            sourceKind = rootDescriptor.sourceKind,
+            label = sourceLabel,
+            directoryLabel = directoryLabel,
+            documentRoot = documentRoot,
+        )
+    }
+
+    private fun inspectRoot(root: ScanRoot): LocatedUpdatePair? {
+        val children = root.documentRoot.listFiles().filter { it.isFile }
+        val zip = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_ZIP_NAME }
+        val sig = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_SIG_NAME }
 
         Log.i(
             TAG,
-            "Проверяю корень: ${directory.absolutePath}, " +
-                "zip=${zip.absolutePath}[exists=${zipProbe.exists},isFile=${zipProbe.isFile},canRead=${zipProbe.canRead}], " +
-                "sig=${sig.absolutePath}[exists=${sigProbe.exists},isFile=${sigProbe.isFile},canRead=${sigProbe.canRead}]",
+            "Проверяю SAF-корень: ${root.directoryLabel}, " +
+                "zip=${zip?.uri}[exists=${zip != null},isFile=${zip?.isFile == true}], " +
+                "sig=${sig?.uri}[exists=${sig != null},isFile=${sig?.isFile == true}]",
         )
 
-        if (!zipProbe.exists || !zipProbe.isFile) return null
-        if (!sigProbe.exists || !sigProbe.isFile) return null
+        if (zip == null || sig == null) return null
 
+        val zipFile = DocumentSourceFile(zip)
+        val sigFile = DocumentSourceFile(sig)
         Log.i(
             TAG,
-            "Найдена пара обновления в корне: zip=${zip.absolutePath}, sig=${sig.absolutePath}, источник=${root.label}",
+            "Найдена пара обновления в SAF-корне: zip=${zip.uri}, sig=${sig.uri}, источник=${root.label}",
         )
         return LocatedUpdatePair(
             sourceKind = root.sourceKind,
             sourceLabel = root.label,
-            directoryLabel = directory.absolutePath,
-            zipFile = FileSourceFile(zip, zipProbe),
-            sigFile = FileSourceFile(sig, sigProbe),
-            lastModified = maxOf(zipProbe.lastModified, sigProbe.lastModified),
+            directoryLabel = root.directoryLabel,
+            zipFile = zipFile,
+            sigFile = sigFile,
+            lastModified = maxOf(zipFile.lastModified, sigFile.lastModified),
         )
-    }
-
-    private fun normalizeStorageRoot(rawRoot: File?): File? {
-        val file = rawRoot ?: return null
-        val absolutePath = file.absolutePath
-        if (absolutePath.isBlank()) return null
-
-        val androidIndex = absolutePath.indexOf("/Android/", ignoreCase = true)
-        val candidate = if (androidIndex > 0) {
-            File(absolutePath.substring(0, androidIndex))
-        } else {
-            file
-        }
-        val probe = probePath(candidate, expectDirectory = true)
-        return candidate.takeIf { probe.exists && probe.isDirectory }
-    }
-
-    private fun isLikelyUsbRoot(root: File): Boolean {
-        val lowerPath = root.absolutePath.lowercase(Locale.US)
-        if (!lowerPath.startsWith("/storage/")) return false
-        if (lowerPath == "/storage") return false
-        if (lowerPath == INTERNAL_STORAGE_ROOT.absolutePath.lowercase(Locale.US)) return false
-        if (lowerPath.startsWith("/storage/emulated")) return false
-        if (lowerPath.startsWith("/storage/self")) return false
-        if (lowerPath.startsWith("/storage/enc_emulated")) return false
-        val name = root.name.lowercase(Locale.US)
-        if (name in INTERNAL_STORAGE_NAMES) return false
-        return true
     }
 
     private data class ScanRoot(
         val sourceKind: SourceKind,
         val label: String,
-        val fileRoot: File,
+        val directoryLabel: String,
+        val documentRoot: DocumentFile,
     )
 
-    private data class FileSourceFile(
-        private val file: File,
-        private val probe: PathProbe,
+    private data class DocumentSourceFile(
+        private val documentFile: DocumentFile,
     ) : UpdateSourceFile {
-        override val name: String = file.name
-        override val debugPath: String = file.absolutePath
-        override val lastModified: Long = probe.lastModified
-        override val size: Long = probe.size
+        override val name: String = documentFile.name.orEmpty()
+        override val debugPath: String = documentFile.uri.toString()
+        override val lastModified: Long = documentFile.lastModified()
+        override val size: Long = documentFile.length()
 
         override fun openInputStream(context: Context): InputStream {
-            return if (file.canRead()) {
-                FileInputStream(file)
-            } else {
-                RootShell.openInputStream(file)
+            return requireNotNull(context.contentResolver.openInputStream(documentFile.uri)) {
+                "Не удалось открыть InputStream для ${documentFile.uri}"
             }
         }
     }
 
-    private companion object {
+    companion object {
         private const val TAG = "UpdateFileLocator"
-        private val INTERNAL_STORAGE_ROOT = File("/storage/emulated/0")
+        private const val PREFS_NAME = "update_file_locator"
+        private const val KEY_TREE_URI = "persisted_tree_uri"
+        private const val INTERNAL_STORAGE_ROOT = "/storage/emulated/0"
 
-        private val INTERNAL_STORAGE_NAMES = setOf(
-            "emulated",
-            "self",
-            "enc_emulated",
+        private data class RootDescriptor(
+            val sourceKind: SourceKind,
+            val volumeId: String,
+            val relativePath: String,
+            val isStorageRoot: Boolean,
         )
 
-        private data class PathProbe(
-            val exists: Boolean,
-            val isFile: Boolean,
-            val isDirectory: Boolean,
-            val canRead: Boolean,
-            val lastModified: Long,
-            val size: Long,
-        )
-
-        private fun probePath(file: File, expectDirectory: Boolean): PathProbe {
-            val exists = file.exists()
-            val isDirectory = file.isDirectory
-            val isFile = file.isFile
-            val canRead = file.canRead()
-            val lastModified = file.lastModified()
-            val size = file.length()
-            if (exists && ((expectDirectory && isDirectory) || (!expectDirectory && isFile))) {
-                return PathProbe(exists, isFile, isDirectory, canRead, lastModified, size)
+        private fun parseRootDescriptor(treeDocumentId: String): RootDescriptor {
+            val separatorIndex = treeDocumentId.indexOf(':')
+            val volumeId = if (separatorIndex >= 0) {
+                treeDocumentId.substring(0, separatorIndex)
+            } else {
+                treeDocumentId
+            }.trim()
+            val relativePath = if (separatorIndex >= 0) {
+                treeDocumentId.substring(separatorIndex + 1).trim('/').trim()
+            } else {
+                ""
             }
-            if (!UsbStoragePathMatcher.isUsbStoragePath(file.absolutePath)) {
-                return PathProbe(exists, isFile, isDirectory, canRead, lastModified, size)
-            }
-            return probePathViaRoot(file, expectDirectory)
-                ?: PathProbe(exists, isFile, isDirectory, canRead, lastModified, size)
-        }
-
-        private fun probePathViaRoot(file: File, expectDirectory: Boolean): PathProbe? {
-            val typeFlag = if (expectDirectory) "-d" else "-f"
-            val command = "if [ $typeFlag ${shellQuote(file.absolutePath)} ]; then stat -c '%Y:%s' ${shellQuote(file.absolutePath)}; fi"
-            val result = RootShell.exec(listOf(command), logOnFailure = false)
-            val output = result.out.trim()
-            if (!result.ok() || output.isBlank()) return null
-            val parts = output.split(':', limit = 2)
-            return PathProbe(
-                exists = true,
-                isFile = !expectDirectory,
-                isDirectory = expectDirectory,
-                canRead = false,
-                lastModified = (parts.getOrNull(0)?.toLongOrNull() ?: 0L) * 1000L,
-                size = parts.getOrNull(1)?.toLongOrNull() ?: 0L,
+            val isInternal = volumeId.equals("primary", ignoreCase = true)
+            return RootDescriptor(
+                sourceKind = if (isInternal) SourceKind.INTERNAL else SourceKind.USB,
+                volumeId = volumeId,
+                relativePath = relativePath,
+                isStorageRoot = relativePath.isBlank(),
             )
         }
 
-        private fun shellQuote(value: String): String {
-            return "'" + value.replace("'", "'\\''") + "'"
+        private fun buildDirectoryLabel(rootDescriptor: RootDescriptor): String {
+            val basePath = if (rootDescriptor.sourceKind == SourceKind.INTERNAL) {
+                INTERNAL_STORAGE_ROOT
+            } else {
+                "/storage/${rootDescriptor.volumeId}"
+            }
+            return if (rootDescriptor.relativePath.isBlank()) {
+                basePath
+            } else {
+                "$basePath/${rootDescriptor.relativePath}"
+            }
         }
 
+        private fun getPrefs(context: Context) =
+            context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        fun persistGrantedTreeUri(
+            context: Context,
+            treeUri: Uri,
+            flags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        ): Boolean {
+            val appContext = context.applicationContext
+            return persistGrantedTreeUri(
+                prefs = getPrefs(context),
+                treeUriString = treeUri.toString(),
+                flags = flags,
+            ) { persistableFlags ->
+                appContext.contentResolver.takePersistableUriPermission(treeUri, persistableFlags)
+            }
+        }
+
+        internal fun persistGrantedTreeUri(
+            prefs: SharedPreferences,
+            treeUriString: String,
+            flags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            onTakePermission: (persistableFlags: Int) -> Unit = {},
+        ): Boolean {
+            return runCatching {
+                val persistableFlags = flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                onTakePermission(persistableFlags)
+                prefs.edit().putString(KEY_TREE_URI, treeUriString).commit()
+            }.onFailure {
+                Log.w(TAG, "Не удалось сохранить persisted SAF URI: $treeUriString", it)
+            }.getOrDefault(false)
+        }
+
+        fun clearPersistedTreeUri(context: Context): Boolean {
+            val appContext = context.applicationContext
+            val treeUri = getPersistedTreeUri(appContext)
+            return clearPersistedTreeUri(
+                prefs = getPrefs(context),
+                treeUriString = treeUri?.toString(),
+            ) {
+                treeUri?.let { uri ->
+                    appContext.contentResolver.releasePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                    )
+                }
+            }
+        }
+
+        internal fun clearPersistedTreeUri(
+            prefs: SharedPreferences,
+            treeUriString: String?,
+            onReleasePermission: (() -> Unit)? = null,
+        ): Boolean {
+            treeUriString?.let { rawUri ->
+                runCatching {
+                    onReleasePermission?.invoke()
+                }.onFailure {
+                    Log.w(TAG, "Не удалось освободить persisted SAF URI: $rawUri", it)
+                }
+            }
+            return prefs.edit().remove(KEY_TREE_URI).commit()
+        }
+
+        fun getPersistedTreeUri(context: Context): Uri? = getPersistedTreeUri(getPrefs(context))
+
+        internal fun getPersistedTreeUriString(prefs: SharedPreferences): String? {
+            val rawUri = prefs.getString(KEY_TREE_URI, null)?.trim().orEmpty()
+            return rawUri.takeIf { it.isNotBlank() }
+        }
+
+        internal fun getPersistedTreeUri(prefs: SharedPreferences): Uri? =
+            getPersistedTreeUri(prefs, uriParser = Uri::parse)
+
+        internal fun getPersistedTreeUri(
+            prefs: SharedPreferences,
+            uriParser: (String) -> Uri,
+        ): Uri? {
+            val rawUri = getPersistedTreeUriString(prefs) ?: return null
+            return runCatching { uriParser(rawUri) }
+                .onFailure {
+                    Log.w(TAG, "Некорректный persisted SAF URI в SharedPreferences: $rawUri", it)
+                }
+                .getOrNull()
+        }
+
+        private fun hasPersistedReadPermission(context: Context, treeUri: Uri): Boolean {
+            return context.applicationContext.contentResolver.persistedUriPermissions.any { permission ->
+                permission.isReadPermission && permission.uri == treeUri
+            }
+        }
     }
 }
