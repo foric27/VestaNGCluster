@@ -20,6 +20,11 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -35,6 +40,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private val serviceLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @Volatile private var streamActive = false
     @Volatile private var startInProgress = false
@@ -237,6 +243,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         unregisterUsbMediaReceiver()
         stopInternalFull()
         releaseStreamWakeLock()
+        serviceScope.cancel()
         super.onDestroy()
     }
 
@@ -255,7 +262,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun initCollaborators() {
         restartController = UdpServiceRestartController(
-            mainHandler = mainHandler,
+            scope = serviceScope,
             tag = TAG,
             onAttemptRestart = ::attemptRestart,
             notifyRestartScheduled = { delayMs ->
@@ -418,7 +425,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
         wakeRecoveryController = UdpWakeRecoveryController(
             context = this,
-            mainHandler = mainHandler,
+            scope = serviceScope,
             startDetachedWorker = ::startDetachedWorker,
             postToMain = { block -> mainHandler.post { block() } },
             registerLocalReceiver = ::registerLocalReceiver,
@@ -824,7 +831,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun startDetachedWorker(name: String, block: () -> Unit) {
-        launchWorker(name, block = block)
+        serviceScope.launch(Dispatchers.Default) {
+            block()
+        }
     }
 
     private fun applyThreadPriority(threadPriority: Int, name: String) {

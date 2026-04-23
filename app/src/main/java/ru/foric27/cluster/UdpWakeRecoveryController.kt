@@ -4,9 +4,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Handler
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 internal data class UdpWakeRecoverySnapshot(
     val streamHealthy: Boolean,
@@ -15,7 +18,7 @@ internal data class UdpWakeRecoverySnapshot(
 
 internal class UdpWakeRecoveryController(
     private val context: Context,
-    private val mainHandler: Handler,
+    private val scope: CoroutineScope,
     private val startDetachedWorker: (name: String, block: () -> Unit) -> Unit,
     private val postToMain: (block: () -> Unit) -> Unit,
     private val registerLocalReceiver: (BroadcastReceiver, IntentFilter) -> Unit,
@@ -36,8 +39,7 @@ internal class UdpWakeRecoveryController(
     private var pendingWakeAction: String? = null
     private var wakeRecoveryStage = 0
     @Volatile private var wakeRecoveryGeneration = 0L
-
-    private val wakeRecoveryVerifyRunnable = Runnable { launchWakeRecoveryVerification() }
+    private var wakeRecoveryJob: Job? = null
 
     fun register() {
         if (screenStateReceiverRegistered) return
@@ -82,7 +84,8 @@ internal class UdpWakeRecoveryController(
         pendingWakeAction = null
         wakeRecoveryStage = 0
         wakeRecoveryGeneration += 1L
-        mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
+        wakeRecoveryJob?.cancel()
+        wakeRecoveryJob = null
     }
 
     private fun handleScreenOff() {
@@ -101,9 +104,17 @@ internal class UdpWakeRecoveryController(
         }
         lastWakeRecoveryAtMs = now
         screenSleepStartedAtMs = 0L
+        pendingWakeAction = action
+        wakeRecoveryStage = 0
+        wakeRecoveryGeneration += 1L
 
         Log.i(TAG, "Устройство вышло из сна: action=$action, slept=${now - sleptAt}ms")
         startStream()
+        wakeRecoveryJob?.cancel()
+        wakeRecoveryJob = scope.launch {
+            delay(WAKE_VERIFY_DELAY_MS)
+            launchWakeRecoveryVerification()
+        }
     }
 
     private fun launchWakeRecoveryVerification() {
@@ -147,16 +158,22 @@ internal class UdpWakeRecoveryController(
         if (wakeRecoveryStage == 0) {
             wakeRecoveryStage = 1
             forceOutputFrame("wake:$action")
-            mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
-            mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_FORCE_FRAME_SETTLE_DELAY_MS)
+            wakeRecoveryJob?.cancel()
+            wakeRecoveryJob = scope.launch {
+                delay(WAKE_FORCE_FRAME_SETTLE_DELAY_MS)
+                launchWakeRecoveryVerification()
+            }
             return
         }
 
         if (wakeRecoveryStage == 1) {
             wakeRecoveryStage = 2
             relaunchTargetActivity("wake:$action")
-            mainHandler.removeCallbacks(wakeRecoveryVerifyRunnable)
-            mainHandler.postDelayed(wakeRecoveryVerifyRunnable, WAKE_RELAUNCH_SETTLE_DELAY_MS)
+            wakeRecoveryJob?.cancel()
+            wakeRecoveryJob = scope.launch {
+                delay(WAKE_RELAUNCH_SETTLE_DELAY_MS)
+                launchWakeRecoveryVerification()
+            }
             return
         }
 

@@ -30,7 +30,7 @@ import java.util.Locale
  * display-launch, тайминга кадров и обработки выходных буферов делегирует
  * специализированным helper-компонентам в этом же пакете.
  */
-class VideoEncoder(
+internal class VideoEncoder(
     private val context: Context,
     private val streamConfig: StreamConfig,
     private val preferredLaunchComponent: String?,
@@ -221,12 +221,14 @@ class VideoEncoder(
             try {
                 setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
             } catch (_: Throwable) {
+                // optional feature, ignore
             }
             setInteger(MediaFormat.KEY_FRAME_RATE, streamConfig.fps)
             if (streamConfig.dynamicFps) {
                 try {
                     setInteger(MediaFormat.KEY_CAPTURE_RATE, streamConfig.fps)
                 } catch (_: Throwable) {
+                    // optional feature, ignore
                 }
             }
             try {
@@ -237,14 +239,17 @@ class VideoEncoder(
             try {
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
             } catch (_: Throwable) {
+                // optional feature, ignore
             }
             try {
                 setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel32)
             } catch (_: Throwable) {
+                // optional feature, ignore
             }
             try {
                 setInteger(MediaFormat.KEY_PRIORITY, 0)
             } catch (_: Throwable) {
+                // optional feature, ignore
             }
         }
     }
@@ -285,6 +290,7 @@ class VideoEncoder(
         try {
             vdSurfaceTexture?.setOnFrameAvailableListener(null)
         } catch (_: Throwable) {
+            // ignored on shutdown
         }
         try {
             vdSurfaceTexture?.release()
@@ -850,11 +856,12 @@ class VideoEncoder(
         private const val FPS_LOG_WINDOW_MS = 2_000L
         private const val DYNAMIC_KEEPALIVE_PERIOD_MS = 1_500L
         
-        private fun releaseOutputBufferQuietly(codec: MediaCodec, index: Int) {
-            try {
-                codec.releaseOutputBuffer(index, false)
-            } catch (_: Throwable) {
-            }
+    private fun releaseOutputBufferQuietly(codec: MediaCodec, index: Int) {
+        try {
+            codec.releaseOutputBuffer(index, false)
+        } catch (_: Throwable) {
+            // ignored on shutdown
         }
+    }
     }
 }

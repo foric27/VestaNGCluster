@@ -10,7 +10,7 @@ import java.util.Locale
 /**
  * Проверка контрольной суммы SHA-256 для пары ICUpdate.zip / ICUpdate.zip.sig.
  */
-class Sha256Verifier {
+internal class Sha256Verifier {
 
     data class VerificationResult(
         val valid: Boolean,

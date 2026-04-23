@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-enum class ClusterMode(
+internal enum class ClusterMode(
     val prefValue: String,
     val settingValue: Int,
     val streamModeValue: String,

@@ -7,8 +7,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Автостарт сервиса после загрузки устройства, после обновления приложения
@@ -20,7 +22,7 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent?.action ?: return
         val pendingResult = goAsync()
         val appContext = context.applicationContext
-        receiverExecutor.execute {
+        receiverScope.launch {
             try {
                 handleAction(appContext, action, intent)
             } catch (t: Throwable) {
@@ -135,7 +137,6 @@ class BootReceiver : BroadcastReceiver() {
     private companion object {
         private const val TAG = "BootReceiver"
         private const val RECOVERY_DELAY_MS = 1_500L
-        private val receiverExecutor: ExecutorService =
-            Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "BootReceiverWorker") }
+        private val receiverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

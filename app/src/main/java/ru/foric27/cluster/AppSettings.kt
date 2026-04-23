@@ -11,7 +11,7 @@ import androidx.core.content.edit
 /**
  * Пользовательские настройки UI, которые влияют на штатный cluster-stream.
  */
-object AppSettings {
+internal object AppSettings {
 
     private const val TAG = "AppSettings"
     private const val PREFS_NAME = "cluster_flow_prefs"

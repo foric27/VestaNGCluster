@@ -1,19 +1,23 @@
 package ru.foric27.cluster
 
-import android.os.Handler
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class UdpServiceRestartController(
-    private val mainHandler: Handler,
+    private val scope: CoroutineScope,
     private val tag: String,
     private val onAttemptRestart: (String?) -> Unit,
     private val notifyRestartScheduled: (delayMs: Long) -> Unit,
 ) {
 
     private val restartScheduled = AtomicBoolean(false)
-    private val restartRunnable = Runnable { attemptScheduledRestart() }
+    private var restartJob: Job? = null
 
     @Volatile private var restartBackoffMs = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
     @Volatile private var lastRestartRequestMs = 0L
@@ -57,14 +61,18 @@ internal class UdpServiceRestartController(
         val delayMs = restartBackoffMs
         Log.w(tag, "Перезапуск запланирован через ${delayMs}мс, reason=$reason${cause?.let { " cause=$it" } ?: ""}")
         notifyRestartScheduled(delayMs)
-        mainHandler.removeCallbacks(restartRunnable)
-        mainHandler.postDelayed(restartRunnable, delayMs)
+        restartJob?.cancel()
+        restartJob = scope.launch {
+            delay(delayMs)
+            attemptScheduledRestart()
+        }
     }
 
     fun cancel() {
         restartScheduled.set(false)
         pendingRestartReason = null
-        mainHandler.removeCallbacks(restartRunnable)
+        restartJob?.cancel()
+        restartJob = null
     }
 
     fun prepareImmediateRecovery(

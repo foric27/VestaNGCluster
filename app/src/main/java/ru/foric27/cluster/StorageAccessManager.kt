@@ -11,7 +11,7 @@ import androidx.core.net.toUri
 /**
  * Управление special access для полного доступа к общей памяти.
  */
-object StorageAccessManager {
+internal object StorageAccessManager {
 
     fun isAllFilesAccessGranted(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

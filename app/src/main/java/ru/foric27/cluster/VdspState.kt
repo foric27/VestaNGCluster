@@ -3,7 +3,7 @@ package ru.foric27.cluster
 /**
  * Глобальное состояние VirtualDisplay для режима app-only.
  */
-object VdspState {
+internal object VdspState {
 
     const val ACTION_VDSP_READY: String = "ru.foric27.cluster.ACTION_VDSP_READY"
     const val ACTION_VDSP_STATE_CHANGED: String = "ru.foric27.cluster.ACTION_VDSP_STATE_CHANGED"

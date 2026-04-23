@@ -9,7 +9,7 @@ import java.io.FileOutputStream
  * Готовит изолированный FTP-root, в который копируется только валидная пара
  * файлов обновления.
  */
-class PreparedUpdateRepository {
+internal class PreparedUpdateRepository {
 
     data class PreparedFileInfo(
         val path: String,

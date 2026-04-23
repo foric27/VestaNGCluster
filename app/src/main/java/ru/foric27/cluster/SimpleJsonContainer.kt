@@ -6,7 +6,7 @@ package ru.foric27.cluster
  * Используется только для простых ключей/значений, но корректно экранирует строки,
  * чтобы пакет не ломался на кавычках, обратных слешах и переводах строк.
  */
-class SimpleJsonContainer {
+internal class SimpleJsonContainer {
 
     private val values: MutableMap<String, Any?> = LinkedHashMap()
 

@@ -101,5 +101,6 @@ dependencies {
     implementation 'androidx.transition:transition:1.7.0'
     implementation 'org.apache.ftpserver:ftpserver-core:1.2.1'
     implementation 'org.apache.mina:mina-core:2.2.5'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     testImplementation 'junit:junit:4.13.2'
 }

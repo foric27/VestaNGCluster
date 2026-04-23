@@ -6,7 +6,7 @@ package ru.foric27.cluster
  * Значения по умолчанию берутся из действующей сетевой конфигурации проекта,
  * чтобы не дублировать IP и имя интерфейса в нескольких местах.
  */
-data class FtpServerConfig(
+internal data class FtpServerConfig(
     val ftpInterfaceName: String?,
     val ftpAdvertisedHost: String?,
     val ftpPort: Int = RuntimeConfig.UpdateFtp.PORT,

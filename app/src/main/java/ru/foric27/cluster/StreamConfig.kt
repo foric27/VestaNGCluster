@@ -6,7 +6,7 @@ import java.io.Serializable
 /**
  * Рабочая конфигурация потока, собираемая из ProductConfig и runtime-настроек.
  */
-data class StreamConfig(
+internal data class StreamConfig(
     val ip: String,
     val port: Int,
     val launchComponent: String?,

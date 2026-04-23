@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Полный цикл подготовки и запуска FTP-сервера обновления.
  */
-object UpdateServerManager {
+internal object UpdateServerManager {
 
     enum class Status {
         STOPPED,

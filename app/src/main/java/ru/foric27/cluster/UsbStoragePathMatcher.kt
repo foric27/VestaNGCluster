@@ -2,7 +2,7 @@ package ru.foric27.cluster
 
 import java.util.Locale
 
-object UsbStoragePathMatcher {
+internal object UsbStoragePathMatcher {
 
     fun isUsbStoragePath(path: String): Boolean {
         if (path.isBlank()) return false

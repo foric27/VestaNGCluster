@@ -6,7 +6,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 
-object ProcessRecoveryManager {
+internal object ProcessRecoveryManager {
 
     private const val TAG = "ProcessRecovery"
     private const val PREFS_NAME = "process_recovery"

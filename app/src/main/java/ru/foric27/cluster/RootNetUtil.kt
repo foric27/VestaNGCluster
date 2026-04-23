@@ -11,7 +11,7 @@ import java.util.Locale
  * применяет статический IP и кеширует дорогие root-проверки, чтобы сервис не
  * спамил su без необходимости.
  */
-object RootNetUtil {
+internal object RootNetUtil {
 
     private const val TAG = "RootNetUtil"
 

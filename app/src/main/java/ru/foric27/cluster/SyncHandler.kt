@@ -18,7 +18,7 @@ import kotlin.math.abs
  * Пакет всегда содержит `vid`, а `time` и `lang` отправляются периодически
  * или при явном изменении соответствующего состояния.
  */
-class SyncHandler(
+internal class SyncHandler(
     private val context: Context,
     private val keySyncInterval: Int,
 ) {

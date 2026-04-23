@@ -22,7 +22,7 @@ import java.util.Locale
 /**
  * Создание встроенного Apache FtpServer с read-only доступом к подготовленной директории обновления.
  */
-class EmbeddedFtpServerFactory {
+internal class EmbeddedFtpServerFactory {
 
     data class BoundAddress(
         val host: String,

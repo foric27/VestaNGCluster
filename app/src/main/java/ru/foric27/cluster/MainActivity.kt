@@ -4,12 +4,22 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Process
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import kotlinx.coroutines.launch
 import ru.foric27.cluster.AppSettings.UiStreamMode
 import ru.foric27.cluster.databinding.ActivityMainBinding
 
@@ -67,10 +77,10 @@ class MainActivity : AppCompatActivity() {
             showNotice = noticeLog::show,
             onAllFilesAccessGranted = {
                 UdpStreamService.startServiceCompat(this)
-                Thread({
+                lifecycleScope.launch {
                     UpdateServerManager.restartServer()
-                    runOnUiThread { renderFtpState() }
-                }, "MainFtpRestart").apply { isDaemon = true; start() }
+                    renderFtpState()
+                }
             },
         )
 

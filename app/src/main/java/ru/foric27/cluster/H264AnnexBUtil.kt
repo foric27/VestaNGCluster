@@ -13,7 +13,7 @@ import java.nio.ByteBuffer
  * Приёмники в этом проекте ожидают именно Annex B, поэтому вся нормализация
  * сосредоточена в одном месте.
  */
-object H264AnnexBUtil {
+internal object H264AnnexBUtil {
 
     private val startCode4 = byteArrayOf(0, 0, 0, 1)
 

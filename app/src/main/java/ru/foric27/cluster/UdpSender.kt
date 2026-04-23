@@ -18,7 +18,7 @@ import java.util.concurrent.locks.LockSupport
  * Размер одного UDP-пакета задаётся через StreamConfig и в этой версии возвращён
  * к OEM-значению из оригинального приложения.
  */
-class UdpSender(
+internal class UdpSender(
     private val host: String,
     private val port: Int,
     bindIp: String?,

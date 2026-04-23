@@ -11,7 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
  * Прозрачная Activity для показа диалога обнаружения нового обновления.
  * Запускается из сервиса/координатора с флагом FLAG_ACTIVITY_NEW_TASK.
  */
-class UpdateAlertActivity : AppCompatActivity() {
+internal class UpdateAlertActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

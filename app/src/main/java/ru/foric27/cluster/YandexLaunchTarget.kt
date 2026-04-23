@@ -12,7 +12,7 @@ import android.os.Bundle
  * `android.car.cluster.ClusterActivityState` -> `android.car:InstrumentClusterService.unobscured.rect`.
  * Здесь этот же bundle формируется и передаётся в целевую activity.
  */
-object YandexLaunchTarget {
+internal object YandexLaunchTarget {
 
     val ACTION_MAIN: String
         get() = RuntimeConfig.TargetApp.ACTION_MAIN

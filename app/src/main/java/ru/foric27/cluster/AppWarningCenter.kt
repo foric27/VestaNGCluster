@@ -11,7 +11,7 @@ import java.util.LinkedHashSet
  * Сообщения складируются в очередь, чтобы их можно было показать после открытия UI,
  * и одновременно рассылаются активным слушателям, если окно приложения уже открыто.
  */
-object AppWarningCenter {
+internal object AppWarningCenter {
 
     private const val TAG = "AppWarningCenter"
     private const val MAX_QUEUE_SIZE = 128

@@ -16,7 +16,7 @@ import java.util.Locale
  * - USB-накопители проверяются только в корне каждого тома;
  * - рекурсивный обход каталогов не используется.
  */
-class UpdateFileLocator {
+internal class UpdateFileLocator {
 
     enum class SearchPolicy {
         INTERNAL_ONLY,

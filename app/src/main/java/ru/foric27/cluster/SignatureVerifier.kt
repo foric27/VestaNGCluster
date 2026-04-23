@@ -12,7 +12,7 @@ import java.security.MessageDigest
  * Ожидаемый SHA-256 хеш подписи задаётся в [ProductConfig.Security.EXPECTED_SIGNATURE_SHA256].
  * При пустом значении проверка пропускается (debug-режим).
  */
-object SignatureVerifier {
+internal object SignatureVerifier {
 
     private const val TAG = "SignatureVerifier"
 
