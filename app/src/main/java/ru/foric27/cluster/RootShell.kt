@@ -12,6 +12,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Выполнение privileged shell-команд только через `su`.
  */
+@Deprecated(
+    message = "Use NetworkRootShell for network shell work; RootShell is a legacy compatibility wrapper.",
+    replaceWith = ReplaceWith("NetworkRootShell()"),
+)
 object RootShell {
 
     private const val TAG = "RootShell"

@@ -14,6 +14,8 @@ import java.util.Locale
 internal object RootNetUtil {
 
     private const val TAG = "RootNetUtil"
+    private const val ROOT_REQUIRED_MESSAGE = "Нет privileged backend с root-правами"
+    private val IFACE_NAME_REGEX = Regex("^[a-zA-Z0-9._:-]+$")
 
     private val ifaceCacheTtlMs: Long
         get() = RuntimeConfig.Root.IFACE_CACHE_TTL_MS
@@ -29,6 +31,7 @@ internal object RootNetUtil {
     @Volatile private var cachedRouteExpectedSrcIp: String? = null
     @Volatile private var cachedRouteOk: Boolean? = null
     @Volatile private var cachedRouteCheckAtMs: Long = 0L
+    @Volatile private var networkRootShell: NetworkRootShell? = null
 
     data class ApplyResult(
         val ok: Boolean,
@@ -77,20 +80,15 @@ internal object RootNetUtil {
         cachedRouteExpectedSrcIp = null
         cachedRouteOk = null
         cachedRouteCheckAtMs = 0L
-        RootShell.clearToolCache()
+    }
+
+    fun attachNetworkRootShell(shell: NetworkRootShell) {
+        networkRootShell = shell
     }
 
     @Synchronized
     fun applyStaticIfaceNetwork(localCidr: String, gateway: String?): ApplyResult {
         return try {
-            if (!RootShell.ensureToolAvailable("ip")) {
-                return ApplyResult(
-                    ok = false,
-                    iface = RuntimeConfig.Root.IFACE,
-                    details = "Команда ip недоступна",
-                    rootRequired = false,
-                )
-            }
             val probeState = probeIfaceState(force = true)
             if (probeState.rootRequired) {
                 Log.w(TAG, "Root недоступен — настройка ${probeState.iface} пропущена")
@@ -103,19 +101,17 @@ internal object RootNetUtil {
             }
 
             if (!probeState.exists) {
-                val probe = RootShell.su(
+                val probe = runNetworkScript(
                     listOf(
                         "ip -o link show",
                         "ip -o -4 addr show",
                         "ip route show",
                     ),
-                    logOnFailure = false,
                 )
                 val details = buildString {
                     append("iface=").append(probeState.iface).append('\n')
                     append(buildIfaceExistsLabel(probeState.iface)).append("=false\n")
-                    append("[STDOUT]\n").append(probe.out)
-                    append("\n[STDERR]\n").append(probe.err)
+                    append(probe.renderOutput())
                 }
                 Log.i(TAG, "${probeState.iface} отсутствует — статическая настройка сети пропущена")
                 return ApplyResult(false, probeState.iface, details)
@@ -123,60 +119,88 @@ internal object RootNetUtil {
 
             val cidr = parseIpv4Cidr(localCidr)
                 ?: return ApplyResult(false, probeState.iface, "Некорректный localCidr: $localCidr")
+            val iface = sanitizeIfaceName(probeState.iface)
+                ?: return ApplyResult(false, probeState.iface, "Некорректный iface: ${probeState.iface}")
             val gatewayIp = gateway?.trim()?.takeIf { it.isNotEmpty() }
             if (gatewayIp != null && !isValidIpv4(gatewayIp)) {
                 return ApplyResult(false, probeState.iface, "Некорректный gateway: $gatewayIp")
             }
 
-            val iface = probeState.iface
-            val iptablesAvailable = RootShell.ensureToolAvailable("iptables")
-            val commands = buildList {
-                add("ip link set $iface up")
-                add("ip addr replace ${cidr.ip}/${cidr.prefix} dev $iface")
-                add("ip route replace ${cidr.network}/${cidr.prefix} dev $iface scope link src ${cidr.ip} table main")
-                gatewayIp?.let {
-                    add("ip route del $it 2>/dev/null || true")
-                    add("ip route del $it/32 2>/dev/null || true")
-                    // Очистка legacy правил (обратная совместимость)
-                    add("ip rule del to $it/32 lookup main priority 11000 2>/dev/null || true")
-                    add("ip rule del from ${cidr.ip}/32 lookup main priority 11001 2>/dev/null || true")
-                    // Новые правила с высоким приоритетом
-                    add("ip rule del to $it/32 lookup main priority 51 2>/dev/null || true")
-                    add("ip rule del from ${cidr.ip}/32 lookup main priority 52 2>/dev/null || true")
-                    add("ip rule del fwmark 0x1 lookup main priority 50 2>/dev/null || true")
-                    add("ip route replace $it/32 dev $iface scope link src ${cidr.ip} table main")
-                    if (iptablesAvailable) {
-                        add("iptables -t mangle -D OUTPUT -d $it -j MARK --set-mark 0x1 2>/dev/null || true")
-                        add("iptables -t mangle -A OUTPUT -d $it -j MARK --set-mark 0x1")
-                        add("ip rule add fwmark 0x1 lookup main priority 50")
-                    }
-                    add("ip rule add to $it/32 lookup main priority 51")
-                    add("ip rule add from ${cidr.ip}/32 lookup main priority 52")
-                    add("ip route flush cache")
-                    add("ip route get $it")
-                }
-                add("ip -o -4 addr show dev $iface")
-                add("ip rule show")
-                add("ip route show dev $iface")
+            val interfaceResult = runNetworkScript(buildInterfaceSetupBatch(iface, cidr))
+            if (!interfaceResult.ok) {
+                return ApplyResult(
+                    ok = false,
+                    iface = iface,
+                    details = buildString {
+                        append("iface=").append(iface).append('\n')
+                        append(buildIfaceExistsLabel(iface)).append("=true\n")
+                        append("local=").append(cidr.ip).append('/').append(cidr.prefix).append('\n')
+                        append(interfaceResult.renderOutput())
+                    },
+                    rootRequired = interfaceResult.rootRequired,
+                )
             }
 
-            val result = RootShell.su(commands)
-            if (result.isRootDeniedOrMissing()) {
-                val details = buildString {
-                    append("iface=").append(iface).append('\n')
-                    append("root_required=true\n")
-                    append("[STDOUT]\n").append(result.out)
-                    append("\n[STDERR]\n").append(result.err)
+            var routingResult = NetworkScriptResult.success("")
+            var iptablesResult = NetworkScriptResult.success("")
+            if (gatewayIp != null) {
+                val iptablesAvailable = canUseIptables()
+                routingResult = runNetworkScript(buildRoutingBatch(iface, cidr, gatewayIp, includeFwmarkRule = iptablesAvailable))
+                if (!routingResult.ok) {
+                    return ApplyResult(
+                        ok = false,
+                        iface = iface,
+                        details = buildString {
+                            append("iface=").append(iface).append('\n')
+                            append(buildIfaceExistsLabel(iface)).append("=true\n")
+                            append("local=").append(cidr.ip).append('/').append(cidr.prefix).append('\n')
+                            append("gateway=").append(gatewayIp).append('\n')
+                            append(interfaceResult.renderOutput())
+                            append('\n')
+                            append(routingResult.renderOutput())
+                        },
+                        rootRequired = routingResult.rootRequired,
+                    )
                 }
-                Log.w(TAG, "Root недоступен — применение статического IP для $iface пропущено")
-                return ApplyResult(false, iface, details, rootRequired = true)
+                if (iptablesAvailable) {
+                    iptablesResult = runNetworkScript(buildIptablesBatch(gatewayIp))
+                    if (!iptablesResult.ok) {
+                        return ApplyResult(
+                            ok = false,
+                            iface = iface,
+                            details = buildString {
+                                append("iface=").append(iface).append('\n')
+                                append(buildIfaceExistsLabel(iface)).append("=true\n")
+                                append("local=").append(cidr.ip).append('/').append(cidr.prefix).append('\n')
+                                append("gateway=").append(gatewayIp).append('\n')
+                                append(interfaceResult.renderOutput())
+                                append('\n')
+                                append(routingResult.renderOutput())
+                                append('\n')
+                                append(iptablesResult.renderOutput())
+                            },
+                            rootRequired = iptablesResult.rootRequired,
+                        )
+                    }
+                }
             }
 
             clearCaches()
             val routeCheck = gatewayIp?.let { checkRouteTo(it, cidr.ip, forceProbe = true) }
-            val outLower = result.out.lowercase(Locale.US)
-            val ok = result.ok() &&
-                result.out.contains(" ${cidr.ip}/") &&
+            val combinedOutput = buildString {
+                append(interfaceResult.output)
+                if (routingResult.output.isNotBlank()) {
+                    if (isNotEmpty()) append('\n')
+                    append(routingResult.output)
+                }
+                if (iptablesResult.output.isNotBlank()) {
+                    if (isNotEmpty()) append('\n')
+                    append(iptablesResult.output)
+                }
+            }
+            val outLower = combinedOutput.lowercase(Locale.US)
+            val ok = interfaceResult.ok && routingResult.ok && iptablesResult.ok &&
+                combinedOutput.contains(" ${cidr.ip}/") &&
                 (
                     gatewayIp == null ||
                         routeCheck?.ok == true ||
@@ -191,8 +215,8 @@ internal object RootNetUtil {
                 if (gatewayIp != null) {
                     append("gateway=").append(gatewayIp).append('\n')
                 }
-                append("[STDOUT]\n").append(result.out)
-                append("\n[STDERR]\n").append(result.err)
+                append("[STDOUT]\n").append(combinedOutput)
+                append("\n[STDERR]\n")
                 routeCheck?.let {
                     append("\n[ROUTE_CHECK]\n")
                     append(it.summary()).append('\n')
@@ -227,17 +251,17 @@ internal object RootNetUtil {
 
     fun checkRouteTo(dstIp: String, expectedSrcIp: String? = null, forceProbe: Boolean = false): RouteCheckResult {
         val ip = dstIp.trim()
-        if (!RootShell.ensureToolAvailable("ip")) {
+        if (!isNetworkRootAvailable()) {
             return RouteCheckResult(
                 iface = RuntimeConfig.Root.IFACE,
                 dstIp = ip,
                 expectedSrcIp = expectedSrcIp?.trim(),
-                rootRequired = false,
+                rootRequired = true,
                 routeCommandOk = false,
                 devOk = false,
                 srcOk = false,
                 ok = false,
-                output = "Команда ip недоступна",
+                output = ROOT_REQUIRED_MESSAGE,
             )
         }
         val selection = resolveSelection(force = forceProbe)
@@ -295,39 +319,29 @@ internal object RootNetUtil {
             )
         }
 
-        val result = RootShell.su(listOf("ip route get $ip"), logOnFailure = false)
-        if (!result.ok()) {
-            if (!result.timedOut) {
-                updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = false, checkedAtMs = now)
-            }
+        val result = runNetworkScript(listOf("ip route get $ip"))
+        if (!result.ok) {
+            updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = false, checkedAtMs = now)
             return RouteCheckResult(
                 iface = probeState.iface,
                 dstIp = ip,
                 expectedSrcIp = normalizedSrcIp,
-                rootRequired = false,
+                rootRequired = result.rootRequired,
                 routeCommandOk = false,
                 devOk = false,
                 srcOk = false,
                 ok = false,
-                output = buildString {
-                    append(result.out)
-                    if (result.err.isNotBlank()) {
-                        if (isNotEmpty()) append('\n')
-                        append(result.err)
-                    }
-                },
+                output = result.combinedText(),
             )
         }
 
-        val output = result.out.lowercase(Locale.US)
+        val output = result.output.lowercase(Locale.US)
         val devRegex = Regex("""\bdev\s+${Regex.escape(probeState.iface.lowercase(Locale.US))}\b""")
         val devOk = devRegex.containsMatchIn(output)
         val srcRegex = normalizedSrcIp?.let { Regex("""\bsrc\s+${Regex.escape(it)}\b""") }
         val srcOk = srcRegex == null || srcRegex.containsMatchIn(output)
         val ok = devOk && srcOk
-        if (!result.timedOut) {
-            updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = ok, checkedAtMs = now)
-        }
+        updateRouteCache(probeState.iface, ip, normalizedSrcIp, ok = ok, checkedAtMs = now)
         return RouteCheckResult(
             iface = probeState.iface,
             dstIp = ip,
@@ -337,7 +351,7 @@ internal object RootNetUtil {
             devOk = devOk,
             srcOk = srcOk,
             ok = ok,
-            output = result.out.trim(),
+            output = result.output.trim(),
         )
     }
 
@@ -380,14 +394,27 @@ internal object RootNetUtil {
             )
         }
 
-        val result = RootShell.su(
+        val sanitizedIface = sanitizeIfaceName(iface)
+        if (sanitizedIface == null) {
+            return ProbeState(
+                iface = iface,
+                exists = false,
+                linkUp = false,
+                rootRequired = false,
+                details = buildString {
+                    append("iface=").append(iface).append('\n')
+                    append("selection=").append(selection.summary()).append('\n')
+                    append("invalid_iface_name=true")
+                },
+            )
+        }
+
+        val result = runNetworkScript(
             listOf(
-                "ip link show dev $iface",
-                "cat /sys/class/net/$iface/carrier 2>/dev/null || true",
+                "ip link show dev $sanitizedIface",
             ),
-            logOnFailure = false,
         )
-        if (result.isRootDeniedOrMissing()) {
+        if (result.rootRequired) {
             return ProbeState(
                 iface = iface,
                 exists = false,
@@ -397,31 +424,27 @@ internal object RootNetUtil {
                     append("iface=").append(iface).append('\n')
                     append("selection=").append(selection.summary()).append('\n')
                     append("root_required=true\n")
-                    append("[STDOUT]\n").append(result.out)
-                    append("\n[STDERR]\n").append(result.err)
+                    append(result.renderOutput())
                 },
             )
         }
 
-        val ok = result.ok() && result.out.lowercase(Locale.US).contains("$iface:")
-        val linkUp = ok && isIfaceLinkUp(result.out)
-        if (!result.timedOut) {
-            cachedIfaceName = iface
-            cachedIfaceExists = ok
-            cachedIfaceCheckAtMs = now
-        }
+        val exists = result.output.lowercase(Locale.US).contains("$sanitizedIface:")
+        val linkUp = exists && isIfaceLinkUp(result.output)
+        cachedIfaceName = iface
+        cachedIfaceExists = exists
+        cachedIfaceCheckAtMs = now
         return ProbeState(
             iface = iface,
-            exists = ok,
+            exists = exists,
             linkUp = linkUp,
             rootRequired = false,
             details = buildString {
                 append("iface=").append(iface).append('\n')
-                append(buildIfaceExistsLabel(iface)).append('=').append(ok).append('\n')
+                append(buildIfaceExistsLabel(iface)).append('=').append(exists).append('\n')
                 append(buildIfaceLinkLabel(iface)).append('=').append(linkUp).append('\n')
                 append("selection=").append(selection.summary()).append('\n')
-                append("[STDOUT]\n").append(result.out)
-                append("\n[STDERR]\n").append(result.err)
+                append(result.renderOutput())
             },
         )
     }
@@ -441,9 +464,56 @@ internal object RootNetUtil {
     internal fun isIfaceLinkUp(output: String): Boolean {
         val normalized = output.lowercase(Locale.US)
         if (normalized.contains("lower_up")) return true
+        if (normalized.contains("running")) return true
         return output.lineSequence()
             .map { it.trim() }
             .any { it == "1" }
+    }
+
+    internal fun buildInterfaceSetupBatch(iface: String, cidr: Ipv4Cidr): List<String> {
+        return listOf(
+            "ip addr del ${cidr.ip}/${cidr.prefix} dev $iface",
+            "ip link set $iface up",
+            "ip addr replace ${cidr.ip}/${cidr.prefix} dev $iface",
+            "ip -o -4 addr show dev $iface",
+        )
+    }
+
+    internal fun buildRoutingBatch(
+        iface: String,
+        cidr: Ipv4Cidr,
+        gatewayIp: String,
+        includeFwmarkRule: Boolean,
+    ): List<String> {
+        return buildList {
+            add("ip route del $gatewayIp")
+            add("ip route del $gatewayIp/32")
+            add("ip rule del to $gatewayIp/32 lookup main priority 11000")
+            add("ip rule del from ${cidr.ip}/32 lookup main priority 11001")
+            add("ip rule del to $gatewayIp/32 lookup main priority 51")
+            add("ip rule del from ${cidr.ip}/32 lookup main priority 52")
+            if (includeFwmarkRule) {
+                add("ip rule del fwmark 0x1 lookup main priority 50")
+            }
+            add("ip route replace ${cidr.network}/${cidr.prefix} dev $iface scope link src ${cidr.ip} table main")
+            add("ip route replace $gatewayIp/32 dev $iface scope link src ${cidr.ip} table main")
+            if (includeFwmarkRule) {
+                add("ip rule add fwmark 0x1 lookup main priority 50")
+            }
+            add("ip rule add to $gatewayIp/32 lookup main priority 51")
+            add("ip rule add from ${cidr.ip}/32 lookup main priority 52")
+            add("ip route flush cache")
+            add("ip route get $gatewayIp")
+            add("ip rule show")
+            add("ip route show dev $iface")
+        }
+    }
+
+    internal fun buildIptablesBatch(gatewayIp: String): List<String> {
+        return listOf(
+            "iptables -t mangle -D OUTPUT -d $gatewayIp -j MARK --set-mark 0x1",
+            "iptables -t mangle -A OUTPUT -d $gatewayIp -j MARK --set-mark 0x1",
+        )
     }
 
     private fun parseIpv4Cidr(value: String): Ipv4Cidr? {
@@ -496,9 +566,69 @@ internal object RootNetUtil {
         cachedRouteCheckAtMs = checkedAtMs
     }
 
-    private data class Ipv4Cidr(
+    private fun canUseIptables(): Boolean {
+        val result = runNetworkScript(listOf("iptables -t mangle -S OUTPUT"))
+        return result.ok
+    }
+
+    private fun isNetworkRootAvailable(): Boolean = networkRootShell?.isAvailable() == true
+
+    private fun runNetworkScript(commands: List<String>): NetworkScriptResult {
+        val shell = networkRootShell ?: return NetworkScriptResult.failure(
+            error = "NetworkRootShell не подключён",
+            rootRequired = true,
+        )
+        if (!shell.isAvailable()) {
+            return NetworkScriptResult.failure(error = ROOT_REQUIRED_MESSAGE, rootRequired = true)
+        }
+        return shell.execScript(commands).fold(
+            onSuccess = { NetworkScriptResult.success(it) },
+            onFailure = { NetworkScriptResult.failure(it.message ?: it.toString()) },
+        )
+    }
+
+    private fun sanitizeIfaceName(iface: String?): String? {
+        val normalized = iface?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return normalized.takeIf { IFACE_NAME_REGEX.matches(it) }
+    }
+
+    internal data class Ipv4Cidr(
         val ip: String,
         val prefix: Int,
         val network: String,
     )
+
+    private data class NetworkScriptResult(
+        val ok: Boolean,
+        val output: String,
+        val error: String,
+        val rootRequired: Boolean = false,
+    ) {
+        fun combinedText(): String {
+            return buildString {
+                if (output.isNotBlank()) {
+                    append(output)
+                }
+                if (error.isNotBlank()) {
+                    if (isNotEmpty()) append('\n')
+                    append(error)
+                }
+            }
+        }
+
+        fun renderOutput(): String {
+            return buildString {
+                append("[STDOUT]\n").append(output)
+                append("\n[STDERR]\n").append(error)
+            }
+        }
+
+        companion object {
+            fun success(output: String): NetworkScriptResult =
+                NetworkScriptResult(ok = true, output = output, error = "")
+
+            fun failure(error: String, rootRequired: Boolean = false): NetworkScriptResult =
+                NetworkScriptResult(ok = false, output = "", error = error, rootRequired = rootRequired)
+        }
+    }
 }

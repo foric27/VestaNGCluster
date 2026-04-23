@@ -41,6 +41,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private val serviceLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val networkRootShell = NetworkRootShell()
 
     @Volatile private var streamActive = false
     @Volatile private var startInProgress = false
@@ -78,6 +79,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     override fun onCreate() {
         super.onCreate()
         RuntimeConfig.init(applicationContext)
+        RootNetUtil.attachNetworkRootShell(networkRootShell)
         sServiceRunning = true
         sStreamActive = false
         initWakeLock()
@@ -242,6 +244,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         unregisterDisplayStateReceiver()
         unregisterUsbMediaReceiver()
         stopInternalFull()
+        networkRootShell.close()
         releaseStreamWakeLock()
         serviceScope.cancel()
         super.onDestroy()
