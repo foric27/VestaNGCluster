@@ -60,7 +60,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private lateinit var statusSyncCoordinator: UdpStatusSyncCoordinator
     private lateinit var transportStatsCoordinator: UdpTransportStatsCoordinator
     private lateinit var connectivityWatchdogCoordinator: UdpConnectivityWatchdogCoordinator
-    private lateinit var peerReachabilityChecker: UdpPeerReachabilityChecker
     private lateinit var pipelineStartCoordinator: UdpPipelineStartCoordinator
     private lateinit var startupProbeCoordinator: UdpStartupProbeCoordinator
     private lateinit var startupFlowCoordinator: UdpStartupFlowCoordinator
@@ -328,18 +327,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             noRouteRestartBackoffMinMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
             routeFailuresBeforeRestart = ROUTE_FAILURES_BEFORE_RESTART,
             defaultUsbLocalCidr = DEF_USB_LOCAL_CIDR,
-        )
-        peerReachabilityChecker = UdpPeerReachabilityChecker(
-            ensurePingToolAvailable = { RootShell.ensurePrivilegedToolAvailable("ping") },
-            executePing = { command, timeoutMs ->
-                RootShell.exec(
-                    cmds = listOf(command),
-                    logOnFailure = false,
-                    timeoutMs = timeoutMs,
-                )
-            },
-            pingTimeoutMsProvider = { RuntimeConfig.Service.PEER_PING_TIMEOUT_MS },
-            pingCacheTtlMsProvider = { RuntimeConfig.Service.PEER_PING_CACHE_TTL_MS },
         )
         pipelineStartCoordinator = UdpPipelineStartCoordinator(
             tag = TAG,
@@ -718,7 +705,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             updateCoordinator.stop()
             connectivityWatchdogCoordinator.resetRouteFailureStreak()
             activeRootIface = null
-            peerReachabilityChecker.resetCache()
             releaseStreamWakeLock()
 
             try {
@@ -806,8 +792,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
-    private fun evaluatePeerReachability(targetHost: String, force: Boolean): PeerCheckResult =
-        peerReachabilityChecker.evaluate(targetHost, force)
+    private fun evaluatePeerReachability(targetHost: String, force: Boolean): PeerCheckResult {
+        // Ping через root удалён; проверка доступности выполняется только через UDP-probe
+        return PeerCheckResult(attempted = false, ok = false)
+    }
 
     private fun isVideoStreamModeSelected(): Boolean {
         return try {

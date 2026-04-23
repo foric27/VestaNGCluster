@@ -129,6 +129,7 @@ object RootNetUtil {
             }
 
             val iface = probeState.iface
+            val iptablesAvailable = RootShell.ensureToolAvailable("iptables")
             val commands = buildList {
                 add("ip link set $iface up")
                 add("ip addr replace ${cidr.ip}/${cidr.prefix} dev $iface")
@@ -136,11 +137,21 @@ object RootNetUtil {
                 gatewayIp?.let {
                     add("ip route del $it 2>/dev/null || true")
                     add("ip route del $it/32 2>/dev/null || true")
+                    // Очистка legacy правил (обратная совместимость)
                     add("ip rule del to $it/32 lookup main priority 11000 2>/dev/null || true")
                     add("ip rule del from ${cidr.ip}/32 lookup main priority 11001 2>/dev/null || true")
+                    // Новые правила с высоким приоритетом
+                    add("ip rule del to $it/32 lookup main priority 51 2>/dev/null || true")
+                    add("ip rule del from ${cidr.ip}/32 lookup main priority 52 2>/dev/null || true")
+                    add("ip rule del fwmark 0x1 lookup main priority 50 2>/dev/null || true")
                     add("ip route replace $it/32 dev $iface scope link src ${cidr.ip} table main")
-                    add("ip rule add to $it/32 lookup main priority 11000")
-                    add("ip rule add from ${cidr.ip}/32 lookup main priority 11001")
+                    if (iptablesAvailable) {
+                        add("iptables -t mangle -D OUTPUT -d $it -j MARK --set-mark 0x1 2>/dev/null || true")
+                        add("iptables -t mangle -A OUTPUT -d $it -j MARK --set-mark 0x1")
+                        add("ip rule add fwmark 0x1 lookup main priority 50")
+                    }
+                    add("ip rule add to $it/32 lookup main priority 51")
+                    add("ip rule add from ${cidr.ip}/32 lookup main priority 52")
                     add("ip route flush cache")
                     add("ip route get $it")
                 }

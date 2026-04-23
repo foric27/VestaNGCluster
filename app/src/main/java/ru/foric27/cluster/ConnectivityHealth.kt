@@ -69,7 +69,7 @@ internal object ConnectivityHealth {
             !snapshot.senderReady -> "sender_missing"
             !snapshot.displayReady -> "display_missing"
             !snapshot.routeReady -> "route_not_ready"
-            snapshot.peerCheck.failed -> "peer_ping_failed"
+            snapshot.peerCheck.failed -> "peer_probe_failed"
             !snapshot.recentVideoTraffic -> "recent_video_missing"
             else -> "unknown"
         }

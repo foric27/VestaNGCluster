@@ -154,8 +154,6 @@
     <string name="runtime_field_service_no_route_restart_backoff_min_ms">No route delay, ms</string>
     <string name="runtime_field_service_iface_missing_restart_backoff_min_ms">No interface delay, ms</string>
     <string name="runtime_field_service_connectivity_watchdog_period_ms">Watchdog period, ms</string>
-    <string name="runtime_field_service_peer_ping_timeout_ms">Peer ping timeout, ms</string>
-    <string name="runtime_field_service_peer_ping_cache_ttl_ms">Peer ping cache, ms</string>
     <string name="runtime_field_service_route_recent_send_grace_ms">Recent send grace, ms</string>
     <string name="runtime_field_service_route_failures_before_restart">Route failures before restart</string>
     <string name="runtime_field_service_thread_join_timeout_ms">Thread join timeout, ms</string>

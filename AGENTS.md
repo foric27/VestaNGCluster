@@ -21,7 +21,7 @@
 - `app/src/main/java/ru/foric27/cluster/UdpStartupFlowCoordinator.kt` + `UdpStartupProbeCoordinator.kt` + `UdpPipelineStartCoordinator.kt` — уже вынесенная orchestration-ветка `startPipelineAsync(...)`; не собирай sender/probe/video startup обратно в сервис.
 - `app/src/main/java/ru/foric27/cluster/UdpNetworkPreparationCoordinator.kt` — общий prepareNetwork path для обычного старта и restart; если меняешь root route setup/bind IP, правь здесь, а не дублируй ветки в сервисе.
 - `app/src/main/java/ru/foric27/cluster/UdpUpdateServerCoordinator.kt` + `UpdateServerManager.kt` — orchestration FTP/update lifecycle; в сервисе больше не держи дублирующий poll/retry state поверх coordinator.
-- `app/src/main/java/ru/foric27/cluster/UdpPeerReachabilityChecker.kt` — peer ping, TTL cache и обработка отсутствующего `ping`; это отдельный helper, не возвращай этот state обратно в сервис.
+
 - `app/src/main/java/ru/foric27/cluster/MainActivity.kt` — launcher entrypoint; обычный запуск старается оставить UI в фоне после старта сервиса.
 - `app/src/main/java/ru/foric27/cluster/ProductConfig.kt` — продуктовые дефолты и wire-контракты.
 - `app/src/main/java/ru/foric27/cluster/RuntimeConfig.kt` + `DeveloperActivity.kt` — runtime overrides поверх `ProductConfig`.
@@ -179,3 +179,29 @@
 - На Android 11+ (API 30+) по-прежнему используется `MANAGE_EXTERNAL_STORAGE` с переходом в системные настройки.
 - `StorageAccessManager.isAllFilesAccessGranted()` на API < 30 возвращает `true` без проверок, но теперь `MainAccessPreflight` явно запрашивает `READ_EXTERNAL_STORAGE` до запуска сервиса.
 - Строки `main_read_storage_granted` и `main_read_storage_missing` добавлены в `values/strings.xml` (ru) и `values-en/strings.xml` (en).
+
+## Усиленная маршрутизация через eth0 и удаление root ping (апрель 2026)
+
+### Policy routing через iptables mangle + высокие приоритеты
+- **`RootNetUtil.applyStaticIfaceNetwork(...)`** — приоритеты `ip rule` подняты с `11000/11001` до `50/51/52`.
+- Добавлено **iptables mangle mark** (`0x1`) для исходящего трафика к шлюзу (`-d 192.168.40.2`), чтобы WiFi/VPN/other networks не могли перехватить пакеты до IVI.
+- `ip rule add fwmark 0x1 lookup main priority 50` — перехватывает все маркированные пакеты раньше любых других системных правил.
+- `ip rule add to 192.168.40.2/32 lookup main priority 51` и `from 192.168.40.1/32 lookup main priority 52` — fallback-правила, если iptables mark не применён.
+- Очистка legacy-правил (`priority 11000/11001`) выполняется при каждом apply, чтобы не дублировать старые конфигурации.
+- iptables доступность проверяется через `RootShell.ensureToolAvailable("iptables")`; если недоступен, применяются только `ip rule` (хотя и с более высоким приоритетом, чем раньше).
+
+### Удаление UdpPeerReachabilityChecker
+- **`UdpPeerReachabilityChecker.kt` полностью удалён.**
+- Root `ping -c 1 -W 1` больше не используется ни для health-check, ни для watchdog.
+- Watchdog теперь полагается **исключительно** на:
+  1. Свежий видеотрафик (`recentVideoTraffic` grace).
+  2. Проверку маршрута (`ip route get`).
+  3. UDP-probe через `UdpSender.probe()`.
+- **`ConnectivityHealth.isWatchdogConnectionHealthy(...)`** — параметр `peerCheck` по-прежнему принимается (чтобы не ломать сигнатуру), но `attempted=false` автоматически трактуется как «ping недоступен, игнорируем».
+- **`evaluatePeerReachability(...)`** в `UdpStreamService` возвращает `PeerCheckResult(attempted=false, ok=false)` — stub без root-команд.
+
+### Удаление runtime-полей peer ping
+- Удалены из `ProductConfig.Service`: `PEER_PING_TIMEOUT_MS`, `PEER_PING_CACHE_TTL_MS`.
+- Удалены из `RuntimeConfig.Keys` и `RuntimeConfig.Service`: `SERVICE_PEER_PING_TIMEOUT_MS`, `SERVICE_PEER_PING_CACHE_TTL_MS`.
+- Удалены из `RuntimeConfigFieldSpecs.kt`.
+- Удалены строки `runtime_field_service_peer_ping_timeout_ms` и `runtime_field_service_peer_ping_cache_ttl_ms` из `values/strings.xml` (ru) и `values-en/strings.xml` (en).

@@ -95,8 +95,6 @@ object RuntimeConfig {
         const val SERVICE_NO_ROUTE_RESTART_BACKOFF_MIN_MS = "service_no_route_restart_backoff_min_ms"
         const val SERVICE_IFACE_MISSING_RESTART_BACKOFF_MIN_MS = "service_iface_missing_restart_backoff_min_ms"
         const val SERVICE_CONNECTIVITY_WATCHDOG_PERIOD_MS = "service_connectivity_watchdog_period_ms"
-        const val SERVICE_PEER_PING_TIMEOUT_MS = "service_peer_ping_timeout_ms"
-        const val SERVICE_PEER_PING_CACHE_TTL_MS = "service_peer_ping_cache_ttl_ms"
         const val SERVICE_ROUTE_RECENT_SEND_GRACE_MS = "service_route_recent_send_grace_ms"
         const val SERVICE_ROUTE_FAILURES_BEFORE_RESTART = "service_route_failures_before_restart"
         const val SERVICE_THREAD_JOIN_TIMEOUT_MS = "service_thread_join_timeout_ms"
@@ -268,8 +266,6 @@ object RuntimeConfig {
         val NO_ROUTE_RESTART_BACKOFF_MIN_MS: Long get() = long(Keys.SERVICE_NO_ROUTE_RESTART_BACKOFF_MIN_MS, ProductConfig.Service.NO_ROUTE_RESTART_BACKOFF_MIN_MS)
         val IFACE_MISSING_RESTART_BACKOFF_MIN_MS: Long get() = long(Keys.SERVICE_IFACE_MISSING_RESTART_BACKOFF_MIN_MS, ProductConfig.Service.IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
         val CONNECTIVITY_WATCHDOG_PERIOD_MS: Long get() = long(Keys.SERVICE_CONNECTIVITY_WATCHDOG_PERIOD_MS, ProductConfig.Service.CONNECTIVITY_WATCHDOG_PERIOD_MS)
-        val PEER_PING_TIMEOUT_MS: Long get() = long(Keys.SERVICE_PEER_PING_TIMEOUT_MS, ProductConfig.Service.PEER_PING_TIMEOUT_MS)
-        val PEER_PING_CACHE_TTL_MS: Long get() = long(Keys.SERVICE_PEER_PING_CACHE_TTL_MS, ProductConfig.Service.PEER_PING_CACHE_TTL_MS)
         val ROUTE_RECENT_SEND_GRACE_MS: Long get() = long(Keys.SERVICE_ROUTE_RECENT_SEND_GRACE_MS, ProductConfig.Service.ROUTE_RECENT_SEND_GRACE_MS)
         val ROUTE_FAILURES_BEFORE_RESTART: Int get() = int(Keys.SERVICE_ROUTE_FAILURES_BEFORE_RESTART, ProductConfig.Service.ROUTE_FAILURES_BEFORE_RESTART)
         val THREAD_JOIN_TIMEOUT_MS: Long get() = long(Keys.SERVICE_THREAD_JOIN_TIMEOUT_MS, ProductConfig.Service.THREAD_JOIN_TIMEOUT_MS)

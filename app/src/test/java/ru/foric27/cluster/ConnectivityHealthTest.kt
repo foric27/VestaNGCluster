@@ -23,40 +23,12 @@ class ConnectivityHealthTest {
     }
 
     @Test
-    fun `wake requires full recovery when peer ping fails`() {
-        val snapshot = RuntimeHealthSnapshot(
-            streamActive = true,
-            startInProgress = false,
-            senderReady = true,
-            displayReady = true,
-            recentVideoTraffic = false,
-            routeReady = true,
-            peerCheck = PeerCheckResult(attempted = true, ok = false),
-        )
-
-        assertFalse(ConnectivityHealth.isWakeStreamHealthy(snapshot))
-        assertTrue(ConnectivityHealth.requiresWakeFullRecovery(snapshot))
-    }
-
-    @Test
-    fun `watchdog connection stays healthy with successful ping`() {
+    fun `watchdog connection stays healthy with successful udp probe when ping unavailable`() {
         assertTrue(
             ConnectivityHealth.isWatchdogConnectionHealthy(
                 recentVideoTraffic = false,
                 routeReady = true,
-                peerCheck = PeerCheckResult(attempted = true, ok = true),
-                udpProbeOk = false,
-            ),
-        )
-    }
-
-    @Test
-    fun `watchdog connection is unhealthy when ping fails despite route`() {
-        assertFalse(
-            ConnectivityHealth.isWatchdogConnectionHealthy(
-                recentVideoTraffic = false,
-                routeReady = true,
-                peerCheck = PeerCheckResult(attempted = true, ok = false),
+                peerCheck = PeerCheckResult(attempted = false, ok = false),
                 udpProbeOk = true,
             ),
         )

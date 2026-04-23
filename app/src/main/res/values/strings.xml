@@ -154,8 +154,6 @@
     <string name="runtime_field_service_no_route_restart_backoff_min_ms">Задержка без маршрута, мс</string>
     <string name="runtime_field_service_iface_missing_restart_backoff_min_ms">Задержка без интерфейса, мс</string>
     <string name="runtime_field_service_connectivity_watchdog_period_ms">Период watchdog, мс</string>
-    <string name="runtime_field_service_peer_ping_timeout_ms">Таймаут ping до приёмника, мс</string>
-    <string name="runtime_field_service_peer_ping_cache_ttl_ms">Кеш ping до приёмника, мс</string>
     <string name="runtime_field_service_route_recent_send_grace_ms">Окно свежей отправки, мс</string>
     <string name="runtime_field_service_route_failures_before_restart">Ошибок маршрута до рестарта</string>
     <string name="runtime_field_service_thread_join_timeout_ms">Ожидание завершения потоков, мс</string>

@@ -211,12 +211,6 @@ object ProductConfig {
         /** Период работы watchdog проверки связности. */
         const val CONNECTIVITY_WATCHDOG_PERIOD_MS: Long = 1_500L
 
-        /** Таймаут root ping до приёмника. */
-        const val PEER_PING_TIMEOUT_MS: Long = 1_500L
-
-        /** Время кеширования результата root ping. */
-        const val PEER_PING_CACHE_TTL_MS: Long = 3_000L
-
         /** Окно, в течение которого свежая отправка считается актуальной. */
         const val ROUTE_RECENT_SEND_GRACE_MS: Long = 5_000L
 
