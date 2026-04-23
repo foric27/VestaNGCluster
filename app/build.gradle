@@ -93,6 +93,7 @@ dependencies {
     implementation 'androidx.savedstate:savedstate:1.4.0'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation 'androidx.documentfile:documentfile:1.1.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
     implementation 'androidx.customview:customview:1.2.0'
     implementation 'androidx.collection:collection:1.6.0'
@@ -101,6 +102,7 @@ dependencies {
     implementation 'androidx.transition:transition:1.7.0'
     implementation 'org.apache.ftpserver:ftpserver-core:1.2.1'
     implementation 'org.apache.mina:mina-core:2.2.5'
+    implementation 'com.github.topjohnwu.libsu:core:6.0.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     testImplementation 'junit:junit:4.13.2'
 }
