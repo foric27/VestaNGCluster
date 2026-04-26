@@ -52,7 +52,6 @@ internal class EmbeddedFtpServerFactory {
 
         val listenerFactory = ListenerFactory().apply {
             port = config.ftpPort
-            serverAddress = resolvedAddress.host
             dataConnectionConfiguration = DataConnectionConfigurationFactory().apply {
                 passiveAddress = resolvedAddress.host
                 passiveExternalAddress = resolvedAddress.host
@@ -66,7 +65,7 @@ internal class EmbeddedFtpServerFactory {
             isCreateHome = true
         }
         serverFactory.fileSystem = fileSystemFactory
-        serverFactory.ftplets = mapOf("updateLogger" to LoggingFtplet())
+        serverFactory.ftplets = mutableMapOf("updateLogger" to LoggingFtplet())
 
         val user = BaseUser().apply {
             name = config.ftpUser
@@ -88,6 +87,15 @@ internal class EmbeddedFtpServerFactory {
     }
 
     private fun resolveBindAddress(config: FtpServerConfig): ResolvedAddress {
+        val explicitHost = config.ftpAdvertisedHost?.trim().orEmpty()
+        if (explicitHost.isNotEmpty()) {
+            if (isValidIpv4(explicitHost) && isLocalIpv4(explicitHost)) {
+                Log.i(TAG, "Использую локальный explicit FTP host: $explicitHost")
+                return ResolvedAddress(explicitHost, "Явный локальный IP из конфигурации")
+            }
+            throw FtpException("Явный FTP host недоступен на текущем устройстве: $explicitHost")
+        }
+
         val interfaceName = config.ftpInterfaceName?.trim().orEmpty()
         if (interfaceName.isNotEmpty()) {
             val interfaceHost = findInterfaceIpv4(interfaceName)
@@ -96,15 +104,6 @@ internal class EmbeddedFtpServerFactory {
                 return ResolvedAddress(interfaceHost, "Интерфейс $interfaceName")
             }
             Log.w(TAG, "Интерфейс $interfaceName не найден или не содержит IPv4, перехожу к fallback")
-        }
-
-        val explicitHost = config.ftpAdvertisedHost?.trim().orEmpty()
-        if (explicitHost.isNotEmpty()) {
-            if (isValidIpv4(explicitHost) && isLocalIpv4(explicitHost)) {
-                Log.i(TAG, "Использую локальный explicit host: $explicitHost")
-                return ResolvedAddress(explicitHost, "Явный локальный IP из конфигурации")
-            }
-            Log.w(TAG, "Явный FTP host недоступен на текущем устройстве: $explicitHost. Перехожу к fallback")
         }
 
         val fallbackHost = firstNonLoopbackIpv4()

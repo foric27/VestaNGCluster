@@ -1,6 +1,7 @@
 package ru.foric27.cluster
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.annotation.StringRes
 import java.util.concurrent.atomic.AtomicReference
@@ -24,6 +25,7 @@ internal object UpdateServerManager {
         val boundAddress: EmbeddedFtpServerFactory.BoundAddress? = null,
         val retrySuggested: Boolean = false,
         val detectedLocation: String? = null,
+        val sourceFilePath: String? = null,
     )
 
     data class Result(
@@ -33,9 +35,12 @@ internal object UpdateServerManager {
         val boundAddress: EmbeddedFtpServerFactory.BoundAddress? = null,
         val retrySuggested: Boolean = false,
         val detectedLocation: String? = null,
+        val sourceFilePath: String? = null,
     )
 
     private const val TAG = "UpdateServerManager"
+    private const val FTP_START_ATTEMPTS = 2
+    private const val FTP_START_RETRY_DELAY_MS = 200L
 
     private val lock = Any()
     private val locator = UpdateFileLocator()
@@ -51,6 +56,7 @@ internal object UpdateServerManager {
     @Volatile private var preparedSourceKind: UpdateFileLocator.SourceKind? = null
     @Volatile private var preparedSourceDirectory: String? = null
     @Volatile private var lastDetectedLocation: String? = null
+    @Volatile private var lastDetectedFilePath: String? = null
 
     fun prepareAndStartServer(
         context: Context,
@@ -61,7 +67,8 @@ internal object UpdateServerManager {
             val applicationContext = context.applicationContext
             appContext = applicationContext
             lastSearchPolicy = searchPolicy
-            currentState.set(State(Status.PREPARING, buildPreparingMessage(searchPolicy), detectedLocation = lastDetectedLocation))
+            val previousState = currentState.get()
+            setState(State(Status.PREPARING, buildPreparingMessage(searchPolicy), detectedLocation = lastDetectedLocation, sourceFilePath = lastDetectedFilePath))
 
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
                 Log.w(TAG, "Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен")
@@ -69,26 +76,38 @@ internal object UpdateServerManager {
                 return@synchronized buildFailResult(
                     message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
                     detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
                 )
             }
 
             try {
                 val searchResult = locateFirstValidPair(applicationContext, searchPolicy)
                 lastDetectedLocation = searchResult.detectedLocation
+                lastDetectedFilePath = searchResult.sourceFilePath
                 val validatedPair = searchResult.validatedPair ?: run {
                     serverToStop = stopServerLocked(clearPrepared = true)
                     return@synchronized buildFailResult(
                         buildNoValidPairMessage(searchResult.rejectionMessages),
                         detectedLocation = searchResult.detectedLocation,
+                        sourceFilePath = searchResult.sourceFilePath,
                     )
                 }
 
                 if (isSamePreparedUpdateLocked(validatedPair)) {
-                    val state = currentState.get()
-                    if (state.status == Status.RUNNING) {
+                    if (previousState.status == Status.RUNNING) {
                         Log.i(TAG, "Повторный запуск FTP не требуется: уже активен тот же пакет обновления")
-                        return@synchronized resultFromState(state)
+                        setState(previousState)
+                        return@synchronized resultFromState(previousState)
                     }
+                }
+
+                if (runningServer != null && previousState.status == Status.RUNNING) {
+                    Log.i(
+                        TAG,
+                        "FTP уже активен; откладываю переключение источника обновления, чтобы не сбить рабочий listener",
+                    )
+                    setState(previousState)
+                    return@synchronized resultFromState(previousState)
                 }
 
                 serverToStop = stopServerLocked(clearPrepared = true)
@@ -101,6 +120,7 @@ internal object UpdateServerManager {
                     message = buildStartFailureMessage(t, retrySuggested),
                     retrySuggested = retrySuggested,
                     detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
                 )
             }
         }
@@ -111,7 +131,7 @@ internal object UpdateServerManager {
     fun stopServer() {
         val server = synchronized(lock) {
             val s = stopServerLocked(clearPrepared = true)
-            currentState.set(State(Status.STOPPED, str(R.string.update_server_stopped), detectedLocation = lastDetectedLocation))
+            setState(State(Status.STOPPED, str(R.string.update_server_stopped), detectedLocation = lastDetectedLocation, sourceFilePath = lastDetectedFilePath))
             s
         }
         server?.let { performStop(it) }
@@ -120,6 +140,35 @@ internal object UpdateServerManager {
     fun restartServer(): Result {
         val context = appContext ?: return failState("Контекст приложения ещё не инициализирован")
         return prepareAndStartServer(context, lastSearchPolicy)
+    }
+
+    fun replaceAndStartServer(
+        context: Context,
+        searchPolicy: UpdateFileLocator.SearchPolicy,
+        clearDetection: Boolean = false,
+    ): Result {
+        val server = synchronized(lock) {
+            appContext = context.applicationContext
+            val stoppedServer = stopServerLocked(clearPrepared = true)
+            if (clearDetection) {
+                lastDetectedLocation = null
+                lastDetectedFilePath = null
+            }
+            setState(
+                State(
+                    status = Status.STOPPED,
+                    message = str(R.string.update_server_stopped),
+                    detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
+                ),
+            )
+            stoppedServer
+        }
+        server?.let {
+            performStop(it)
+            Thread.sleep(FTP_START_RETRY_DELAY_MS)
+        }
+        return prepareAndStartServer(context, searchPolicy)
     }
 
     fun handleUsbInserted(context: Context): Result {
@@ -143,23 +192,36 @@ internal object UpdateServerManager {
                 return@synchronized buildFailResult(
                     message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
                     detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
                 )
             }
 
             try {
                 val searchResult = locateFirstValidPair(applicationContext, searchPolicy)
                 lastDetectedLocation = searchResult.detectedLocation
+                lastDetectedFilePath = searchResult.sourceFilePath
                 val validatedPair = searchResult.validatedPair
                 if (validatedPair == null) {
                     serverToStop = stopServerLocked(clearPrepared = true)
                     return@synchronized buildFailResult(
                         buildNoValidPairMessage(searchResult.rejectionMessages),
                         detectedLocation = searchResult.detectedLocation,
+                        sourceFilePath = searchResult.sourceFilePath,
                     )
                 }
 
                 if (isSamePreparedUpdateLocked(validatedPair)) {
                     return@synchronized resultFromState(currentState.get())
+                }
+
+                val current = currentState.get()
+                if (runningServer != null && current.status == Status.RUNNING) {
+                    Log.i(
+                        TAG,
+                        "Опрос нашёл другой источник обновления, но FTP уже активен; сохраняю текущий listener",
+                    )
+                    setState(current)
+                    return@synchronized resultFromState(current)
                 }
 
                 Log.i(
@@ -176,6 +238,7 @@ internal object UpdateServerManager {
                     message = buildStartFailureMessage(t, retrySuggested),
                     retrySuggested = retrySuggested,
                     detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
                 )
             }
         }
@@ -198,14 +261,14 @@ internal object UpdateServerManager {
 
         Log.i(TAG, "Проверка SHA-256 успешна: ${validatedPair.verification.actualSha256}")
         val prepared = repository.prepare(context, validatedPair.pair, validatedPair.verification.actualSha256)
-        val server = ftpFactory.create(FtpServerConfig.fromProject(), prepared.rootDir)
-        server.ftpServer.start()
+        val server = startFtpServerWithCleanup(FtpServerConfig.fromProject(), prepared.rootDir)
 
         preparedUpdate = prepared
         runningServer = server
         preparedSourceKind = validatedPair.pair.sourceKind
         preparedSourceDirectory = validatedPair.pair.directoryLabel
         lastDetectedLocation = validatedPair.pair.directoryLabel
+        lastDetectedFilePath = validatedPair.pair.zipFile.debugPath
 
         val sourceText = "${validatedPair.pair.sourceKind.displayName}: ${validatedPair.pair.directoryLabel}"
         val message = str(
@@ -221,8 +284,9 @@ internal object UpdateServerManager {
             fileInfo = prepared.info,
             boundAddress = server.boundAddress,
             detectedLocation = validatedPair.pair.directoryLabel,
+            sourceFilePath = validatedPair.pair.zipFile.debugPath,
         )
-        currentState.set(successState)
+        setState(successState)
         return Result(
             success = true,
             message = message,
@@ -230,7 +294,36 @@ internal object UpdateServerManager {
             boundAddress = server.boundAddress,
             retrySuggested = false,
             detectedLocation = validatedPair.pair.directoryLabel,
+            sourceFilePath = validatedPair.pair.zipFile.debugPath,
         )
+    }
+
+    private fun startFtpServerWithCleanup(
+        config: FtpServerConfig,
+        rootDir: java.io.File,
+    ): EmbeddedFtpServerFactory.RunningServer {
+        var firstFailure: Throwable? = null
+        repeat(FTP_START_ATTEMPTS) { attemptIndex ->
+            val server = ftpFactory.create(config, rootDir)
+            try {
+                server.ftpServer.start()
+                if (attemptIndex > 0) {
+                    Log.i(TAG, "FTP-сервер запущен после повторной очистки порта")
+                }
+                return server
+            } catch (t: Throwable) {
+                if (firstFailure == null) firstFailure = t
+                runCatching { server.ftpServer.stop() }
+                    .onFailure { stopError -> Log.w(TAG, "Не удалось закрыть FTP-сервер после ошибки старта", stopError) }
+                if (attemptIndex + 1 < FTP_START_ATTEMPTS && isTransientFtpStartError(t)) {
+                    Log.w(TAG, "Повторяю запуск FTP после очистки частично открытого listener", t)
+                    Thread.sleep(FTP_START_RETRY_DELAY_MS)
+                } else {
+                    throw t
+                }
+            }
+        }
+        throw firstFailure ?: IllegalStateException("FTP-сервер не запущен")
     }
 
     private fun resultFromState(state: State): Result {
@@ -241,6 +334,7 @@ internal object UpdateServerManager {
             boundAddress = state.boundAddress,
             retrySuggested = state.retrySuggested,
             detectedLocation = state.detectedLocation,
+            sourceFilePath = state.sourceFilePath,
         )
     }
 
@@ -252,11 +346,13 @@ internal object UpdateServerManager {
         if (candidates.isEmpty()) {
             Log.w(TAG, "Кандидаты обновления не найдены")
             lastDetectedLocation = null
-            return CandidateSearchResult(validatedPair = null, rejectionMessages = emptyList(), detectedLocation = null)
+            lastDetectedFilePath = null
+            return CandidateSearchResult(validatedPair = null, rejectionMessages = emptyList(), detectedLocation = null, sourceFilePath = null)
         }
 
         val rejectionMessages = ArrayList<String>()
         lastDetectedLocation = candidates.firstOrNull()?.directoryLabel
+        lastDetectedFilePath = candidates.firstOrNull()?.zipFile?.debugPath
         candidates.forEach { candidate ->
             Log.i(
                 TAG,
@@ -270,6 +366,7 @@ internal object UpdateServerManager {
                     validatedPair = ValidatedPair(candidate, verification),
                     rejectionMessages = rejectionMessages,
                     detectedLocation = candidate.directoryLabel,
+                    sourceFilePath = candidate.zipFile.debugPath,
                 )
             }
             val rejectionMessage = buildRejectionMessage(candidate, verification)
@@ -280,6 +377,7 @@ internal object UpdateServerManager {
             validatedPair = null,
             rejectionMessages = rejectionMessages,
             detectedLocation = candidates.firstOrNull()?.directoryLabel,
+            sourceFilePath = candidates.firstOrNull()?.zipFile?.debugPath,
         )
     }
 
@@ -292,6 +390,7 @@ internal object UpdateServerManager {
         val validatedPair: ValidatedPair?,
         val rejectionMessages: List<String>,
         val detectedLocation: String?,
+        val sourceFilePath: String?,
     )
 
     private fun buildRejectionMessage(
@@ -357,11 +456,13 @@ internal object UpdateServerManager {
         message: String,
         retrySuggested: Boolean = false,
         detectedLocation: String? = null,
+        sourceFilePath: String? = null,
     ): Result {
         return failState(
             message = message,
             retrySuggested = retrySuggested,
             detectedLocation = detectedLocation,
+            sourceFilePath = sourceFilePath,
         )
     }
 
@@ -376,22 +477,38 @@ internal object UpdateServerManager {
         message: String,
         retrySuggested: Boolean = false,
         detectedLocation: String? = null,
+        sourceFilePath: String? = null,
     ): Result {
         val result = Result(
             success = false,
             message = message,
             retrySuggested = retrySuggested,
             detectedLocation = detectedLocation,
+            sourceFilePath = sourceFilePath,
         )
-        currentState.set(
+        setState(
             State(
                 status = Status.ERROR,
                 message = message,
                 retrySuggested = retrySuggested,
                 detectedLocation = detectedLocation,
+                sourceFilePath = sourceFilePath,
             ),
         )
         return result
+    }
+
+    private fun setState(state: State) {
+        currentState.set(state)
+        appContext?.let { context ->
+            runCatching {
+                context.sendBroadcast(
+                    Intent(ACTION_UPDATE_SERVER_STATE_CHANGED).setPackage(context.packageName),
+                )
+            }.onFailure { error ->
+                Log.w(TAG, "Не удалось отправить состояние FTP в UI", error)
+            }
+        }
     }
 
     private fun buildStartFailureMessage(t: Throwable, retrySuggested: Boolean): String {
@@ -450,4 +567,6 @@ internal object UpdateServerManager {
         }
         return false
     }
+
+    const val ACTION_UPDATE_SERVER_STATE_CHANGED = "ru.foric27.cluster.action.UPDATE_SERVER_STATE_CHANGED"
 }

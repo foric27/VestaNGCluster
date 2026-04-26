@@ -16,6 +16,7 @@ internal class UdpUpdateServerCoordinator(
     @Volatile private var lastFtpRetryReport: String? = null
     @Volatile private var internalUpdatePollScheduled = false
     @Volatile private var ftpRetryScheduled = false
+    @Volatile private var ftpOperationInProgress = false
     @Volatile private var lastKnownUpdateSha256: String? = null
     @Volatile private var lastAlertShownTime: Long = 0L
 
@@ -23,18 +24,79 @@ internal class UdpUpdateServerCoordinator(
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
 
     fun startOrRefreshUpdateServer() {
-        val result = UpdateServerManager.prepareAndStartServer(
-            context,
-            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
-        )
+        val result = runFtpOperation("startup") {
+            UpdateServerManager.prepareAndStartServer(
+                context,
+                UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
+            )
+        } ?: return
         if (result.success) {
             Log.i(TAG, "FTP обновление активно: ${result.boundAddress?.host}:${result.boundAddress?.port}")
+            cancelFtpRetry()
+            checkAndShowUpdateAlert(result)
             return
         }
 
         Log.w(TAG, "FTP обновление не запущено: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
         scheduleFtpRetry("startup")
+    }
+
+    fun restartUpdateServer(searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY) {
+        val result = runFtpOperation("restart") {
+            UpdateServerManager.replaceAndStartServer(context, searchPolicy)
+        } ?: return
+        if (result.success) {
+            val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
+            Log.i(TAG, "FTP перезапущен: $address")
+            cancelFtpRetry()
+            checkAndShowUpdateAlert(result)
+            return
+        }
+
+        Log.w(TAG, "FTP после перезапуска не поднят: ${result.message}")
+        publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
+        scheduleFtpRetry("restart")
+    }
+
+    fun refreshUsbUpdateServer() {
+        val result = runFtpOperation("usb_refresh") {
+            UpdateServerManager.replaceAndStartServer(
+                context,
+                UpdateFileLocator.SearchPolicy.USB_FIRST,
+            )
+        } ?: return
+        if (result.success) {
+            val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
+            Log.i(TAG, "FTP обновлён по USB-aware пути: $address")
+            cancelFtpRetry()
+            checkAndShowUpdateAlert(result)
+            return
+        }
+
+        Log.w(TAG, "USB-aware обновление FTP не запустило сервер: ${result.message}")
+        publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
+        scheduleFtpRetry("usb_refresh")
+    }
+
+    fun refreshAfterUsbRemoved() {
+        val result = runFtpOperation("usb_removed") {
+            UpdateServerManager.replaceAndStartServer(
+                context = context,
+                searchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
+                clearDetection = true,
+            )
+        } ?: return
+        if (result.success) {
+            val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
+            Log.i(TAG, "FTP обновлён после извлечения USB: $address")
+            cancelFtpRetry()
+            checkAndShowUpdateAlert(result)
+            return
+        }
+
+        Log.i(TAG, "После извлечения USB валидный update не найден: ${result.message}")
+        cancelFtpRetry()
     }
 
     fun scheduleInternalUpdatePoll() {
@@ -86,7 +148,8 @@ internal class UdpUpdateServerCoordinator(
                     return@startDetachedWorker
                 }
 
-                val result = UpdateServerManager.restartServer()
+                val result = runFtpOperation("retry") { UpdateServerManager.restartServer() }
+                    ?: return@startDetachedWorker
                 val report = (if (result.success) "ok:" else "fail:") + result.message
                 if (report != lastFtpRetryReport) {
                     lastFtpRetryReport = report
@@ -120,7 +183,8 @@ internal class UdpUpdateServerCoordinator(
 
         startDetachedWorker("UpdatePollWorker") {
             try {
-                val result = UpdateServerManager.pollAvailableStorage(context)
+                val result = runFtpOperation("poll") { UpdateServerManager.pollAvailableStorage(context) }
+                    ?: return@startDetachedWorker
                 val report = (if (result.success) "ok:" else "fail:") + result.message
                 if (report != lastInternalUpdatePollReport) {
                     lastInternalUpdatePollReport = report
@@ -148,16 +212,14 @@ internal class UdpUpdateServerCoordinator(
         val fileInfo = result.fileInfo ?: return
         val currentSha256 = fileInfo.sha256
         if (currentSha256 == lastKnownUpdateSha256) return
-        lastKnownUpdateSha256 = currentSha256
 
         val now = System.currentTimeMillis()
         if (now - lastAlertShownTime < ALERT_THROTTLE_MS) {
             Log.i(TAG, "Новое обновление обнаружено, но диалог недавно показывался; пропускаю")
             return
         }
-        lastAlertShownTime = now
 
-        val location = result.detectedLocation ?: fileInfo.path
+        val location = result.sourceFilePath ?: result.detectedLocation ?: fileInfo.path
         Log.i(TAG, "Новое обновление обнаружено: $location, показываю диалог")
         try {
             val intent = UpdateAlertActivity.createIntent(
@@ -166,8 +228,30 @@ internal class UdpUpdateServerCoordinator(
                 UpdateFileLocator.SearchPolicy.USB_FIRST,
             )
             context.startActivity(intent)
+            lastKnownUpdateSha256 = currentSha256
+            lastAlertShownTime = now
         } catch (t: Throwable) {
             Log.e(TAG, "Не удалось показать диалог обновления", t)
+        }
+    }
+
+    private inline fun runFtpOperation(
+        reason: String,
+        operation: () -> UpdateServerManager.Result,
+    ): UpdateServerManager.Result? {
+        synchronized(this) {
+            if (ftpOperationInProgress) {
+                Log.i(TAG, "Пропускаю FTP $reason: предыдущая операция ещё выполняется")
+                return null
+            }
+            ftpOperationInProgress = true
+        }
+        return try {
+            operation()
+        } finally {
+            synchronized(this) {
+                ftpOperationInProgress = false
+            }
         }
     }
 
