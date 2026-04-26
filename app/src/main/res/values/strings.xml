@@ -28,8 +28,10 @@
 
     <string name="ftp_title">FTP обновление</string>
     <string name="ftp_state_running">FTP активен</string>
+    <string name="ftp_state_running_fmt">FTP активен: %1$s:%2$d</string>
     <string name="ftp_state_inactive">FTP не активен</string>
     <string name="ftp_file_found_fmt">Файл найден: %1$s</string>
+    <string name="ftp_file_source_fmt">Источник: %1$s</string>
     <string name="ftp_file_not_found">Файл не найден</string>
     <string name="app_version_fmt">Версия: %1$s</string>
     <string name="developer_telegram">Telegram разработчика: @foric27</string>

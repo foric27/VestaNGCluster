@@ -16,10 +16,8 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import kotlinx.coroutines.launch
 import ru.foric27.cluster.AppSettings.UiStreamMode
 import ru.foric27.cluster.databinding.ActivityMainBinding
 
@@ -51,6 +49,10 @@ class MainActivity : AppCompatActivity() {
                 VdspState.ACTION_VDSP_STATE_CHANGED -> {
                     refreshScreenState()
                 }
+
+                UpdateServerManager.ACTION_UPDATE_SERVER_STATE_CHANGED -> {
+                    renderFtpState()
+                }
             }
         }
     }
@@ -77,10 +79,7 @@ class MainActivity : AppCompatActivity() {
             showNotice = noticeLog::show,
             onAllFilesAccessGranted = {
                 UdpStreamService.startServiceCompat(this)
-                lifecycleScope.launch {
-                    UpdateServerManager.restartServer()
-                    renderFtpState()
-                }
+                renderFtpState()
             },
         )
 
@@ -268,20 +267,35 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderFtpState() {
         val state = UpdateServerManager.getServerState()
+        val ftpRunning = state.status == UpdateServerManager.Status.RUNNING
+        if (ftpRunning) clearStaleFtpWarnings()
         binding.ftpStatusText.text = buildString {
             append(
-                if (state.status == UpdateServerManager.Status.RUNNING) {
-                    getString(R.string.ftp_state_running)
+                if (ftpRunning) {
+                    state.boundAddress?.let { address ->
+                        getString(R.string.ftp_state_running_fmt, address.host, address.port)
+                    } ?: getString(R.string.ftp_state_running)
                 } else {
                     getString(R.string.ftp_state_inactive)
                 },
             )
             append("\n")
             append(
-                state.detectedLocation?.let { location ->
-                    getString(R.string.ftp_file_found_fmt, location)
+                state.sourceFilePath?.let { path ->
+                    getString(R.string.ftp_file_found_fmt, path)
+                } ?: state.detectedLocation?.let { location ->
+                    getString(R.string.ftp_file_source_fmt, location)
                 } ?: getString(R.string.ftp_file_not_found),
             )
+        }
+    }
+
+    private fun clearStaleFtpWarnings() {
+        val ftpPrefix = getString(R.string.service_notification_ftp_message_fmt, "")
+        noticeLog.removeMatching { message ->
+            message.startsWith(ftpPrefix) ||
+                message.contains(getString(R.string.update_server_start_failed)) ||
+                message.contains(getString(R.string.update_server_no_valid_pair))
         }
     }
 
@@ -315,6 +329,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val filter = IntentFilter(VdspState.ACTION_VDSP_READY).apply {
                 addAction(VdspState.ACTION_VDSP_STATE_CHANGED)
+                addAction(UpdateServerManager.ACTION_UPDATE_SERVER_STATE_CHANGED)
             }
             ContextCompat.registerReceiver(this, vdspReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             vdspReceiverRegistered = true

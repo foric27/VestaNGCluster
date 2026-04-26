@@ -28,8 +28,10 @@
 
     <string name="ftp_title">FTP update</string>
     <string name="ftp_state_running">FTP active</string>
+    <string name="ftp_state_running_fmt">FTP active: %1$s:%2$d</string>
     <string name="ftp_state_inactive">FTP inactive</string>
     <string name="ftp_file_found_fmt">File found: %1$s</string>
+    <string name="ftp_file_source_fmt">Source: %1$s</string>
     <string name="ftp_file_not_found">File not found</string>
     <string name="app_version_fmt">Version: %1$s</string>
     <string name="developer_telegram">Developer Telegram: @foric27</string>

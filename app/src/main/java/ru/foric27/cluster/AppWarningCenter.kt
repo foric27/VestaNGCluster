@@ -82,4 +82,10 @@ internal object AppWarningCenter {
             queue.clear()
         }
     }
+
+    fun removeMatching(predicate: (String) -> Boolean) {
+        synchronized(lock) {
+            queue.removeAll(predicate)
+        }
+    }
 }

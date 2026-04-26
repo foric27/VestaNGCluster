@@ -59,6 +59,12 @@ internal class MainNoticeLog(
         render()
     }
 
+    fun removeMatching(predicate: (String) -> Boolean) {
+        entries.removeAll { predicate(it.text) }
+        AppWarningCenter.removeMatching(predicate)
+        render()
+    }
+
     fun render() {
         if (entries.isEmpty()) {
             binding.noticePanel.visibility = View.GONE
