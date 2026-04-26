@@ -7,8 +7,14 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.Rule
+import java.io.File
 
 class UpdateFileLocatorTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
 
     @Test
     fun `persist get and clear tree uri round trip works`() {
@@ -86,6 +92,50 @@ class UpdateFileLocatorTest {
 
         assertEquals("/storage/emulated/0", buildDirectoryLabel(internal.raw))
         assertEquals("/storage/ABCD-0001", buildDirectoryLabel(usb.raw))
+    }
+
+    @Test
+    fun `file root search finds update pair in storage root`() {
+        val storageRoot = temporaryFolder.newFolder("storage-root")
+        val zip = File(storageRoot, ProductConfig.UpdateFtp.UPDATE_ZIP_NAME).apply { writeText("zip") }
+        val sig = File(storageRoot, ProductConfig.UpdateFtp.UPDATE_SIG_NAME).apply { writeText("sig") }
+
+        val candidates = UpdateFileLocator().findCandidatesInFileRoots(
+            listOf(
+                UpdateFileLocator.FileScanRoot(
+                    sourceKind = UpdateFileLocator.SourceKind.INTERNAL,
+                    directoryLabel = storageRoot.absolutePath,
+                    directory = storageRoot,
+                ),
+            ),
+        )
+
+        assertEquals(1, candidates.size)
+        val candidate = candidates.single()
+        assertEquals(UpdateFileLocator.SourceKind.INTERNAL, candidate.sourceKind)
+        assertEquals(storageRoot.absolutePath, candidate.directoryLabel)
+        assertEquals(zip.absolutePath, candidate.zipFile.debugPath)
+        assertEquals(sig.absolutePath, candidate.sigFile.debugPath)
+    }
+
+    @Test
+    fun `file root search is not recursive`() {
+        val storageRoot = temporaryFolder.newFolder("storage-root")
+        val nested = File(storageRoot, "updates").apply { mkdirs() }
+        File(nested, ProductConfig.UpdateFtp.UPDATE_ZIP_NAME).writeText("zip")
+        File(nested, ProductConfig.UpdateFtp.UPDATE_SIG_NAME).writeText("sig")
+
+        val candidates = UpdateFileLocator().findCandidatesInFileRoots(
+            listOf(
+                UpdateFileLocator.FileScanRoot(
+                    sourceKind = UpdateFileLocator.SourceKind.INTERNAL,
+                    directoryLabel = storageRoot.absolutePath,
+                    directory = storageRoot,
+                ),
+            ),
+        )
+
+        assertTrue(candidates.isEmpty())
     }
 
     private fun parseRootDescriptor(treeDocumentId: String): ReflectedRootDescriptor {

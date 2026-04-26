@@ -7,6 +7,8 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 
 /**
@@ -49,17 +51,22 @@ internal class UpdateFileLocator {
         val lastModified: Long,
     )
 
+    internal data class FileScanRoot(
+        val sourceKind: SourceKind,
+        val directoryLabel: String,
+        val directory: File,
+    ) {
+        val label: String = "${sourceKind.displayName}: $directoryLabel"
+    }
+
     fun findCandidates(
         context: Context,
         searchPolicy: SearchPolicy,
     ): List<LocatedUpdatePair> {
-        val roots = buildRoots(context, searchPolicy)
         val candidates = ArrayList<LocatedUpdatePair>()
-        roots.forEach { root ->
-            val candidate = inspectRoot(root)
-            if (candidate != null) {
-                candidates += candidate
-            }
+        candidates += findCandidatesInFileRoots(buildFileRoots(context, searchPolicy))
+        buildSafRoots(context, searchPolicy).forEach { root ->
+            inspectSafRoot(root)?.let { candidates += it }
         }
         return candidates.sortedWith(
             compareBy<LocatedUpdatePair> { it.sourceKind.priority }
@@ -67,7 +74,11 @@ internal class UpdateFileLocator {
         )
     }
 
-    private fun buildRoots(
+    internal fun findCandidatesInFileRoots(roots: List<FileScanRoot>): List<LocatedUpdatePair> {
+        return roots.mapNotNull(::inspectFileRoot)
+    }
+
+    private fun buildSafRoots(
         context: Context,
         searchPolicy: SearchPolicy,
     ): List<ScanRoot> {
@@ -77,6 +88,29 @@ internal class UpdateFileLocator {
             return emptyList()
         }
         return listOf(persistedTree)
+    }
+
+    private fun buildFileRoots(
+        context: Context,
+        searchPolicy: SearchPolicy,
+    ): List<FileScanRoot> {
+        val internalRoot = FileScanRoot(
+            sourceKind = SourceKind.INTERNAL,
+            directoryLabel = INTERNAL_STORAGE_ROOT,
+            directory = File(INTERNAL_STORAGE_ROOT),
+        )
+        if (searchPolicy == SearchPolicy.INTERNAL_ONLY) {
+            return listOf(internalRoot)
+        }
+
+        val usbRoots = discoverUsbRoots(context).map { usbRoot ->
+            FileScanRoot(
+                sourceKind = SourceKind.USB,
+                directoryLabel = usbRoot.absolutePath,
+                directory = usbRoot,
+            )
+        }
+        return usbRoots + internalRoot
     }
 
     private fun resolvePersistedTree(context: Context): ScanRoot? {
@@ -119,7 +153,40 @@ internal class UpdateFileLocator {
         )
     }
 
-    private fun inspectRoot(root: ScanRoot): LocatedUpdatePair? {
+    private fun inspectFileRoot(root: FileScanRoot): LocatedUpdatePair? {
+        if (!root.directory.exists() || !root.directory.isDirectory) {
+            logInfo("Файловый корень недоступен: ${root.directoryLabel}")
+            return null
+        }
+
+        val children = root.directory.listFiles()?.filter { it.isFile }.orEmpty()
+        val zip = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_ZIP_NAME }
+        val sig = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_SIG_NAME }
+
+        logInfo(
+            "Проверяю файловый корень: ${root.directoryLabel}, " +
+                "zip=${zip?.absolutePath}[exists=${zip != null},isFile=${zip?.isFile == true}], " +
+                "sig=${sig?.absolutePath}[exists=${sig != null},isFile=${sig?.isFile == true}]",
+        )
+
+        if (zip == null || sig == null) return null
+
+        val zipFile = FileSourceFile(zip)
+        val sigFile = FileSourceFile(sig)
+        logInfo(
+            "Найдена пара обновления в файловом корне: zip=${zip.absolutePath}, sig=${sig.absolutePath}, источник=${root.label}",
+        )
+        return LocatedUpdatePair(
+            sourceKind = root.sourceKind,
+            sourceLabel = root.label,
+            directoryLabel = root.directoryLabel,
+            zipFile = zipFile,
+            sigFile = sigFile,
+            lastModified = maxOf(zipFile.lastModified, sigFile.lastModified),
+        )
+    }
+
+    private fun inspectSafRoot(root: ScanRoot): LocatedUpdatePair? {
         val children = root.documentRoot.listFiles().filter { it.isFile }
         val zip = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_ZIP_NAME }
         val sig = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_SIG_NAME }
@@ -171,6 +238,21 @@ internal class UpdateFileLocator {
         }
     }
 
+    private data class FileSourceFile(
+        private val file: File,
+    ) : UpdateSourceFile {
+        override val name: String = file.name
+        override val debugPath: String = file.absolutePath
+        override val lastModified: Long = file.lastModified()
+        override val size: Long = file.length()
+
+        override fun openInputStream(context: Context): InputStream = FileInputStream(file)
+    }
+
+    private fun logInfo(message: String) {
+        runCatching { Log.i(TAG, message) }
+    }
+
     companion object {
         private const val TAG = "UpdateFileLocator"
         private const val PREFS_NAME = "update_file_locator"
@@ -216,6 +298,23 @@ internal class UpdateFileLocator {
             } else {
                 "$basePath/${rootDescriptor.relativePath}"
             }
+        }
+
+        private fun discoverUsbRoots(context: Context): List<File> {
+            return context.applicationContext.getExternalFilesDirs(null)
+                .orEmpty()
+                .mapNotNull(::resolveStorageVolumeRoot)
+                .filter { root -> UsbStoragePathMatcher.isUsbStoragePath(root.absolutePath) }
+                .distinctBy { root -> root.absolutePath }
+                .sortedBy { root -> root.absolutePath }
+        }
+
+        private fun resolveStorageVolumeRoot(externalFilesDir: File?): File? {
+            val path = externalFilesDir?.absoluteFile?.absolutePath ?: return null
+            val androidDataMarker = "${File.separator}Android${File.separator}data"
+            val markerIndex = path.indexOf(androidDataMarker)
+            val rootPath = if (markerIndex > 0) path.substring(0, markerIndex) else path
+            return File(rootPath)
         }
 
         private fun getPrefs(context: Context) =
