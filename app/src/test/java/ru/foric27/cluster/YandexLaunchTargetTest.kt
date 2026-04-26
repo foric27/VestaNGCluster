@@ -1,0 +1,45 @@
+package ru.foric27.cluster
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class YandexLaunchTargetTest {
+
+    @Test
+    fun `proxy am start command targets cluster proxy on requested display`() {
+        val command = YandexLaunchTarget.LaunchCommand(
+            component = "ru.yandex.yandexnavi/com.yandex.navi.cluster.ClusterNavigationActivity",
+            action = "android.intent.action.MAIN",
+            category = "android.car.cluster.NAVIGATION",
+            note = "test",
+        )
+
+        val rootCommand = YandexLaunchTarget.buildProxyAmStartCommand(displayId = 42, command = command)
+
+        assertTrue(rootCommand.startsWith("am start --display 42 -n ru.foric27.cluster/ru.foric27.cluster.ClusterLaunchProxyActivity"))
+        assertTrue(rootCommand.contains("--es ru.foric27.cluster.extra.TARGET_COMPONENT 'ru.yandex.yandexnavi/com.yandex.navi.cluster.ClusterNavigationActivity'"))
+        assertTrue(rootCommand.contains("--es ru.foric27.cluster.extra.TARGET_ACTION 'android.intent.action.MAIN'"))
+        assertTrue(rootCommand.contains("--es ru.foric27.cluster.extra.TARGET_CATEGORY 'android.car.cluster.NAVIGATION'"))
+    }
+
+    @Test
+    fun `proxy am start command quotes single quotes in extras`() {
+        val command = YandexLaunchTarget.LaunchCommand(
+            component = "pkg/.Activity'Name",
+            action = "android.intent.action.MAIN",
+            category = "android.car.cluster.NAVIGATION",
+            note = "test",
+        )
+
+        val rootCommand = YandexLaunchTarget.buildProxyAmStartCommand(displayId = 7, command = command)
+
+        assertEquals(
+            "am start --display 7 -n ru.foric27.cluster/ru.foric27.cluster.ClusterLaunchProxyActivity " +
+                "--es ru.foric27.cluster.extra.TARGET_COMPONENT 'pkg/.Activity'\\''Name' " +
+                "--es ru.foric27.cluster.extra.TARGET_ACTION 'android.intent.action.MAIN' " +
+                "--es ru.foric27.cluster.extra.TARGET_CATEGORY 'android.car.cluster.NAVIGATION'",
+            rootCommand,
+        )
+    }
+}

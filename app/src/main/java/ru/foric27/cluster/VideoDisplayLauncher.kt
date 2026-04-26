@@ -11,6 +11,7 @@ internal class VideoDisplayLauncher(
     private val context: Context,
     private val preferredLaunchComponent: String?,
     private val intentStarter: IntentStarter = ActivityOptionsIntentStarter,
+    private val rootActivityStarter: RootActivityStarter = RootShellActivityStarter,
 ) {
 
     internal data class ProxyIntentSpec(
@@ -23,6 +24,15 @@ internal class VideoDisplayLauncher(
     internal fun interface IntentStarter {
         fun start(context: Context, spec: ProxyIntentSpec, displayId: Int)
     }
+
+    internal fun interface RootActivityStarter {
+        fun start(command: String): RootLaunchAttempt
+    }
+
+    internal data class RootLaunchAttempt(
+        val success: Boolean,
+        val errorMessage: String?,
+    )
 
     fun launchOnDisplay(displayId: Int) {
         val commands = YandexLaunchTarget.buildPreferredCommands(preferredLaunchComponent)
@@ -41,6 +51,12 @@ internal class VideoDisplayLauncher(
 
         if (started != null) {
             Log.i(TAG, "Запрос на активацию activity для вывода отправлен на дисплей $displayId: ${started.component} (${started.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+            return
+        }
+
+        val rootStarted = launchViaRootFallback(displayId, commands)
+        if (rootStarted != null) {
+            Log.i(TAG, "Root fallback отправил proxy-запуск навигатора на display=$displayId: ${rootStarted.component} (${rootStarted.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
             return
         }
 
@@ -67,6 +83,29 @@ internal class VideoDisplayLauncher(
         } catch (t: Throwable) {
             LaunchAttempt(false, t)
         }
+    }
+
+    private fun launchViaRootFallback(
+        displayId: Int,
+        commands: List<YandexLaunchTarget.LaunchCommand>,
+    ): YandexLaunchTarget.LaunchCommand? {
+        var lastRootError: String? = null
+        for (command in commands) {
+            val shellCommand = YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)
+            val root = rootActivityStarter.start(shellCommand)
+            if (root.success) {
+                return command
+            }
+            lastRootError = root.errorMessage
+        }
+
+        Log.w(
+            TAG,
+            "Root fallback не смог запустить proxy-activity на display=$displayId. " +
+                "Последняя попытка: ${commands.lastOrNull()?.component ?: "не задана"}. " +
+                "RootError=${lastRootError ?: "null"}",
+        )
+        return null
     }
 
     private fun notifyLaunchAppMissing(command: YandexLaunchTarget.LaunchCommand?) {
@@ -120,6 +159,18 @@ internal class VideoDisplayLauncher(
                 )
             }
             context.startActivity(intent, options.toBundle())
+        }
+
+        @Suppress("DEPRECATION")
+        private val RootShellActivityStarter = RootActivityStarter { command ->
+            val result = RootShell.su(
+                cmds = listOf(command),
+                timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS,
+            )
+            RootLaunchAttempt(
+                success = result.ok(),
+                errorMessage = result.combinedText().trim().ifEmpty { "code=${result.code}, timedOut=${result.timedOut}" },
+            )
         }
     }
 }
