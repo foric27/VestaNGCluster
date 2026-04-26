@@ -123,7 +123,11 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
-        UdpStreamService.refreshFtpCompat(context)
+        if (removed) {
+            UdpStreamService.refreshUsbRemovedFtpCompat(context)
+        } else {
+            UdpStreamService.refreshUsbFtpCompat(context)
+        }
         Log.i(
             TAG,
             if (removed) {

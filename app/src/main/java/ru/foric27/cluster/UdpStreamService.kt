@@ -89,6 +89,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         wakeRecoveryController.register()
         registerDisplayStateReceiver()
         registerUsbMediaReceiver()
+        scheduleStartupUpdateServerRefresh()
     }
 
     /**
@@ -134,6 +135,26 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     }
                     return START_STICKY
                 }
+                ACTION_REFRESH_USB_FTP_NOW -> {
+                    startDetachedWorker("RefreshUsbFtpNow") {
+                        try {
+                            updateCoordinator.refreshUsbUpdateServer()
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Ошибка USB-aware обновления FTP", t)
+                        }
+                    }
+                    return START_STICKY
+                }
+                ACTION_REFRESH_USB_REMOVED_FTP_NOW -> {
+                    startDetachedWorker("RefreshUsbRemovedFtpNow") {
+                        try {
+                            updateCoordinator.refreshAfterUsbRemoved()
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Ошибка обновления FTP после извлечения USB", t)
+                        }
+                    }
+                    return START_STICKY
+                }
             }
 
             val forceRestart = action == ACTION_RESTART_SERVICE_NOW
@@ -153,6 +174,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             synchronized(serviceLock) {
                 if (!forceRestart && lastCfg == cfg && (streamActive || startInProgress || sender != null)) {
                     Log.i(TAG, "Игнорирую повторный startCommand: стрим уже активен или запускается")
+                    startDetachedWorker("DuplicateStartFtpRefresh") {
+                        try {
+                            startOrRefreshUpdateServer()
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Ошибка обновления FTP при повторном startCommand", t)
+                        }
+                    }
                     updateNotification(getNotificationStateText())
                     return START_STICKY
                 }
@@ -168,16 +196,23 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
             startDetachedWorker("StartupWorker") {
                 try {
-                    startOrRefreshUpdateServer()
-                    updateCoordinator.scheduleInternalUpdatePoll()
                     val networkPrep = networkPreparationCoordinator.prepare(cfg)
-                    mainHandler.post {
-                        if (!sServiceRunning || lastCfg != cfg || !startInProgress) {
-                            return@post
-                        }
-                        if (networkPrep.rootRequired) {
+                    if (networkPrep.rootRequired) {
+                        mainHandler.post {
+                            if (!sServiceRunning) return@post
                             startInProgress = false
                             serviceAlerts.notifyRootRequiredOnce()
+                        }
+                        return@startDetachedWorker
+                    }
+                    if (forceRestart) {
+                        updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_FIRST)
+                    } else {
+                        startOrRefreshUpdateServer()
+                    }
+                    updateCoordinator.scheduleInternalUpdatePoll()
+                    mainHandler.post {
+                        if (!sServiceRunning || lastCfg != cfg || !startInProgress) {
                             return@post
                         }
                         activeRootIface = if (networkPrep.ifacePresent) {
@@ -577,8 +612,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                             return
                         }
                         startDetachedWorker("UsbMountedRefresh") {
-                            val result = UpdateServerManager.handleUsbInserted(applicationContext)
-                            Log.i(TAG, "USB вставлен во время работы приложения: $path, результат FTP: ${result.message}")
+                            updateCoordinator.refreshUsbUpdateServer()
+                            Log.i(TAG, "USB вставлен во время работы приложения: $path, FTP обновлён")
                         }
                     }
                     Intent.ACTION_MEDIA_REMOVED,
@@ -589,8 +624,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                             return
                         }
                         startDetachedWorker("UsbRemovedRefresh") {
-                            val result = UpdateServerManager.handleUsbRemoved(applicationContext)
-                            Log.i(TAG, "USB извлечён во время работы приложения: $path, результат FTP: ${result.message}")
+                            updateCoordinator.refreshAfterUsbRemoved()
+                            Log.i(TAG, "USB извлечён во время работы приложения: $path, FTP обновлён")
                         }
                     }
                 }
@@ -705,6 +740,23 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun startOrRefreshUpdateServer() {
         updateCoordinator.startOrRefreshUpdateServer()
+    }
+
+    private fun scheduleStartupUpdateServerRefresh() {
+        mainHandler.postDelayed(
+            {
+                if (!sServiceRunning) return@postDelayed
+                startDetachedWorker("StartupFtpRefresh") {
+                    try {
+                        Log.i(TAG, "Проверяю FTP обновлений после создания сервиса")
+                        startOrRefreshUpdateServer()
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Ошибка отложенного запуска FTP обновлений", t)
+                    }
+                }
+            },
+            FTP_STARTUP_REFRESH_DELAY_MS,
+        )
     }
 
     private fun stopInternalKeepService() {
@@ -1011,13 +1063,30 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             context.startForegroundService(intent)
         }
 
+        fun refreshUsbFtpCompat(context: Context) {
+            val intent = Intent(context, UdpStreamService::class.java).apply {
+                action = ACTION_REFRESH_USB_FTP_NOW
+            }
+            context.startForegroundService(intent)
+        }
+
+        fun refreshUsbRemovedFtpCompat(context: Context) {
+            val intent = Intent(context, UdpStreamService::class.java).apply {
+                action = ACTION_REFRESH_USB_REMOVED_FTP_NOW
+            }
+            context.startForegroundService(intent)
+        }
+
         private const val ACTION_RESTART_SERVICE_NOW = "ru.foric27.cluster.action.RESTART_SERVICE_NOW"
         private const val ACTION_REFRESH_FTP_NOW = "ru.foric27.cluster.action.REFRESH_FTP_NOW"
+        private const val ACTION_REFRESH_USB_FTP_NOW = "ru.foric27.cluster.action.REFRESH_USB_FTP_NOW"
+        private const val ACTION_REFRESH_USB_REMOVED_FTP_NOW = "ru.foric27.cluster.action.REFRESH_USB_REMOVED_FTP_NOW"
         private const val ACTION_STOP_STREAM = "ru.foric27.cluster.action.STOP_STREAM"
         private const val ACTION_START_STREAM = "ru.foric27.cluster.action.START_STREAM"
 
         private const val TAG = "UdpStreamService"
         private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2
+        private const val FTP_STARTUP_REFRESH_DELAY_MS = 1_500L
         private const val STREAM_WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L
         private val CHANNEL_ID: String
             get() = RuntimeConfig.Service.NOTIFICATION_CHANNEL_ID
