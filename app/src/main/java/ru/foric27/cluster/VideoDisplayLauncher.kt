@@ -11,7 +11,7 @@ internal class VideoDisplayLauncher(
     private val context: Context,
     private val preferredLaunchComponent: String?,
     private val intentStarter: IntentStarter = ActivityOptionsIntentStarter,
-    private val rootActivityStarter: RootActivityStarter = RootShellActivityStarter,
+    private val rootActivityStarter: RootActivityStarter = RootCommandActivityStarter,
 ) {
 
     internal data class ProxyIntentSpec(
@@ -161,9 +161,8 @@ internal class VideoDisplayLauncher(
             context.startActivity(intent, options.toBundle())
         }
 
-        @Suppress("DEPRECATION")
-        private val RootShellActivityStarter = RootActivityStarter { command ->
-            val result = RootShell.su(
+        private val RootCommandActivityStarter = RootActivityStarter { command ->
+            val result = RootCommandRunner.run(
                 cmds = listOf(command),
                 timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS,
             )
