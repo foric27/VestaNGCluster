@@ -18,7 +18,7 @@ This package owns the whole runtime: launcher UI, foreground stream service, roo
 |------|-------|
 | App launch / permissions | `MainActivity.kt`, `MainAccessPreflight.kt`, `StorageAccessManager.kt`, `BatteryOptimizationManager.kt` |
 | Service orchestration | `UdpStreamService.kt`, `Udp*Coordinator.kt`, `Udp*Controller.kt` |
-| Root networking | `RootNetUtil.kt`, `NetworkRootShell.kt`, `RootShell.kt`, `NetworkInterfaceSelector.kt` |
+| Root networking | `RootNetUtil.kt`, `NetworkRootShell.kt`, `RootCommandRunner.kt`, `NetworkInterfaceSelector.kt` |
 | Video pipeline | `VideoEncoder.kt`, `GlFrameComposer.kt`, `VideoCodecOutputProcessor.kt`, `VideoFrameTimingController.kt`, `PersistentVirtualDisplay.kt` |
 | Yandex cluster launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt`, `ClusterFocusRequestReceiver.kt` |
 | FTP update | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt`, `PreparedUpdateRepository.kt`, `EmbeddedFtpServerFactory.kt`, `FtpServerConfig.kt`, `Sha256Verifier.kt` |
@@ -49,7 +49,7 @@ This package owns the whole runtime: launcher UI, foreground stream service, roo
 - `RuntimeConfig` mirrors `ProductConfig`; add new defaults to both config specs and UI strings.
 - `AppWarningCenter` messages are de-duplicated and can outlive an Activity; clear stale domain warnings explicitly on success.
 - `UpdateServerManager` state changes broadcast `ACTION_UPDATE_SERVER_STATE_CHANGED`; UI should observe state, not infer from sockets.
-- `RootShell` can run generic privileged commands; `NetworkRootShell` is intentionally restricted to network commands.
+- `RootCommandRunner` is the generic one-shot libsu runner; `NetworkRootShell` is the persistent libsu wrapper restricted to network commands.
 
 ---
 
