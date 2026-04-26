@@ -2,16 +2,16 @@ package ru.foric27.cluster
 
 import android.content.Context
 import android.content.Intent
+import android.app.Activity
 import android.os.Bundle
 import android.util.Log
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
+import android.app.AlertDialog
 
 /**
  * Прозрачная Activity для показа диалога обнаружения нового обновления.
  * Запускается из сервиса/координатора с флагом FLAG_ACTIVITY_NEW_TASK.
  */
-internal class UpdateAlertActivity : AppCompatActivity() {
+internal class UpdateAlertActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,7 +20,7 @@ internal class UpdateAlertActivity : AppCompatActivity() {
         val searchPolicyName = intent.getStringExtra(EXTRA_SEARCH_POLICY)
             ?: UpdateFileLocator.SearchPolicy.USB_FIRST.name
 
-        AlertDialog.Builder(this, R.style.ThemeOverlay_Foric27Cluster_MaterialAlertDialog)
+        AlertDialog.Builder(this)
             .setTitle(getString(R.string.update_alert_title))
             .setMessage(getString(R.string.update_alert_message_fmt, updateLocation))
             .setPositiveButton(getString(R.string.update_alert_update)) { _, _ ->
