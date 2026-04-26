@@ -1,224 +1,132 @@
-# AGENTS
+# PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-23  
-**Language:** Russian (default), English (values-en/)  
-**Stack:** Android Kotlin, XML + ViewBinding, no Compose
-
----
-
-## Обзор
-
-Single-module Android-приложение для трансляции cluster/navigation UI на автомобильную комбинацию приборов.
-
-Пайплайн: VirtualDisplay → OpenGL → MediaCodec H.264 → UDP + статус на отдельном порту + FTP для OTA-обновлений.
+**Generated:** 2026-04-26  
+**Commit:** `48c2c64`  
+**Branch:** `main`  
+**Language:** Russian default, English only in `values-en/`  
+**Stack:** single-module Android app, Kotlin + XML/ViewBinding, no Compose
 
 ---
 
-## Ключевые ограничения
+## OVERVIEW
 
-| Ограничение | Значение | Почему важно |
-|-------------|----------|--------------|
-| Разрешение видео | `1920x640` | Жёсткий продуктовый контракт |
-| Язык UI | `ru`, `en` | Только эти локали |
-| Сеть | Root-only, `eth0` | Non-root fallback удалён |
-| Target app | `ru.yandex.yandexnavi` | Проприетарный контракт |
-| Storage | Non-recursive ZIP lookup | Только корень internal/USB |
+Android-приложение транслирует cluster/navigation UI на автомобильную комбинацию приборов.
+Основной pipeline: `VirtualDisplay` → OpenGL → `MediaCodec` H.264 → UDP video/status, плюс встроенный FTP для OTA `ICUpdate.zip`.
 
 ---
 
-## Архитектура: Coordinator Pattern
-
-`UdpStreamService` — тонкий façade, владеющий ~10 coordinators. Каждый coordinator — отдельная зона ответственности.
+## STRUCTURE
 
 ```
-UdpStreamService (facade)
-├── UdpNetworkPreparationCoordinator     [root IP + route setup]
-├── UdpStartupFlowCoordinator            [create UdpSender]
-│   └── UdpStartupProbeCoordinator       [poll route ready]
-├── UdpPipelineStartCoordinator          [start VideoEncoder + monitoring]
-│   ├── UdpStatusSyncCoordinator         [status UDP port]
-│   ├── UdpTransportStatsCoordinator     [stats logging]
-│   └── UdpConnectivityWatchdogCoordinator [health monitoring]
-├── UdpUpdateServerCoordinator           [FTP + OTA lifecycle]
-├── UdpWakeRecoveryController            [wake-from-sleep]
-├── UdpServiceRestartController          [backoff restart]
-└── UdpServiceRecoveryScheduler          [AlarmManager recovery]
+VestaNGClusterFlowStudio/
+├── app/                                  # single Android application module
+│   ├── build.gradle                      # AGP 9.1, ViewBinding, release shrink/minify
+│   └── src/
+│       ├── main/
+│       │   ├── AndroidManifest.xml       # app components + privileged permissions
+│       │   ├── java/ru/foric27/cluster/  # flat Kotlin package, coordinators/managers
+│       │   └── res/                      # adaptive XML layouts + ru/en strings
+│       └── test/java/ru/foric27/cluster/ # JVM JUnit 4 tests only
+├── .github/workflows/                    # release + opencode workflows
+├── docs/                                 # app icon sources
+├── scripts/                              # signing-secret helper
+└── gradle/                               # wrapper
 ```
 
-**Singleton Managers:** `UpdateServerManager`, `ProcessRecoveryManager`, `BatteryOptimizationManager`, `StorageAccessManager` — stateless utility `object`'s.
+---
+
+## WHERE TO LOOK
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Service lifecycle | `UdpStreamService.kt` | Foreground-service facade; `startForeground()` on every path |
+| Root network | `RootNetUtil.kt`, `UdpNetworkPreparationCoordinator.kt` | `su`, `eth0`, policy routing, iptables marks |
+| Video capture/encode | `VideoEncoder.kt`, `GlFrameComposer.kt`, `PersistentVirtualDisplay.kt` | shutdown order is product-critical |
+| Navigator launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt` | direct launch first, root `am start` fallback |
+| FTP/OTA | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt` | non-recursive `ICUpdate.zip` + `.sig` discovery |
+| Runtime overrides | `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt` | Developer screen edits config live |
+| App recovery | `UdpServiceRestartController.kt`, `UdpServiceRecoveryScheduler.kt`, `UdpWakeRecoveryController.kt`, `ProcessRecoveryManager.kt` | backoff, alarm recovery, crash-loop guard |
+| UI/resources | `app/src/main/res/AGENTS.md` | layout qualifiers and ru/en strings |
+| Unit tests | `app/src/test/java/ru/foric27/cluster/AGENTS.md` | JVM-only tests and reflection patterns |
 
 ---
 
-## Точки входа
+## CODE MAP
 
-| Компонент | Назначение |
-|-----------|------------|
-| `MainActivity` | Launcher, permissions preflight, foreground service start |
-| `UdpStreamService` | Foreground service, lifecycle orchestrator |
-| `BootReceiver` | BOOT_COMPLETED, USB mount events |
-| `ClusterLaunchProxyActivity` | Transparent proxy for cluster focus |
-| `UpdateAlertActivity` | OTA update dialog (translucent, noHistory) |
-| `DeveloperActivity` | Runtime config overrides |
+| Symbol/File | Type | Role |
+|-------------|------|------|
+| `UdpStreamService` | `Service` | owns coordinators, workers, notification, recovery wiring |
+| `VideoEncoder` | class | VirtualDisplay + MediaCodec + GL lifecycle |
+| `RootNetUtil` | object | privileged route/IP/iptables command formatting and execution |
+| `UpdateServerManager` | object | validates update pair, prepares FTP root, owns Apache FtpServer |
+| `RuntimeConfig` / `ProductConfig` | objects | runtime overrides over immutable product defaults |
+| `MainActivity` | activity | permission preflight, status UI, service start |
+| `BootReceiver` | receiver | boot/package/USB events |
+| `ClusterLaunchProxyActivity` | activity | transparent Yandex cluster-focus proxy |
 
----
-
-## Критические секции (не трогать без причины)
-
-### Lifecycle порядок
-```kotlin
-// VideoEncoder.kt — shutdown sequence:
-1. encoder.stop()
-2. codecThread.join(THREAD_JOIN_TIMEOUT_MS)
-3. release GL/Surface
-```
-Нарушение → GPU crashes.
-
-### Service.onStartCommand
-`startForeground()` вызывается на **всех** путях (FTP-refresh, invalid config, catch-blocks). Исправляет `RemoteServiceException`.
-
-### Root network
-- Приоритеты `ip rule`: 50/51/52 (ранее 11000/11001)
-- iptables mangle mark `0x1` для gateway traffic
-- Очистка legacy-правил при каждом apply
+LSP is unavailable in this environment (`kotlin-lsp` missing); use AST/direct reads for symbol discovery.
 
 ---
 
-## Где читать код
+## CONVENTIONS
 
-### Для изменения поведения
-- `UdpStreamService.kt` — entry point, restart wiring
-- `VideoEncoder.kt` — VirtualDisplay + MediaCodec lifecycle
-- `RootNetUtil.kt` — root commands, policy routing
-- `UdpNetworkPreparationCoordinator.kt` — network prep
-
-### Для настроек/конфигурации
-- `ProductConfig.kt` — дефолты, wire-контракты
-- `RuntimeConfig.kt` — runtime overrides
-- `RuntimeConfigFieldSpecs.kt` — UI specs for DeveloperActivity
-
-### Для recovery/restart
-- `UdpServiceRestartController.kt` — backoff logic
-- `UdpServiceRecoveryScheduler.kt` — AlarmManager scheduling
-- `UdpWakeRecoveryController.kt` — wake handling
-- `ProcessRecoveryManager.kt` — crash-loop guard
-
-### Для FTP/OTA
-- `UdpUpdateServerCoordinator.kt` — orchestration
-- `UpdateServerManager.kt` — FTP lifecycle
-- `UpdateFileLocator.kt` — ZIP/sig discovery
+- Flat package is intentional: categorize by filename suffix, not subpackage.
+- `*Coordinator` = lifecycle orchestration owned by `UdpStreamService`.
+- `*Manager` = singleton `object` utility/state owner.
+- `*Controller` = state machine/control logic.
+- Product defaults live in `ProductConfig`; user overrides go through `RuntimeConfig`/`RuntimeConfigStore`.
+- UI language set is exactly `ru` + `en`; add/update both string files.
+- OTA lookup is non-recursive: only storage root of internal/USB.
 
 ---
 
-## Команды
+## ANTI-PATTERNS (THIS PROJECT)
 
-```bash
-# Debug
+| Forbidden | Why |
+|-----------|-----|
+| Shizuku/Sui or non-root network fallback | Product requires `su` privileged path only |
+| Root ping / ICMP reachability | Removed; use UDP probe/route checks |
+| Moving startup logic back into service body | Coordinators own orchestration |
+| Missing `startForeground()` path | Causes foreground-service crash/ANR |
+| Changing encoder shutdown order | GPU crashes; stop → join → release |
+| FTP stop while holding manager lock | Can block main/service paths |
+| Recursive update ZIP scanning | Product contract: root-only internal/USB |
+| Building with system Java 26 | Breaks Android tooling; use local JDK 21 |
+
+---
+
+## COMMANDS
+
+```powershell
+# Use local JDK 21 for reliable Android builds
+$env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PATH"
+
 ./gradlew.bat assembleDebug
-
-# Tests
-./gradlew.bat testDebugUnitTest
-
-# Lint
+./gradlew.bat :app:testDebugUnitTest
 ./gradlew.bat lintDebug
-
-# Full check
-$env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PATH"; ./gradlew.bat assembleDebug testDebugUnitTest lintDebug assembleRelease
-
-# Release
 ./gradlew.bat assembleRelease
 
-# Install release
+# Full local check
+./gradlew.bat assembleDebug testDebugUnitTest lintDebug assembleRelease
+
+# Install current release APK
 .\.tools\platform-tools\adb.exe install -r .\app\build\outputs\apk\release\app-release.apk
 ```
 
 ---
 
-## Build конфигурация
+## BUILD / CI NOTES
 
-| Параметр | Значение |
-|----------|----------|
-| AGP | 9.1.0 |
-| Gradle | 9.4.1 |
-| compileSdk/targetSdk | 37 |
-| minSdk | 26 |
-| Java | 17 |
-| JDK (local) | 21 (`.tools/jdk-21.0.10`) |
-| Kotlin | built-in (AGP) |
-| ProGuard | enabled (release) |
-
-**Non-standard:**
-- `org.gradle.daemon=false` — single-use builds
-- `android.suppressUnsupportedCompileSdk=37.0`
-- Custom BOM handling in signing config parser
+- AGP `9.1.0`, Gradle wrapper `9.4.1`, compile/target SDK `37`, min SDK `26`.
+- `gradle.properties`: `org.gradle.daemon=false`, `android.builtInKotlin=true`, `android.suppressUnsupportedCompileSdk=37.0`.
+- Release uses shrink/minify + `app/proguard-rules.pro`; manifest entry points and Apache MINA NIO processor are kept explicitly.
+- Signing reads env vars first, then `keystore.properties`; BOM-prefixed `storeFile` key is normalized.
+- CI workflow publishes rolling prerelease tag `main-latest`; if secrets are missing, APK may be unsigned.
 
 ---
 
-## Anti-patterns (запрещено)
+## CHILD AGENTS
 
-| Практика | Причина запрета |
-|----------|-----------------|
-| Root ping | Удалён; используй UDP-probe |
-| Shizuku/Sui | Только `su` privileged path |
-| Non-root network fallback | Удалён |
-| Возврат startup-логики в сервис | Уже в coordinators |
-| Сборка на системном Java 26 | Ломает `jlink` |
-| `startForegroundService` без `startForeground` | ANR/crash |
-| Unordered encoder shutdown | GPU crashes |
-| FTP stop в `synchronized` | Блокирует main thread |
-
----
-
-## Тесты
-
-JUnit 4 unit tests в `app/src/test/java/ru/foric27/cluster/`:
-- `RuntimeConfigTest.kt` — config logic
-- `SyncHandlerTest.kt` — sync protocol
-- `VideoCodecOutputProcessorTest.kt` — H.264 framing
-- `VideoFrameTimingControllerTest.kt` — timing
-- `NetworkInterfaceSelectorTest.kt` — iface selection
-- `ConnectivityHealthTest.kt` — health checks
-- `RootNetUtilTest.kt` — root command formatting
-- `ClusterModeTest.kt` — mode logic
-
-**Note:** Только JVM unit tests. Instrumented/UI tests отсутствуют.
-
----
-
-## CI/CD
-
-GitHub Actions (`.github/workflows/android-release.yml`):
-- JDK 21 Temurin
-- Android SDK 37
-- Signing из secrets или unsigned fallback
-- Artifact в GitHub Release
-
----
-
-## Layout квалификаторы
-
-| Квалификатор | Назначение |
-|--------------|------------|
-| `layout/` | Портрет телефона |
-| `layout-land/` | Landscape телефон |
-| `layout-sw600dp/` | 7" планшет |
-| `layout-sw600dp-land/` | 7" планшет landscape |
-| `layout-sw720dp/` | 10"+ планшет |
-| `layout-sw800dp/` | 12"+ / Android TV |
-
----
-
-## Последние крупные изменения (апрель 2026)
-
-- Удалён `UdpPeerReachabilityChecker` (root ping)
-- Policy routing: приоритеты 50/51/52 + iptables mangle
-- Signature verification в `MainActivity.onCreate`
-- Adaptive layouts для планшетов/TV
-- Update dialog (`UpdateAlertActivity`)
-- Все `Thread` → daemon
-- `WeakReference` в `AppWarningCenter`
-
----
-
-## Дочерние AGENTS.md
-
-- `app/src/main/java/ru/foric27/cluster/AGENTS.md` — детали по исходному коду
+- `app/src/main/java/ru/foric27/cluster/AGENTS.md` — Kotlin package architecture.
+- `app/src/main/res/AGENTS.md` — XML layouts, dimensions, localization.
+- `app/src/test/java/ru/foric27/cluster/AGENTS.md` — JVM unit-test conventions.
