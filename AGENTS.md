@@ -42,7 +42,7 @@ VestaNGClusterFlowStudio/
 | Service lifecycle | `UdpStreamService.kt` | Foreground-service facade; `startForeground()` on every path |
 | Root network | `RootNetUtil.kt`, `UdpNetworkPreparationCoordinator.kt` | `su`, `eth0`, policy routing, iptables marks |
 | Video capture/encode | `VideoEncoder.kt`, `GlFrameComposer.kt`, `PersistentVirtualDisplay.kt` | shutdown order is product-critical |
-| Navigator launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt` | direct launch first, root `am start` fallback |
+| Navigator launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt` | root-only `am start --display` via proxy-activity |
 | FTP/OTA | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt` | non-recursive `ICUpdate.zip` + `.sig` discovery |
 | Runtime overrides | `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt` | Developer screen edits config live |
 | App recovery | `UdpServiceRestartController.kt`, `UdpServiceRecoveryScheduler.kt`, `UdpWakeRecoveryController.kt`, `ProcessRecoveryManager.kt` | backoff, alarm recovery, crash-loop guard |
@@ -80,6 +80,12 @@ LSP is unavailable in this environment (`kotlin-lsp` missing); use AST/direct re
 
 ---
 
+## SLEEP / WAKE BEHAVIOR
+
+- При `ACTION_SCREEN_OFF` стрим останавливается и `PersistentVirtualDisplay` полностью освобождается (`releaseAll()`).
+- При `ACTION_SCREEN_ON` / `ACTION_USER_PRESENT` стрим перезапускается через `attemptRestart()`.
+- Это экономит заряд: на сне не держим VirtualDisplay, Surface, MediaCodec и wake-lock.
+
 ## ANTI-PATTERNS (THIS PROJECT)
 
 | Forbidden | Why |
@@ -92,6 +98,7 @@ LSP is unavailable in this environment (`kotlin-lsp` missing); use AST/direct re
 | FTP stop while holding manager lock | Can block main/service paths |
 | Recursive update ZIP scanning | Product contract: root-only internal/USB |
 | Building with system Java 26 | Breaks Android tooling; use local JDK 21 |
+| Direct intent launch for navigator | Removed; root-only `am start` for device compatibility |
 
 ---
 

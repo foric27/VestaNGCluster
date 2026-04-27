@@ -112,6 +112,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         if (streamActive) {
                             sleepStopped = true
                             stopInternalKeepService()
+                            PersistentVirtualDisplay.releaseAll()
                             updateNotification(getString(R.string.service_notification_sleep_stopped))
                         }
                     }
@@ -491,6 +492,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     if (streamActive) {
                         sleepStopped = true
                         stopInternalKeepService()
+                        PersistentVirtualDisplay.releaseAll()
+                        Timber.tag(TAG).i("Экран выключен — стрим и VirtualDisplay освобождены для экономии заряда")
                         updateNotification(getString(R.string.service_notification_sleep_stopped))
                     }
                 }
@@ -810,7 +813,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         stopInternalKeepService()
         UpdateServerManager.stopServer()
         RootNetUtil.clearCaches()
-        PersistentVirtualDisplay.detachSurface()
+        PersistentVirtualDisplay.releaseAll()
     }
     private fun requestImmediateRecovery(
         reason: String,

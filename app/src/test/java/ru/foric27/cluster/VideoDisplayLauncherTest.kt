@@ -1,99 +1,87 @@
 package ru.foric27.cluster
 
-import android.content.Context
-import android.content.ContextWrapper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VideoDisplayLauncherTest {
 
-    private val context = ContextWrapper(null)
-
     @Test
-    fun `launch constructs proxy intent with preferred component`() {
-        val intentStarter = FakeIntentStarter()
+    fun `launch uses root am start command with preferred component`() {
+        val rootStarter = FakeRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
-            context = context,
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
-            intentStarter = intentStarter,
+            rootActivityStarter = rootStarter,
         )
-        val command = YandexLaunchTarget.buildPreferredCommands("ru.yandex.yandexnavi/.CustomClusterActivity").single()
 
-        invokeLaunchViaIntentBestEffort(launcher, 7, command)
+        launcher.launchOnDisplay(7)
 
-        val spec = requireNotNull(intentStarter.startedSpec)
-        assertEquals(7, intentStarter.displayId)
-        assertEquals(
-            "ru.foric27.cluster/${ClusterLaunchProxyActivity::class.java.name}",
-            spec.proxyComponent,
-        )
-        assertEquals("ru.yandex.yandexnavi/.CustomClusterActivity", spec.targetComponent)
-        assertEquals(RuntimeConfig.TargetApp.ACTION_MAIN, spec.targetAction)
-        assertEquals(RuntimeConfig.TargetApp.CATEGORY_CLUSTER_NAVIGATION, spec.targetCategory)
+        assertTrue(rootStarter.called)
+        val command = requireNotNull(rootStarter.lastCommand)
+        assertTrue(command.contains("am start"))
+        assertTrue(command.contains("--display 7"))
+        assertTrue(command.contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
+        assertTrue(command.contains(RuntimeConfig.TargetApp.ACTION_MAIN))
+        assertTrue(command.contains(RuntimeConfig.TargetApp.CATEGORY_CLUSTER_NAVIGATION))
     }
 
     @Test
-    fun `launch path does not use am start shell commands`() {
-        val intentStarter = FakeIntentStarter()
+    fun `launch falls back through commands on root failure`() {
+        val rootStarter = FakeRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
-            context = context,
-            preferredLaunchComponent = null,
-            intentStarter = intentStarter,
+            preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            rootActivityStarter = rootStarter,
         )
-        val command = YandexLaunchTarget.buildPreferredCommands(null).single()
 
-        invokeLaunchViaIntentBestEffort(launcher, 3, command)
+        launcher.launchOnDisplay(3)
 
-        val spec = requireNotNull(intentStarter.startedSpec)
-
-        assertFalse(spec.proxyComponent.contains("am start"))
-        assertFalse(spec.targetComponent.contains("am start"))
-        assertFalse(spec.targetAction.contains("am start"))
-        assertFalse(spec.targetCategory.contains("am start"))
+        assertTrue(rootStarter.called)
+        val command = requireNotNull(rootStarter.lastCommand)
+        assertTrue(command.contains("am start"))
+        assertTrue(command.contains("--display 3"))
     }
 
     @Test
-    fun `launch forwards requested display id to intent starter`() {
-        val intentStarter = FakeIntentStarter()
+    fun `launch uses default component when preferred is null`() {
+        val rootStarter = FakeRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
-            context = context,
             preferredLaunchComponent = null,
-            intentStarter = intentStarter,
+            rootActivityStarter = rootStarter,
         )
-        val command = YandexLaunchTarget.buildPreferredCommands(null).single()
 
-        invokeLaunchViaIntentBestEffort(launcher, 42, command)
+        launcher.launchOnDisplay(42)
 
-        assertEquals(42, intentStarter.displayId)
-        assertNotNull(intentStarter.startedSpec)
+        assertTrue(rootStarter.called)
+        val command = requireNotNull(rootStarter.lastCommand)
+        assertTrue(command.contains(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER))
     }
 
-    private class FakeIntentStarter : VideoDisplayLauncher.IntentStarter {
-        var context: Context? = null
-        var startedSpec: VideoDisplayLauncher.ProxyIntentSpec? = null
-        var displayId: Int? = null
+    @Test
+    fun `launch shell command contains proxy component`() {
+        val rootStarter = FakeRootActivityStarter(success = true)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = null,
+            rootActivityStarter = rootStarter,
+        )
 
-        override fun start(context: Context, spec: VideoDisplayLauncher.ProxyIntentSpec, displayId: Int) {
-            this.context = context
-            this.startedSpec = spec
-            this.displayId = displayId
-        }
+        launcher.launchOnDisplay(5)
+
+        val command = requireNotNull(rootStarter.lastCommand)
+        assertTrue(command.contains("ru.foric27.cluster/${ClusterLaunchProxyActivity::class.java.name}"))
     }
 
-    private fun invokeLaunchViaIntentBestEffort(
-        launcher: VideoDisplayLauncher,
-        displayId: Int,
-        command: YandexLaunchTarget.LaunchCommand,
-    ) {
-        val method = VideoDisplayLauncher::class.java.getDeclaredMethod(
-            "launchViaIntentBestEffort",
-            Int::class.javaPrimitiveType,
-            YandexLaunchTarget.LaunchCommand::class.java,
-        ).apply {
-            isAccessible = true
+    private class FakeRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
+        var called = false
+        var lastCommand: String? = null
+
+        override fun start(command: String): VideoDisplayLauncher.RootLaunchAttempt {
+            called = true
+            lastCommand = command
+            return VideoDisplayLauncher.RootLaunchAttempt(
+                success = success,
+                errorMessage = if (success) null else "fake error",
+            )
         }
-        method.invoke(launcher, displayId, command)
     }
 }
