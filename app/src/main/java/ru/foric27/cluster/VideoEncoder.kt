@@ -272,7 +272,31 @@ internal class VideoEncoder(
             Timber.tag(TAG).w(t, "Не удалось остановить MediaCodec")
         }
 
-        // Завершаем поток кодека до освобождения GL-ресурсов
+        // Освобождаем GL-ресурсы на потоке кодека перед его завершением,
+        // чтобы eglMakeCurrent не упал с EGL_BAD_ACCESS из-за потока-нарушителя.
+        val composer = glComposer
+        val handler = codecHandler
+        if (composer != null && handler != null) {
+            val latch = java.util.concurrent.CountDownLatch(1)
+            handler.post {
+                try {
+                    composer.release()
+                } catch (_: Throwable) {
+                    // ignored on shutdown
+                }
+                latch.countDown()
+            }
+            try {
+                latch.await(CODEC_THREAD_JOIN_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (_: Throwable) {
+                // ignored
+            }
+            glComposer = null
+        } else {
+            glComposer = null
+        }
+
+        // Завершаем поток кодека
         val thread = codecThread
         if (thread != null) {
             try {
@@ -296,13 +320,6 @@ internal class VideoEncoder(
             Timber.tag(TAG).w(t, "Не удалось освободить SurfaceTexture VirtualDisplay")
         }
         vdSurfaceTexture = null
-
-        try {
-            glComposer?.release()
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось освободить GL-компоновщик")
-        }
-        glComposer = null
 
         try {
             vdInputSurface?.release()
