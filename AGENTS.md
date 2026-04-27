@@ -125,6 +125,14 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 
 ---
 
+## AGENT RULES
+
+- **Язык общения:** агент размышляет и отвечает исключительно на русском языке.
+- **Язык комментариев:** все комментарии в коде (KDoc, inline, TODO) пишутся только на русском.
+- **Исключения:** названия классов/методов/API, строковые ресурсы `values-en/`, и имена собственных библиотек остаются на английском.
+
+---
+
 ## CHILD AGENTS
 
 - `app/src/main/java/ru/foric27/cluster/AGENTS.md` — Kotlin package architecture.
