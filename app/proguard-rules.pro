@@ -25,3 +25,7 @@
 # SignatureVerifier и ProductConfig.Security используются для проверки подписи APK.
 -keep class ru.foric27.cluster.SignatureVerifier { *; }
 -keepclassmembers class ru.foric27.cluster.ProductConfig$Security { *; }
+
+# Максимальная обфускация: схлопываем все классы в один пакет.
+-repackageclasses 'a'
+-allowaccessmodification
