@@ -7,7 +7,7 @@ import android.graphics.Rect
  * Единая runtime-конфигурация приложения.
  *
  * Значения по умолчанию берутся из [ProductConfig], а локальные переопределения
- * сохраняются в SharedPreferences. Через этот объект приложение получает и
+ * сохраняются в DataStore. Через этот объект приложение получает и
  * метаданные для developer-экрана, и уже нормализованные runtime-значения.
  */
 object RuntimeConfig {
@@ -120,7 +120,7 @@ object RuntimeConfig {
     }
 
     /**
-     * Полностью перечитывает пользовательские overrides из SharedPreferences.
+     * Полностью перечитывает пользовательские overrides из DataStore.
      */
     fun reload(context: Context) {
         rawValues = RuntimeConfigStore.load(context, fieldSpecs)

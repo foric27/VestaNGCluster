@@ -78,18 +78,18 @@
     <string name="main_restart_stream_requested">Перезапуск трансляции и сети запрошен</string>
     <string name="main_exact_alarm_missing">Нужно разрешить точные alarm для стабильного восстановления после выхода из сна</string>
 
-    <string name="app_settings_source_shared_prefs">SharedPreferences</string>
+    <string name="app_settings_source_shared_prefs">DataStore</string>
     <string name="app_settings_source_memory">Память приложения</string>
     <string name="app_settings_source_save_error">Ошибка сохранения</string>
     <string name="app_settings_source_settings_global">Settings.Global</string>
-    <string name="app_settings_source_shared_prefs_and_global">SharedPreferences + Settings.Global</string>
-    <string name="app_settings_details_saved_in_prefs">Режим сохранён в SharedPreferences</string>
-    <string name="app_settings_details_failed_to_save_in_prefs">Не удалось сохранить режим в SharedPreferences</string>
+    <string name="app_settings_source_shared_prefs_and_global">DataStore + Settings.Global</string>
+    <string name="app_settings_details_saved_in_prefs">Режим сохранён в DataStore</string>
+    <string name="app_settings_details_failed_to_save_in_prefs">Не удалось сохранить режим в DataStore</string>
     <string name="app_settings_details_saved_locally_without_root">Прямое применение режима не подтверждено. Выбор сохранён локально без root.</string>
     <string name="app_settings_details_failed_to_save_anywhere">Не удалось сохранить режим ни локально, ни в Settings.Global.</string>
     <string name="app_settings_direct_prefix">Direct: </string>
     <string name="app_settings_details_write_secure_settings_missing">WRITE_SECURE_SETTINGS не выдан — прямую запись пропускаю</string>
-    <string name="app_settings_details_saved_in_prefs_and_global">Режим сохранён в SharedPreferences и напрямую записан в Settings.Global</string>
+    <string name="app_settings_details_saved_in_prefs_and_global">Режим сохранён в DataStore и напрямую записан в Settings.Global</string>
     <string name="app_settings_details_global_put_result_fmt">Settings.Global.putInt вернул %1$s, readBack=%2$s</string>
     <string name="app_settings_details_no_global_write_permission_fmt">Нет прав на запись в Settings.Global: %1$s</string>
     <string name="app_settings_details_direct_write_error_fmt">Ошибка прямой записи: %1$s</string>

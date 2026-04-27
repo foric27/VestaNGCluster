@@ -78,18 +78,18 @@
     <string name="main_restart_stream_requested">Stream and network restart requested</string>
     <string name="main_exact_alarm_missing">Exact alarm permission is required for stable wake recovery</string>
 
-    <string name="app_settings_source_shared_prefs">SharedPreferences</string>
+    <string name="app_settings_source_shared_prefs">DataStore</string>
     <string name="app_settings_source_memory">App memory</string>
     <string name="app_settings_source_save_error">Save error</string>
     <string name="app_settings_source_settings_global">Settings.Global</string>
-    <string name="app_settings_source_shared_prefs_and_global">SharedPreferences + Settings.Global</string>
-    <string name="app_settings_details_saved_in_prefs">Mode saved in SharedPreferences</string>
-    <string name="app_settings_details_failed_to_save_in_prefs">Failed to save mode in SharedPreferences</string>
+    <string name="app_settings_source_shared_prefs_and_global">DataStore + Settings.Global</string>
+    <string name="app_settings_details_saved_in_prefs">Mode saved in DataStore</string>
+    <string name="app_settings_details_failed_to_save_in_prefs">Failed to save mode in DataStore</string>
     <string name="app_settings_details_saved_locally_without_root">Direct mode application not confirmed. Selection saved locally without root.</string>
     <string name="app_settings_details_failed_to_save_anywhere">Failed to save mode locally or in Settings.Global.</string>
     <string name="app_settings_direct_prefix">Direct: </string>
     <string name="app_settings_details_write_secure_settings_missing">WRITE_SECURE_SETTINGS not granted — skipping direct write</string>
-    <string name="app_settings_details_saved_in_prefs_and_global">Mode saved in SharedPreferences and directly written to Settings.Global</string>
+    <string name="app_settings_details_saved_in_prefs_and_global">Mode saved in DataStore and directly written to Settings.Global</string>
     <string name="app_settings_details_global_put_result_fmt">Settings.Global.putInt returned %1$s, readBack=%2$s</string>
     <string name="app_settings_details_no_global_write_permission_fmt">No permission to write Settings.Global: %1$s</string>
     <string name="app_settings_details_direct_write_error_fmt">Direct write error: %1$s</string>

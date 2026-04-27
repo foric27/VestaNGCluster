@@ -1,15 +1,30 @@
 package ru.foric27.cluster
 
 import android.content.Context
+import androidx.datastore.preferences.SharedPreferencesMigration
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+
+private val Context.runtimeConfigDataStore by preferencesDataStore(
+    name = RuntimeConfig.PREFS_NAME,
+    produceMigrations = { context ->
+        listOf(SharedPreferencesMigration(context, RuntimeConfig.PREFS_NAME))
+    },
+)
 
 internal object RuntimeConfigStore {
 
     fun load(context: Context, specs: List<RuntimeConfig.FieldSpec>): Map<String, String> {
-        val prefs = getPrefs(context)
+        val appContext = context.applicationContext
+        val preferences = runBlocking { appContext.runtimeConfigDataStore.data.first() }
         return buildMap {
             specs.forEach { spec ->
-                if (prefs.contains(spec.key)) {
-                    put(spec.key, prefs.getString(spec.key, spec.defaultValue) ?: spec.defaultValue)
+                val value = preferences[stringPreferencesKey(spec.key)]
+                if (value != null) {
+                    put(spec.key, value)
                 }
             }
         }
@@ -28,16 +43,31 @@ internal object RuntimeConfigStore {
             RuntimeConfig.ValueType.STRING -> RuntimeConfig.SaveResult(false, context.getString(R.string.runtime_error_string_field_fmt, title), spec.key)
         }
 
-        val prefs = getPrefs(context)
-        val ok = prefs.edit().putString(spec.key, normalizedValue).commit()
-        if (!ok) {
+        try {
+            val appContext = context.applicationContext
+            runBlocking {
+                appContext.runtimeConfigDataStore.edit { preferences ->
+                    preferences[stringPreferencesKey(spec.key)] = normalizedValue
+                }
+            }
+        } catch (_: Throwable) {
             return RuntimeConfig.SaveResult(false, context.getString(R.string.runtime_error_save_setting_fmt, title), spec.key)
         }
         return RuntimeConfig.SaveResult(true, context.getString(R.string.runtime_save_setting_ok_fmt, title), spec.key, normalizedValue)
     }
 
     fun resetToDefaults(context: Context): Boolean {
-        return getPrefs(context).edit().clear().commit()
+        return try {
+            val appContext = context.applicationContext
+            runBlocking {
+                appContext.runtimeConfigDataStore.edit { preferences ->
+                    preferences.clear()
+                }
+            }
+            true
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     fun parseBooleanValue(rawValue: String?, default: Boolean): Boolean {
@@ -75,6 +105,4 @@ internal object RuntimeConfigStore {
         }
     }
 
-    private fun getPrefs(context: Context) =
-        context.applicationContext.getSharedPreferences(RuntimeConfig.PREFS_NAME, Context.MODE_PRIVATE)
 }

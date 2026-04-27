@@ -2,11 +2,24 @@ package ru.foric27.cluster
 
 import android.Manifest
 import android.content.Context
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.provider.Settings
+import androidx.datastore.preferences.SharedPreferencesMigration
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
-import androidx.core.content.edit
+
+private const val APP_SETTINGS_STORE_NAME = "cluster_flow_prefs"
+
+private val Context.appSettingsDataStore by preferencesDataStore(
+    name = APP_SETTINGS_STORE_NAME,
+    produceMigrations = { context ->
+        listOf(SharedPreferencesMigration(context, APP_SETTINGS_STORE_NAME))
+    },
+)
 
 /**
  * Пользовательские настройки UI, которые влияют на штатный cluster-stream.
@@ -14,7 +27,6 @@ import androidx.core.content.edit
 internal object AppSettings {
 
     private const val TAG = "AppSettings"
-    private const val PREFS_NAME = "cluster_flow_prefs"
     private const val KEY_STREAM_MODE = "stream_mode"
 
     enum class UiStreamMode(
@@ -59,8 +71,7 @@ internal object AppSettings {
     )
 
     fun getSelectedMode(context: Context): UiStreamMode {
-        val prefs = getPrefs(context)
-        val saved = prefs.getString(KEY_STREAM_MODE, null)
+        val saved = readSavedMode(context)
         if (!saved.isNullOrBlank()) {
             return UiStreamMode.fromPref(saved)
         }
@@ -77,12 +88,15 @@ internal object AppSettings {
 
     fun saveSelectedMode(context: Context, mode: UiStreamMode): Boolean {
         return try {
-            getPrefs(context).edit(commit = true) {
-                putString(KEY_STREAM_MODE, mode.prefValue)
+            val appContext = context.applicationContext
+            runBlocking {
+                appContext.appSettingsDataStore.edit { preferences ->
+                    preferences[stringPreferencesKey(KEY_STREAM_MODE)] = mode.prefValue
+                }
             }
             true
         } catch (t: Throwable) {
-            Timber.tag(TAG).e(t, "Не удалось сохранить режим ${mode.prefValue} в SharedPreferences")
+            Timber.tag(TAG).e(t, "Не удалось сохранить режим ${mode.prefValue} в DataStore")
             false
         }
     }
@@ -203,8 +217,11 @@ internal object AppSettings {
         }
     }
 
-    private fun getPrefs(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun readSavedMode(context: Context): String? {
+        val appContext = context.applicationContext
+        return runBlocking {
+            appContext.appSettingsDataStore.data.first()[stringPreferencesKey(KEY_STREAM_MODE)]
+        }
     }
 
     private fun canWriteGlobalSettingsDirect(context: Context): Boolean {
@@ -222,8 +239,7 @@ internal object AppSettings {
 
     fun getSelectedClusterMode(context: Context): ClusterMode {
         return try {
-            val prefs = getPrefs(context)
-            val saved = prefs.getString(KEY_STREAM_MODE, null)
+            val saved = readSavedMode(context)
             if (!saved.isNullOrBlank()) {
                 ClusterMode.fromPref(saved)
             } else {
