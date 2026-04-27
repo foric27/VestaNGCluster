@@ -123,6 +123,28 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 - Signing reads env vars first, then `keystore.properties`; BOM-prefixed `storeFile` key is normalized.
 - CI workflow publishes rolling prerelease tag `main-latest`; if secrets are missing, APK may be unsigned.
 
+## SIGNING
+
+- Единственный release-keystore: `.tools/signing/foric27.jks` (alias `foric27`).
+- `keystore.properties` указывает на `foric27.jks`; старый `release-keystore.jks` удалён.
+- SHA-256 сертификата `foric27` зафиксирован в `ProductConfig.Security.EXPECTED_SIGNATURE_SHA256`.
+
+## OBFUSCATION
+
+- R8 full mode: `android.enableR8.fullMode=true` в `gradle.properties`.
+- ProGuard rules: `-repackageclasses 'a'`, `-allowaccessmodification` для максимальной обфускации.
+- Keep rules: точки входа manifest, Apache MINA NIO processor, `StreamConfig`, `SignatureVerifier`, `ProductConfig$Security`.
+
+## OPTIMIZATION FLAGS
+
+- `org.gradle.parallel=true`, `org.gradle.configureondemand=true`, `org.gradle.caching=true`.
+- JVM heap: `-Xmx4096m`.
+
+## CLEANUP
+
+- После установки на устройство: `adb shell rm -f /data/local/tmp/app-release*.apk`.
+- После тестов/сборки: `./gradlew.bat clean`.
+
 ---
 
 ## AGENT RULES
