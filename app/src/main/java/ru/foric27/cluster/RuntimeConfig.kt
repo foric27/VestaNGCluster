@@ -139,6 +139,19 @@ object RuntimeConfig {
 
     fun getFieldSectionTitle(context: Context, spec: FieldSpec): String = context.getString(spec.sectionResId)
 
+    internal fun createPreferenceDataStore(context: Context): RuntimeConfigPreferenceDataStore {
+        val appContext = context.applicationContext
+        return RuntimeConfigPreferenceDataStore(
+            saveString = { key, value ->
+                val spec = fieldSpecs.firstOrNull { it.key == key }
+                spec != null && saveField(appContext, spec, value).ok
+            },
+            readString = { key, defaultValue ->
+                fieldSpecs.firstOrNull { it.key == key }?.let(::getFieldValue) ?: defaultValue
+            },
+        )
+    }
+
     fun isFtpOnlyField(spec: FieldSpec): Boolean {
         return when (spec.key) {
             Keys.FTP_INTERNAL_POLL_PERIOD_MS,
