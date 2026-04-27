@@ -21,6 +21,7 @@
     <string name="stream_mode_apply_fail_fmt">Не удалось применить режим %1$s напрямую. Локальное сохранение выполнено.</string>
     <string name="msg_vdsp_ready">VDSP готов</string>
     <string name="msg_root_required">Для этой операции нужен root через su</string>
+    <string name="msg_root_missing_toast">Root-права не выданы. Некоторые функции недоступны.</string>
     <string name="msg_privileged_access_required">Нужен privileged/root-доступ через su</string>
     <string name="msg_output_app_not_found_fmt">Приложение для вывода не найдено: %1$s</string>
     <string name="msg_yandex_navigator_not_found_fmt">Яндекс Навигатор не найден: %1$s</string>

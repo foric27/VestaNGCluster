@@ -68,8 +68,13 @@ internal class NetworkRootShell {
             if (closed) return false
             return try {
                 val shell = getOrCreateShellLocked(forceRecreate = false)
-                shell.isRoot && shell.isAlive
-            } catch (_: Throwable) {
+                val available = shell.isRoot && shell.isAlive
+                if (!available) {
+                    Timber.tag(TAG).w("Root-доступ недоступен: shell.isRoot=${shell.isRoot}, shell.isAlive=${shell.isAlive}")
+                }
+                available
+            } catch (t: Throwable) {
+                Timber.tag(TAG).w(t, "Root-доступ недоступен: исключение при проверке shell")
                 discardShellLocked()
                 false
             }

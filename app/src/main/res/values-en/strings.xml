@@ -21,6 +21,7 @@
     <string name="stream_mode_apply_fail_fmt">Failed to apply mode %1$s directly. Saved locally.</string>
     <string name="msg_vdsp_ready">VDSP ready</string>
     <string name="msg_root_required">Root access via su is required for this operation</string>
+    <string name="msg_root_missing_toast">Root permissions not granted. Some features are unavailable.</string>
     <string name="msg_privileged_access_required">Privileged/root access via su is required</string>
     <string name="msg_output_app_not_found_fmt">Output application not found: %1$s</string>
     <string name="msg_yandex_navigator_not_found_fmt">Yandex Navigator not found: %1$s</string>

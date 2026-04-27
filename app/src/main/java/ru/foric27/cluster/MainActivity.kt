@@ -121,6 +121,7 @@ class MainActivity : AppCompatActivity() {
         noticeLog.render()
 
         accessPreflight.run()
+        checkRootAndNotify()
         ensureStreamingRunning()
         tryMoveTaskToBackIfNeeded()
     }
@@ -398,6 +399,22 @@ class MainActivity : AppCompatActivity() {
         }.recoverCatching { error ->
             fallback?.let { launcher.launch(it) } ?: throw error
         }.onFailure(onFailure)
+    }
+
+    private fun checkRootAndNotify() {
+        val shell = NetworkRootShell()
+        val rootAvailable = try {
+            shell.isAvailable()
+        } catch (_: Throwable) {
+            false
+        } finally {
+            shell.close()
+        }
+        if (!rootAvailable) {
+            Timber.tag(TAG).w("ROOT НЕ ДОСТУПЕН: приложение запущено без root-прав")
+            Toast.makeText(this, R.string.msg_root_missing_toast, Toast.LENGTH_LONG).show()
+            AppWarningCenter.publish(getString(R.string.msg_root_required))
+        }
     }
 
     private fun tryMoveTaskToBackIfNeeded() {

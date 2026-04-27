@@ -80,6 +80,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         super.onCreate()
         RuntimeConfig.init(applicationContext)
         RootNetUtil.attachNetworkRootShell(networkRootShell)
+        if (!networkRootShell.isAvailable()) {
+            Timber.tag(TAG).e("ROOT НЕ ДОСТУПЕН: сервис запущен без root-прав, сетевые функции и видеотрансляция будут недоступны")
+        }
         sServiceRunning = true
         sStreamActive = false
         initWakeLock()
