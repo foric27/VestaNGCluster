@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 
 internal data class UdpNetworkPreparationResult(
     val bindIp: String?,
@@ -23,7 +23,7 @@ internal class UdpNetworkPreparationCoordinator(
         val gateway = cfg.gateway?.takeIf { it.isNotBlank() } ?: defaultUsbGateway
         val applyResult = RootNetUtil.applyStaticIfaceNetwork(localCidr, gateway)
         if (applyResult.rootRequired) {
-            Log.w(tag, "Нет privileged backend с root-правами — сетевой root-режим недоступен")
+            Timber.tag(tag).w("Нет privileged backend с root-правами — сетевой root-режим недоступен")
             return UdpNetworkPreparationResult(null, true, true, applyResult.iface)
         }
 
@@ -35,21 +35,21 @@ internal class UdpNetworkPreparationCoordinator(
 
         val probeState = RootNetUtil.getIfaceProbeState()
         if (probeState.rootRequired) {
-            Log.w(tag, "Нет privileged backend с root-правами — проверка ${probeState.iface} недоступна")
+            Timber.tag(tag).w("Нет privileged backend с root-правами — проверка ${probeState.iface} недоступна")
             return UdpNetworkPreparationResult(null, true, true, probeState.iface)
         }
 
         val ifacePresent = probeState.exists
         if (!applyResult.ok) {
             if (ifacePresent) {
-                Log.w(tag, "Не удалось применить статический IP для ${applyResult.iface} (продолжаю): ${applyResult.details}")
+                Timber.tag(tag).w("Не удалось применить статический IP для ${applyResult.iface} (продолжаю): ${applyResult.details}")
             } else {
-                Log.i(tag, "${probeState.iface} отсутствует — статическая настройка сети пропущена")
+                Timber.tag(tag).i("${probeState.iface} отсутствует — статическая настройка сети пропущена")
             }
         }
 
         if (!ifacePresent) {
-            Log.i(tag, "${probeState.iface} отсутствует на устройстве — запуск root-сети отложен")
+            Timber.tag(tag).i("${probeState.iface} отсутствует на устройстве — запуск root-сети отложен")
         } else if (!bindIp.isNullOrBlank()) {
             logRouteVerdict("startup", RootNetUtil.checkRouteTo(cfg.ip, bindIp, forceProbe = true))
         }

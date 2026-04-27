@@ -9,7 +9,7 @@ import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.Log
+import timber.log.Timber
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
         if (!BuildConfig.DEBUG) {
             val sigResult = SignatureVerifier.verify(this)
             if (!sigResult.valid) {
-                Log.e(TAG, "Несовпадение подписи APK: expected=${sigResult.expectedSha256}, actual=${sigResult.actualSha256}")
+                Timber.tag(TAG).e("Несовпадение подписи APK: expected=${sigResult.expectedSha256}, actual=${sigResult.actualSha256}")
                 showSignatureMismatchDialog(sigResult.actualSha256, sigResult.expectedSha256)
                 return
             }
@@ -193,7 +193,7 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             startActivity(Intent(this, DeveloperActivity::class.java))
         }.onFailure { error ->
-            Log.w(TAG, "Не удалось открыть экран разработчика", error)
+            Timber.tag(TAG).w(error, "Не удалось открыть экран разработчика")
             noticeLog.show(getString(R.string.main_open_developer_failed), isError = true)
         }
     }
@@ -206,7 +206,7 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             startActivity(launchIntent)
         }.onFailure { error ->
-            Log.w(TAG, "Не удалось открыть ссылку Telegram разработчика", error)
+            Timber.tag(TAG).w(error, "Не удалось открыть ссылку Telegram разработчика")
             noticeLog.show(getString(R.string.main_open_telegram_failed), isError = true)
         }
     }
@@ -334,7 +334,7 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.registerReceiver(this, vdspReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             vdspReceiverRegistered = true
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось зарегистрировать VDSP receiver", t)
+            Timber.tag(TAG).w(t, "Не удалось зарегистрировать VDSP receiver")
         }
     }
 
@@ -343,7 +343,7 @@ class MainActivity : AppCompatActivity() {
         try {
             unregisterReceiver(vdspReceiver)
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось снять VDSP receiver", t)
+            Timber.tag(TAG).w(t, "Не удалось снять VDSP receiver")
         } finally {
             vdspReceiverRegistered = false
         }

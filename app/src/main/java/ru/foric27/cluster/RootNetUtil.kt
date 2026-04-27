@@ -1,7 +1,7 @@
 package ru.foric27.cluster
 
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import java.util.Locale
 
 /**
@@ -91,7 +91,7 @@ internal object RootNetUtil {
         return try {
             val probeState = probeIfaceState(force = true)
             if (probeState.rootRequired) {
-                Log.w(TAG, "Root недоступен — настройка ${probeState.iface} пропущена")
+                Timber.tag(TAG).w("Root недоступен — настройка ${probeState.iface} пропущена")
                 return ApplyResult(
                     ok = false,
                     iface = probeState.iface,
@@ -113,7 +113,7 @@ internal object RootNetUtil {
                     append(buildIfaceExistsLabel(probeState.iface)).append("=false\n")
                     append(probe.renderOutput())
                 }
-                Log.i(TAG, "${probeState.iface} отсутствует — статическая настройка сети пропущена")
+                Timber.tag(TAG).i("${probeState.iface} отсутствует — статическая настройка сети пропущена")
                 return ApplyResult(false, probeState.iface, details)
             }
 
@@ -225,14 +225,14 @@ internal object RootNetUtil {
             }
 
             if (ok) {
-                Log.i(TAG, "Статический IP применён: ${cidr.ip}/${cidr.prefix} dev=$iface")
+                Timber.tag(TAG).i("Статический IP применён: ${cidr.ip}/${cidr.prefix} dev=$iface")
             } else {
-                Log.w(TAG, "Не удалось применить статический IP для $iface\n$details")
+                Timber.tag(TAG).w("Не удалось применить статический IP для $iface\n$details")
             }
             ApplyResult(ok, iface, details)
         } catch (t: Throwable) {
             val iface = resolveSelection(force = true).name ?: RuntimeConfig.Root.IFACE
-            Log.e(TAG, "Ошибка настройки $iface через root", t)
+            Timber.tag(TAG).e(t, "Ошибка настройки $iface через root")
             ApplyResult(false, iface, t.toString())
         }
     }

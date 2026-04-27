@@ -1,7 +1,7 @@
 package ru.foric27.cluster
 
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -59,7 +59,7 @@ internal class UdpServiceRestartController(
 
         pendingRestartReason = reason
         val delayMs = restartBackoffMs
-        Log.w(tag, "Перезапуск запланирован через ${delayMs}мс, reason=$reason${cause?.let { " cause=$it" } ?: ""}")
+        Timber.tag(tag).w("Перезапуск запланирован через ${delayMs}мс, reason=$reason${cause?.let { " cause=$it" } ?: ""}")
         notifyRestartScheduled(delayMs)
         restartJob?.cancel()
         restartJob = scope.launch {
@@ -85,7 +85,7 @@ internal class UdpServiceRestartController(
     ) {
         val backoffMs = ensureMinBackoff(minBackoffMs)
         logPipelineSnapshot("Немедленное восстановление, reason=$reason")
-        Log.w(tag, "Немедленное восстановление стрима, reason=$reason, backoff=${backoffMs}ms")
+        Timber.tag(tag).w("Немедленное восстановление стрима, reason=$reason, backoff=${backoffMs}ms")
         notifyUser(userMessage)
         cancel()
         lastRestartRequestMs = 0L

@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.ArrayDeque
 import java.util.LinkedHashSet
@@ -43,7 +43,7 @@ internal object AppWarningCenter {
             try {
                 it.onWarningPublished(normalized)
             } catch (t: Throwable) {
-                Log.w(TAG, "Слушатель предупреждений завершился ошибкой", t)
+                Timber.tag(TAG).w(t, "Слушатель предупреждений завершился ошибкой")
             }
         }
     }

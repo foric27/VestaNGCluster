@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 import org.apache.ftpserver.ConnectionConfigFactory
 import org.apache.ftpserver.DataConnectionConfigurationFactory
 import org.apache.ftpserver.FtpServer
@@ -43,7 +43,7 @@ internal class EmbeddedFtpServerFactory {
         }
 
         val resolvedAddress = resolveBindAddress(config)
-        Log.i(TAG, "FTP bind-адрес: ${resolvedAddress.host}:${config.ftpPort} (${resolvedAddress.reason})")
+        Timber.tag(TAG).i("FTP bind-адрес: ${resolvedAddress.host}:${config.ftpPort} (${resolvedAddress.reason})")
 
         val serverFactory = FtpServerFactory()
         serverFactory.connectionConfig = ConnectionConfigFactory().apply {
@@ -90,7 +90,7 @@ internal class EmbeddedFtpServerFactory {
         val explicitHost = config.ftpAdvertisedHost?.trim().orEmpty()
         if (explicitHost.isNotEmpty()) {
             if (isValidIpv4(explicitHost) && isLocalIpv4(explicitHost)) {
-                Log.i(TAG, "Использую локальный explicit FTP host: $explicitHost")
+                Timber.tag(TAG).i("Использую локальный explicit FTP host: $explicitHost")
                 return ResolvedAddress(explicitHost, "Явный локальный IP из конфигурации")
             }
             throw FtpException("Явный FTP host недоступен на текущем устройстве: $explicitHost")
@@ -100,15 +100,15 @@ internal class EmbeddedFtpServerFactory {
         if (interfaceName.isNotEmpty()) {
             val interfaceHost = findInterfaceIpv4(interfaceName)
             if (interfaceHost != null) {
-                Log.i(TAG, "Выбран интерфейс из конфигурации: $interfaceName -> $interfaceHost")
+                Timber.tag(TAG).i("Выбран интерфейс из конфигурации: $interfaceName -> $interfaceHost")
                 return ResolvedAddress(interfaceHost, "Интерфейс $interfaceName")
             }
-            Log.w(TAG, "Интерфейс $interfaceName не найден или не содержит IPv4, перехожу к fallback")
+            Timber.tag(TAG).w("Интерфейс $interfaceName не найден или не содержит IPv4, перехожу к fallback")
         }
 
         val fallbackHost = firstNonLoopbackIpv4()
             ?: throw FtpException("Не найден IPv4 для запуска FTP-сервера")
-        Log.i(TAG, "Использую первый подходящий non-loopback IPv4: $fallbackHost")
+        Timber.tag(TAG).i("Использую первый подходящий non-loopback IPv4: $fallbackHost")
         return ResolvedAddress(fallbackHost, "Первый non-loopback IPv4")
     }
 
@@ -168,13 +168,13 @@ internal class EmbeddedFtpServerFactory {
     private class LoggingFtplet : DefaultFtplet() {
         override fun onConnect(session: FtpSession?): FtpletResult {
             val message = "FTP клиент подключился: ${session.clientAddress()}"
-            Log.i(TAG, message)
+            Timber.tag(TAG).i(message)
             AppWarningCenter.publish(message)
             return FtpletResult.DEFAULT
         }
 
         override fun onDisconnect(session: FtpSession?): FtpletResult {
-            Log.i(TAG, "FTP клиент отключился: ${session.clientAddress()}")
+            Timber.tag(TAG).i("FTP клиент отключился: ${session.clientAddress()}")
             return FtpletResult.DEFAULT
         }
 
@@ -186,9 +186,9 @@ internal class EmbeddedFtpServerFactory {
                     "PASS" -> " ***"
                     else -> argument?.let { " $it" } ?: ""
                 }
-                Log.i(TAG, "FTP ${session.clientAddress()} -> $command$safeArgument")
+                Timber.tag(TAG).i("FTP ${session.clientAddress()} -> $command$safeArgument")
                 if (command == "RETR") {
-                    Log.i(TAG, "Начинаю передачу файла ${argument.orEmpty()}")
+                    Timber.tag(TAG).i("Начинаю передачу файла ${argument.orEmpty()}")
                 }
             }
             return FtpletResult.DEFAULT
@@ -202,9 +202,9 @@ internal class EmbeddedFtpServerFactory {
             val command = request?.command?.uppercase(Locale.US).orEmpty()
             if (command in LOGGED_COMMANDS) {
                 val code = reply?.code ?: -1
-                Log.i(TAG, "FTP ${session.clientAddress()} <- $command код=$code")
+                Timber.tag(TAG).i("FTP ${session.clientAddress()} <- $command код=$code")
                 if (command == "RETR") {
-                    Log.i(TAG, "Передача файла завершена, код=$code")
+                    Timber.tag(TAG).i("Передача файла завершена, код=$code")
                 }
             }
             return FtpletResult.DEFAULT

@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.os.Build
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 
 internal class UdpServiceRecoveryScheduler(
     private val context: Context,
@@ -25,13 +25,13 @@ internal class UdpServiceRecoveryScheduler(
             } else {
                 alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             }
-            Log.w(tag, "Запланировано восстановление сервиса через ${delayMs}мс, reason=$reason, launchUi=$launchUi")
+            Timber.tag(tag).w("Запланировано восстановление сервиса через ${delayMs}мс, reason=$reason, launchUi=$launchUi")
             onScheduled((delayMs / 1000L).toInt())
         } catch (t: Throwable) {
-            Log.w(tag, "Не удалось запланировать восстановление сервиса, reason=$reason, launchUi=$launchUi", t)
+            Timber.tag(tag).w(t, "Не удалось запланировать восстановление сервиса, reason=$reason, launchUi=$launchUi")
             runCatching { onFallbackStart() }
                 .onFailure { restartError ->
-                    Log.e(tag, "Fallback-запуск сервиса тоже не удался", restartError)
+                    Timber.tag(tag).e(restartError, "Fallback-запуск сервиса тоже не удался")
                 }
         }
     }
@@ -42,7 +42,7 @@ internal class UdpServiceRecoveryScheduler(
             alarmManager.cancel(buildPendingIntent(reason = "", launchUi = false))
             alarmManager.cancel(buildPendingIntent(reason = "", launchUi = true))
         } catch (t: Throwable) {
-            Log.w(tag, "Не удалось снять pending alarm восстановления", t)
+            Timber.tag(tag).w(t, "Не удалось снять pending alarm восстановления")
         }
     }
 

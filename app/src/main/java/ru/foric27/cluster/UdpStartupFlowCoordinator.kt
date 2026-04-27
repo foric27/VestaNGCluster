@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 
 internal class UdpStartupFlowCoordinator(
     private val tag: String,
@@ -26,7 +26,7 @@ internal class UdpStartupFlowCoordinator(
             createSender(hostValue, port, bindIp)
         } catch (t: Throwable) {
             setStartInProgress(false)
-            Log.e(tag, "Не удалось создать UdpSender", t)
+            Timber.tag(tag).e(t, "Не удалось создать UdpSender")
             scheduleRestart("udp_sender_init", t)
             return
         }

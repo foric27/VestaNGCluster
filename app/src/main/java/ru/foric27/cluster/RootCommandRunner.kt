@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 import com.topjohnwu.superuser.Shell
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -62,7 +62,7 @@ internal object RootCommandRunner {
         return try {
             val result = future.get(timeoutMs, TimeUnit.MILLISECONDS)
             if (!result.ok() && logOnFailure) {
-                Log.w(TAG, "libsu command failed: code=${result.code}, timedOut=${result.timedOut}\nSTDOUT:\n${result.out}\nSTDERR:\n${result.err}")
+                Timber.tag(TAG).w("libsu command failed: code=${result.code}, timedOut=${result.timedOut}\nSTDOUT:\n${result.out}\nSTDERR:\n${result.err}")
             }
             if (result.isRootDeniedOrMissing()) {
                 publishRootRequiredWarning()
@@ -77,7 +77,7 @@ internal object RootCommandRunner {
                 timedOut = true,
             )
             if (logOnFailure) {
-                Log.w(TAG, "libsu command timed out after ${timeoutMs}ms")
+                Timber.tag(TAG).w("libsu command timed out after ${timeoutMs}ms")
             }
             result
         } catch (t: Throwable) {
@@ -85,9 +85,9 @@ internal object RootCommandRunner {
             val result = Result(code = -1, out = "", err = cause.toString())
             if (result.isRootDeniedOrMissing()) {
                 publishRootRequiredWarning()
-                Log.w(TAG, "libsu root недоступен для приложения: ${cause.message}")
+                Timber.tag(TAG).w("libsu root недоступен для приложения: ${cause.message}")
             } else {
-                Log.e(TAG, "Ошибка выполнения libsu-команды", cause)
+                Timber.tag(TAG).e(cause, "Ошибка выполнения libsu-команды")
             }
             result
         } finally {

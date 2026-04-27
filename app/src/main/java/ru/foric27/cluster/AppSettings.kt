@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.provider.Settings
-import android.util.Log
+import timber.log.Timber
 import androidx.core.content.edit
 
 /**
@@ -70,7 +70,7 @@ internal object AppSettings {
                 Settings.Global.getInt(context.contentResolver, SyncHandler.STREAM_MODE_PARAM),
             )
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось прочитать режим из Settings.Global, использую NAV", t)
+            Timber.tag(TAG).w(t, "Не удалось прочитать режим из Settings.Global, использую NAV")
             UiStreamMode.NAV
         }
     }
@@ -82,7 +82,7 @@ internal object AppSettings {
             }
             true
         } catch (t: Throwable) {
-            Log.e(TAG, "Не удалось сохранить режим ${mode.prefValue} в SharedPreferences", t)
+            Timber.tag(TAG).e(t, "Не удалось сохранить режим ${mode.prefValue} в SharedPreferences")
             false
         }
     }
@@ -173,7 +173,7 @@ internal object AppSettings {
                 )
             }
         } catch (se: SecurityException) {
-            Log.w(TAG, "Нет прав на прямую запись в Settings.Global", se)
+            Timber.tag(TAG).w(se, "Нет прав на прямую запись в Settings.Global")
             SettingsWriteResult(
                 false,
                 context.getString(
@@ -182,7 +182,7 @@ internal object AppSettings {
                 ),
             )
         } catch (t: Throwable) {
-            Log.w(TAG, "Ошибка прямой записи режима в Settings.Global", t)
+            Timber.tag(TAG).w(t, "Ошибка прямой записи режима в Settings.Global")
             SettingsWriteResult(
                 false,
                 context.getString(
@@ -232,7 +232,7 @@ internal object AppSettings {
                 )
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось прочитать cluster mode, использую CLASSIC_NAV", t)
+            Timber.tag(TAG).w(t, "Не удалось прочитать cluster mode, использую CLASSIC_NAV")
             ClusterMode.CLASSIC_NAV
         }
     }

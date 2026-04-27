@@ -3,7 +3,7 @@ package ru.foric27.cluster
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import timber.log.Timber
 
 /**
  * Совместимость с внешним заводским контрактом запроса cluster focus.
@@ -24,20 +24,20 @@ class ClusterFocusRequestReceiver : BroadcastReceiver() {
     }
 
     private fun handleRequestFocus(context: Context, action: String) {
-        Log.i(TAG, "Получен внешний запрос cluster focus: action=$action")
+        Timber.tag(TAG).i("Получен внешний запрос cluster focus: action=$action")
 
         val activityIntent = MainActivity.createLaunchIntent(context, keepInForeground = false)
         try {
             context.startActivity(activityIntent)
             UdpStreamService.startServiceCompat(context)
-            Log.i(TAG, "MainActivity и сервис активированы по внешнему запросу cluster focus: action=$action")
+            Timber.tag(TAG).i("MainActivity и сервис активированы по внешнему запросу cluster focus: action=$action")
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось активировать приложение по внешнему запросу cluster focus: action=$action", t)
+            Timber.tag(TAG).w(t, "Не удалось активировать приложение по внешнему запросу cluster focus: action=$action")
         }
     }
 
     private fun handleAbandonFocus(action: String) {
-        Log.i(TAG, "Получен внешний запрос abandon focus: action=$action")
+        Timber.tag(TAG).i("Получен внешний запрос abandon focus: action=$action")
     }
 
     private companion object {

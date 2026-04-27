@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
+import timber.log.Timber
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 
@@ -53,7 +53,7 @@ internal class MainAccessPreflight(
                                 data = Uri.parse("package:${activity.packageName}")
                             })
                         }.onFailure { error ->
-                            Log.w(TAG, "Не удалось открыть настройки уведомлений приложения", error)
+                            Timber.tag(TAG).w(error, "Не удалось открыть настройки уведомлений приложения")
                             showNotice(activity.getString(R.string.main_notifications_missing_settings_message), true)
                         }
                     }
@@ -170,7 +170,7 @@ internal class MainAccessPreflight(
         }.recoverCatching {
             activity.startActivity(StorageAccessManager.buildManageAllFilesAccessFallbackIntent())
         }.onFailure { error ->
-            Log.w(TAG, "Не удалось открыть настройки доступа ко всем файлам", error)
+            Timber.tag(TAG).w(error, "Не удалось открыть настройки доступа ко всем файлам")
             showNotice(activity.getString(R.string.main_open_files_settings_failed), true)
         }
     }
@@ -181,7 +181,7 @@ internal class MainAccessPreflight(
         }.recoverCatching {
             activity.startActivity(BatteryOptimizationManager.buildBatteryOptimizationSettingsIntent())
         }.onFailure { error ->
-            Log.w(TAG, "Не удалось открыть настройки энергосбережения", error)
+            Timber.tag(TAG).w(error, "Не удалось открыть настройки энергосбережения")
             showNotice(activity.getString(R.string.main_open_battery_settings_failed), true)
         }
     }
@@ -200,7 +200,7 @@ internal class MainAccessPreflight(
                 data = Uri.parse("package:${activity.packageName}")
             })
         }.onFailure { error ->
-            Log.w(TAG, "Не удалось открыть настройки exact alarm", error)
+            Timber.tag(TAG).w(error, "Не удалось открыть настройки exact alarm")
         }
         return true
     }

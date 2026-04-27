@@ -1,7 +1,7 @@
 package ru.foric27.cluster
 
 import android.content.Context
-import android.util.Log
+import timber.log.Timber
 
 internal class UdpServiceAlerts(
     private val context: Context,
@@ -39,14 +39,12 @@ internal class UdpServiceAlerts(
 
     fun logRouteVerdict(stage: String, result: RootNetUtil.RouteCheckResult) {
         if (result.ok) {
-            Log.i(tag, "Проверка маршрута ($stage): ${result.summary()}")
+            Timber.tag(tag).i("Проверка маршрута ($stage): ${result.summary()}")
             return
         }
 
         val output = result.output.replace('\n', ' ').trim()
-        Log.w(
-            tag,
-            "Проверка маршрута ($stage): ${result.summary()}, devOk=${result.devOk}, srcOk=${result.srcOk}, rootRequired=${result.rootRequired}, output=$output",
+        Timber.tag(tag).w("Проверка маршрута ($stage): ${result.summary()}, devOk=${result.devOk}, srcOk=${result.srcOk}, rootRequired=${result.rootRequired}, output=$output",
         )
     }
 }

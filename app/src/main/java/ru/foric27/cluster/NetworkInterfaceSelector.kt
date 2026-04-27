@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 import java.io.File
 import java.net.NetworkInterface
 import java.util.TreeSet
@@ -67,7 +67,7 @@ object NetworkInterfaceSelector {
     }
 
     fun logSelection(tag: String, prefix: String, selection: Selection) {
-        Log.i(tag, "$prefix: ${selection.summary()}")
+        Timber.tag(tag).i("$prefix: ${selection.summary()}")
     }
 
     private fun discoverInterfaces(): List<String> {
@@ -83,7 +83,7 @@ object NetworkInterfaceSelector {
                 }
             }
         }.onFailure {
-            Log.w(TAG, "Не удалось получить список интерфейсов через NetworkInterface", it)
+            Timber.tag(TAG).w(it, "Не удалось получить список интерфейсов через NetworkInterface")
         }
 
         runCatching {
@@ -100,9 +100,9 @@ object NetworkInterfaceSelector {
     private fun logDiscoveryFailure(source: String, error: Throwable) {
         val message = error.message.orEmpty()
         if (message.contains("EACCES", ignoreCase = true) || message.contains("Permission denied", ignoreCase = true)) {
-            Log.i(TAG, "Доступ к $source ограничен на этом устройстве")
+            Timber.tag(TAG).i("Доступ к $source ограничен на этом устройстве")
             return
         }
-        Log.w(TAG, "Не удалось получить список интерфейсов через $source", error)
+        Timber.tag(TAG).w(error, "Не удалось получить список интерфейсов через $source")
     }
 }

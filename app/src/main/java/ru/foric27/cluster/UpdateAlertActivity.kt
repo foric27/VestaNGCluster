@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.app.Activity
 import android.os.Bundle
-import android.util.Log
+import timber.log.Timber
 import android.app.AlertDialog
 
 /**
@@ -46,12 +46,12 @@ internal class UpdateAlertActivity : Activity() {
                 val result = UpdateServerManager.prepareAndStartServer(applicationContext, policy)
                 if (result.success) {
                     val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
-                    Log.i(TAG, "FTP обновлён после подтверждения пользователя: $address")
+                    Timber.tag(TAG).i("FTP обновлён после подтверждения пользователя: $address")
                 } else {
-                    Log.w(TAG, "Не удалось обновить FTP после подтверждения: ${result.message}")
+                    Timber.tag(TAG).w("Не удалось обновить FTP после подтверждения: ${result.message}")
                 }
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка при обновлении FTP из диалога", t)
+                Timber.tag(TAG).e(t, "Ошибка при обновлении FTP из диалога")
             }
         }.apply { isDaemon = true }.start()
     }

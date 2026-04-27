@@ -3,7 +3,7 @@ package ru.foric27.cluster
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
+import timber.log.Timber
 import java.security.MessageDigest
 
 /**
@@ -31,10 +31,10 @@ internal object SignatureVerifier {
         val expected = ProductConfig.Security.EXPECTED_SIGNATURE_SHA256
         val actual = getCurrentSignatureSha256(context)
 
-        Log.i(TAG, "Подпись APK: actual=$actual, expected=$expected")
+        Timber.tag(TAG).i("Подпись APK: actual=$actual, expected=$expected")
 
         if (expected.isBlank()) {
-            Log.w(TAG, "Ожидаемая подпись не задана — проверка пропущена (debug-режим)")
+            Timber.tag(TAG).w("Ожидаемая подпись не задана — проверка пропущена (debug-режим)")
             return VerificationResult(valid = true, actualSha256 = actual, expectedSha256 = expected)
         }
 
@@ -71,7 +71,7 @@ internal object SignatureVerifier {
             val hashBytes = digest.digest(firstSignature.toByteArray())
             hashBytes.joinToString("") { "%02x".format(it) }
         } catch (t: Throwable) {
-            Log.e(TAG, "Не удалось получить подпись APK", t)
+            Timber.tag(TAG).e(t, "Не удалось получить подпись APK")
             ""
         }
     }

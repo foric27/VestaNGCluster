@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 
 internal class UdpPipelineStartCoordinator(
     private val tag: String,
@@ -68,10 +68,10 @@ internal class UdpPipelineStartCoordinator(
             cancelPendingRestart()
             cancelRecovery()
             updateNotification()
-            Log.i(tag, "Активен режим бортового компьютера: видеотрансляция отключена")
+            Timber.tag(tag).i("Активен режим бортового компьютера: видеотрансляция отключена")
         } catch (t: Throwable) {
             setStartInProgress(false)
-            Log.e(tag, "Ошибка запуска status-only режима бортового компьютера", t)
+            Timber.tag(tag).e(t, "Ошибка запуска status-only режима бортового компьютера")
             scheduleRestart("trip_mode_start", t)
         }
     }
@@ -102,14 +102,14 @@ internal class UdpPipelineStartCoordinator(
             updateNotification()
             replayRootWarningIfPresent()
             if (restartLog) {
-                Log.i(tag, "Перезапуск выполнен успешно")
+                Timber.tag(tag).i("Перезапуск выполнен успешно")
             } else {
-                Log.i(tag, "Стрим успешно запущен: $hostValue:$port")
+                Timber.tag(tag).i("Стрим успешно запущен: $hostValue:$port")
             }
         } catch (t: Throwable) {
             setStartInProgress(false)
             setStreamActive(false)
-            Log.e(tag, "Ошибка запуска кодера", t)
+            Timber.tag(tag).e(t, "Ошибка запуска кодера")
             closeSenderQuietly(localSender)
             clearSenderIfCurrent(localSender)
             stopEncoderQuietly()

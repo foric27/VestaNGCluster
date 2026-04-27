@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 import com.topjohnwu.superuser.Shell
 import java.io.IOException
 import java.util.Locale
@@ -46,7 +46,7 @@ internal class NetworkRootShell {
                     if (shouldRetry(shell, result.code, failure) && attemptIndex + 1 < MAX_ATTEMPTS) {
                         lastFailure = failure
                         discardShellLocked()
-                        Log.w(TAG, "libsu shell умер во время network script, пересоздаю и повторяю попытку")
+                        Timber.tag(TAG).w("libsu shell умер во время network script, пересоздаю и повторяю попытку")
                         return@repeat
                     }
                     return Result.failure(failure)
@@ -56,7 +56,7 @@ internal class NetworkRootShell {
                     if (attemptIndex + 1 >= MAX_ATTEMPTS) {
                         return Result.failure(t)
                     }
-                    Log.w(TAG, "Ошибка network shell, пересоздаю persistent shell", t)
+                    Timber.tag(TAG).w(t, "Ошибка network shell, пересоздаю persistent shell")
                 }
             }
             return Result.failure(lastFailure ?: IllegalStateException("Не удалось выполнить network script"))
@@ -110,7 +110,7 @@ internal class NetworkRootShell {
             shell = null
         }
         runCatching { candidate?.close() }
-            .onFailure { Log.w(TAG, "Не удалось закрыть libsu shell", it) }
+            .onFailure { Timber.tag(TAG).w(it, "Не удалось закрыть libsu shell") }
     }
 
     private fun normalizeCommands(commands: List<String>): List<String> {

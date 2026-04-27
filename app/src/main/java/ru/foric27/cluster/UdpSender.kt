@@ -1,6 +1,6 @@
 package ru.foric27.cluster
 
-import android.util.Log
+import timber.log.Timber
 import java.io.IOException
 import java.net.BindException
 import java.net.DatagramPacket
@@ -58,10 +58,10 @@ internal class UdpSender(
         socket = if (bindIp != null) {
             try {
                 DatagramSocket(InetSocketAddress(InetAddress.getByName(bindIp), 0)).also {
-                    Log.i(TAG, "UDP-сокет привязан к локальному адресу $bindIp")
+                    Timber.tag(TAG).i("UDP-сокет привязан к локальному адресу $bindIp")
                 }
             } catch (be: BindException) {
-                Log.w(TAG, "Не удалось привязать UDP-сокет к $bindIp (${be.message}), использую bind 0.0.0.0")
+                Timber.tag(TAG).w("Не удалось привязать UDP-сокет к $bindIp (${be.message}), использую bind 0.0.0.0")
                 DatagramSocket()
             }
         } else {
@@ -75,7 +75,7 @@ internal class UdpSender(
         }
 
         resetPacing()
-        Log.i(TAG, "UDP-сокет создан для $host:$port, payload=$safePayloadBytes, pacingMax=${safePacingMaxBps}бит/с")
+        Timber.tag(TAG).i("UDP-сокет создан для $host:$port, payload=$safePayloadBytes, pacingMax=${safePacingMaxBps}бит/с")
     }
 
     @Synchronized
@@ -134,7 +134,7 @@ internal class UdpSender(
             true
         } catch (t: Throwable) {
             sendErrors.incrementAndGet()
-            Log.w(TAG, "Проверочная отправка UDP не удалась", t)
+            Timber.tag(TAG).w(t, "Проверочная отправка UDP не удалась")
             false
         }
     }
@@ -144,9 +144,9 @@ internal class UdpSender(
         try {
             socket?.close()
             createSocket()
-            Log.i(TAG, "UDP-сокет перезапущен")
+            Timber.tag(TAG).i("UDP-сокет перезапущен")
         } catch (e: IOException) {
-            Log.e(TAG, "Не удалось перезапустить UDP-сокет", e)
+            Timber.tag(TAG).e(e, "Не удалось перезапустить UDP-сокет")
         }
     }
 

@@ -2,7 +2,7 @@ package ru.foric27.cluster
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import timber.log.Timber
 import androidx.annotation.StringRes
 import java.util.concurrent.atomic.AtomicReference
 
@@ -71,7 +71,7 @@ internal object UpdateServerManager {
             setState(State(Status.PREPARING, buildPreparingMessage(searchPolicy), detectedLocation = lastDetectedLocation, sourceFilePath = lastDetectedFilePath))
 
             if (!StorageAccessManager.isAllFilesAccessGranted()) {
-                Log.w(TAG, "Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен")
+                Timber.tag(TAG).w("Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен")
                 serverToStop = stopServerLocked(clearPrepared = true)
                 return@synchronized buildFailResult(
                     message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
@@ -95,16 +95,14 @@ internal object UpdateServerManager {
 
                 if (isSamePreparedUpdateLocked(validatedPair)) {
                     if (previousState.status == Status.RUNNING) {
-                        Log.i(TAG, "Повторный запуск FTP не требуется: уже активен тот же пакет обновления")
+                        Timber.tag(TAG).i("Повторный запуск FTP не требуется: уже активен тот же пакет обновления")
                         setState(previousState)
                         return@synchronized resultFromState(previousState)
                     }
                 }
 
                 if (runningServer != null && previousState.status == Status.RUNNING) {
-                    Log.i(
-                        TAG,
-                        "FTP уже активен; откладываю переключение источника обновления, чтобы не сбить рабочий listener",
+                    Timber.tag(TAG).i("FTP уже активен; откладываю переключение источника обновления, чтобы не сбить рабочий listener",
                     )
                     setState(previousState)
                     return@synchronized resultFromState(previousState)
@@ -113,7 +111,7 @@ internal object UpdateServerManager {
                 serverToStop = stopServerLocked(clearPrepared = true)
                 startValidatedPairLocked(context, searchPolicy, validatedPair)
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка запуска FTP-сервера обновления", t)
+                Timber.tag(TAG).e(t, "Ошибка запуска FTP-сервера обновления")
                 val retrySuggested = isTransientFtpStartError(t)
                 serverToStop = stopServerLocked(clearPrepared = true)
                 buildFailResult(
@@ -216,22 +214,18 @@ internal object UpdateServerManager {
 
                 val current = currentState.get()
                 if (runningServer != null && current.status == Status.RUNNING) {
-                    Log.i(
-                        TAG,
-                        "Опрос нашёл другой источник обновления, но FTP уже активен; сохраняю текущий listener",
+                    Timber.tag(TAG).i("Опрос нашёл другой источник обновления, но FTP уже активен; сохраняю текущий listener",
                     )
                     setState(current)
                     return@synchronized resultFromState(current)
                 }
 
-                Log.i(
-                    TAG,
-                    str(R.string.update_server_poll_new_update_fmt, validatedPair.pair.directoryLabel),
+                Timber.tag(TAG).i(str(R.string.update_server_poll_new_update_fmt, validatedPair.pair.directoryLabel),
                 )
                 serverToStop = stopServerLocked(clearPrepared = true)
                 startValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка периодического опроса обновления во внутренней памяти", t)
+                Timber.tag(TAG).e(t, "Ошибка периодического опроса обновления во внутренней памяти")
                 val retrySuggested = isTransientFtpStartError(t)
                 serverToStop = stopServerLocked(clearPrepared = true)
                 buildFailResult(
@@ -259,7 +253,7 @@ internal object UpdateServerManager {
     ): Result {
         lastSearchPolicy = searchPolicy
 
-        Log.i(TAG, "Проверка SHA-256 успешна: ${validatedPair.verification.actualSha256}")
+        Timber.tag(TAG).i("Проверка SHA-256 успешна: ${validatedPair.verification.actualSha256}")
         val prepared = repository.prepare(context, validatedPair.pair, validatedPair.verification.actualSha256)
         val server = startFtpServerWithCleanup(FtpServerConfig.fromProject(), prepared.rootDir)
 
@@ -277,7 +271,7 @@ internal object UpdateServerManager {
             server.boundAddress.port,
             sourceText,
         )
-        Log.i(TAG, message)
+        Timber.tag(TAG).i(message)
         val successState = State(
             status = Status.RUNNING,
             message = message,
@@ -308,15 +302,15 @@ internal object UpdateServerManager {
             try {
                 server.ftpServer.start()
                 if (attemptIndex > 0) {
-                    Log.i(TAG, "FTP-сервер запущен после повторной очистки порта")
+                    Timber.tag(TAG).i("FTP-сервер запущен после повторной очистки порта")
                 }
                 return server
             } catch (t: Throwable) {
                 if (firstFailure == null) firstFailure = t
                 runCatching { server.ftpServer.stop() }
-                    .onFailure { stopError -> Log.w(TAG, "Не удалось закрыть FTP-сервер после ошибки старта", stopError) }
+                    .onFailure { stopError -> Timber.tag(TAG).w(stopError, "Не удалось закрыть FTP-сервер после ошибки старта") }
                 if (attemptIndex + 1 < FTP_START_ATTEMPTS && isTransientFtpStartError(t)) {
-                    Log.w(TAG, "Повторяю запуск FTP после очистки частично открытого listener", t)
+                    Timber.tag(TAG).w(t, "Повторяю запуск FTP после очистки частично открытого listener")
                     Thread.sleep(FTP_START_RETRY_DELAY_MS)
                 } else {
                     throw t
@@ -344,7 +338,7 @@ internal object UpdateServerManager {
     ): CandidateSearchResult {
         val candidates = locator.findCandidates(context, searchPolicy)
         if (candidates.isEmpty()) {
-            Log.w(TAG, "Кандидаты обновления не найдены")
+            Timber.tag(TAG).w("Кандидаты обновления не найдены")
             lastDetectedLocation = null
             lastDetectedFilePath = null
             return CandidateSearchResult(validatedPair = null, rejectionMessages = emptyList(), detectedLocation = null, sourceFilePath = null)
@@ -354,14 +348,12 @@ internal object UpdateServerManager {
         lastDetectedLocation = candidates.firstOrNull()?.directoryLabel
         lastDetectedFilePath = candidates.firstOrNull()?.zipFile?.debugPath
         candidates.forEach { candidate ->
-            Log.i(
-                TAG,
-                "Проверяю кандидата: источник=${candidate.sourceKind.displayName}, каталог=${candidate.directoryLabel}, zip=${candidate.zipFile.debugPath}, sig=${candidate.sigFile.debugPath}",
+            Timber.tag(TAG).i("Проверяю кандидата: источник=${candidate.sourceKind.displayName}, каталог=${candidate.directoryLabel}, zip=${candidate.zipFile.debugPath}, sig=${candidate.sigFile.debugPath}",
             )
             val verification = verifier.verify(context, candidate.zipFile, candidate.sigFile)
             if (verification.valid) {
-                Log.i(TAG, "Выбран источник ${candidate.sourceKind.displayName}: ${candidate.directoryLabel}")
-                Log.i(TAG, "SHA-256 совпал: ${verification.actualSha256}")
+                Timber.tag(TAG).i("Выбран источник ${candidate.sourceKind.displayName}: ${candidate.directoryLabel}")
+                Timber.tag(TAG).i("SHA-256 совпал: ${verification.actualSha256}")
                 return CandidateSearchResult(
                     validatedPair = ValidatedPair(candidate, verification),
                     rejectionMessages = rejectionMessages,
@@ -371,7 +363,7 @@ internal object UpdateServerManager {
             }
             val rejectionMessage = buildRejectionMessage(candidate, verification)
             rejectionMessages += rejectionMessage
-            Log.w(TAG, rejectionMessage)
+            Timber.tag(TAG).w(rejectionMessage)
         }
         return CandidateSearchResult(
             validatedPair = null,
@@ -444,11 +436,11 @@ internal object UpdateServerManager {
     private fun performStop(server: EmbeddedFtpServerFactory.RunningServer) {
         try {
             server.ftpServer.stop()
-            Log.i(TAG, "FTP-сервер остановлен")
+            Timber.tag(TAG).i("FTP-сервер остановлен")
         } catch (_: UnsupportedOperationException) {
-            Log.i(TAG, "FTP-сервер завершился с известной ошибкой dispose; очищаю состояние без повторного шума")
+            Timber.tag(TAG).i("FTP-сервер завершился с известной ошибкой dispose; очищаю состояние без повторного шума")
         } catch (t: Throwable) {
-            Log.w(TAG, "Ошибка остановки FTP-сервера", t)
+            Timber.tag(TAG).w(t, "Ошибка остановки FTP-сервера")
         }
     }
 
@@ -506,7 +498,7 @@ internal object UpdateServerManager {
                     Intent(ACTION_UPDATE_SERVER_STATE_CHANGED).setPackage(context.packageName),
                 )
             }.onFailure { error ->
-                Log.w(TAG, "Не удалось отправить состояние FTP в UI", error)
+                Timber.tag(TAG).w(error, "Не удалось отправить состояние FTP в UI")
             }
         }
     }

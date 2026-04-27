@@ -2,7 +2,7 @@ package ru.foric27.cluster
 
 import android.content.Context
 import android.os.Handler
-import android.util.Log
+import timber.log.Timber
 
 internal class UdpUpdateServerCoordinator(
     private val context: Context,
@@ -31,13 +31,13 @@ internal class UdpUpdateServerCoordinator(
             )
         } ?: return
         if (result.success) {
-            Log.i(TAG, "FTP обновление активно: ${result.boundAddress?.host}:${result.boundAddress?.port}")
+            Timber.tag(TAG).i("FTP обновление активно: ${result.boundAddress?.host}:${result.boundAddress?.port}")
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Log.w(TAG, "FTP обновление не запущено: ${result.message}")
+        Timber.tag(TAG).w("FTP обновление не запущено: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
         scheduleFtpRetry("startup")
     }
@@ -48,13 +48,13 @@ internal class UdpUpdateServerCoordinator(
         } ?: return
         if (result.success) {
             val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
-            Log.i(TAG, "FTP перезапущен: $address")
+            Timber.tag(TAG).i("FTP перезапущен: $address")
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Log.w(TAG, "FTP после перезапуска не поднят: ${result.message}")
+        Timber.tag(TAG).w("FTP после перезапуска не поднят: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
         scheduleFtpRetry("restart")
     }
@@ -68,13 +68,13 @@ internal class UdpUpdateServerCoordinator(
         } ?: return
         if (result.success) {
             val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
-            Log.i(TAG, "FTP обновлён по USB-aware пути: $address")
+            Timber.tag(TAG).i("FTP обновлён по USB-aware пути: $address")
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Log.w(TAG, "USB-aware обновление FTP не запустило сервер: ${result.message}")
+        Timber.tag(TAG).w("USB-aware обновление FTP не запустило сервер: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
         scheduleFtpRetry("usb_refresh")
     }
@@ -89,13 +89,13 @@ internal class UdpUpdateServerCoordinator(
         } ?: return
         if (result.success) {
             val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
-            Log.i(TAG, "FTP обновлён после извлечения USB: $address")
+            Timber.tag(TAG).i("FTP обновлён после извлечения USB: $address")
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Log.i(TAG, "После извлечения USB валидный update не найден: ${result.message}")
+        Timber.tag(TAG).i("После извлечения USB валидный update не найден: ${result.message}")
         cancelFtpRetry()
     }
 
@@ -128,7 +128,7 @@ internal class UdpUpdateServerCoordinator(
     private fun scheduleFtpRetry(reason: String) {
         if (ftpRetryScheduled) return
         ftpRetryScheduled = true
-        Log.i(TAG, "Повторный запуск FTP запланирован через ${RuntimeConfig.UpdateFtp.RETRY_DELAY_MS}мс, reason=$reason")
+        Timber.tag(TAG).i("Повторный запуск FTP запланирован через ${RuntimeConfig.UpdateFtp.RETRY_DELAY_MS}мс, reason=$reason")
         mainHandler.removeCallbacks(ftpRetryRunnable)
         mainHandler.postDelayed(ftpRetryRunnable, RuntimeConfig.UpdateFtp.RETRY_DELAY_MS)
     }
@@ -155,10 +155,10 @@ internal class UdpUpdateServerCoordinator(
                     lastFtpRetryReport = report
                     if (result.success) {
                         val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
-                        Log.i(TAG, "FTP успешно поднят повторно: $address")
+                        Timber.tag(TAG).i("FTP успешно поднят повторно: $address")
                         publishWarning(context.getString(R.string.service_notification_ftp_restarted_fmt, address))
                     } else {
-                        Log.w(TAG, "Повторный запуск FTP не удался: ${result.message}")
+                        Timber.tag(TAG).w("Повторный запуск FTP не удался: ${result.message}")
                     }
                 }
 
@@ -168,7 +168,7 @@ internal class UdpUpdateServerCoordinator(
                     scheduleFtpRetry("ftp_retry")
                 }
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка повторного запуска FTP", t)
+                Timber.tag(TAG).e(t, "Ошибка повторного запуска FTP")
                 scheduleFtpRetry("ftp_retry_exception")
             }
         }
@@ -189,7 +189,7 @@ internal class UdpUpdateServerCoordinator(
                 if (report != lastInternalUpdatePollReport) {
                     lastInternalUpdatePollReport = report
                     if (!result.success) {
-                        Log.w(TAG, "Периодический опрос обновления: ${result.message}")
+                        Timber.tag(TAG).w("Периодический опрос обновления: ${result.message}")
                     }
                 }
                 if (result.success) {
@@ -199,7 +199,7 @@ internal class UdpUpdateServerCoordinator(
                     scheduleFtpRetry("internal_poll")
                 }
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка периодического опроса обновления", t)
+                Timber.tag(TAG).e(t, "Ошибка периодического опроса обновления")
             } finally {
                 if (isServiceRunning()) {
                     scheduleInternalUpdatePoll()
@@ -215,12 +215,12 @@ internal class UdpUpdateServerCoordinator(
 
         val now = System.currentTimeMillis()
         if (now - lastAlertShownTime < ALERT_THROTTLE_MS) {
-            Log.i(TAG, "Новое обновление обнаружено, но диалог недавно показывался; пропускаю")
+            Timber.tag(TAG).i("Новое обновление обнаружено, но диалог недавно показывался; пропускаю")
             return
         }
 
         val location = result.sourceFilePath ?: result.detectedLocation ?: fileInfo.path
-        Log.i(TAG, "Новое обновление обнаружено: $location, показываю диалог")
+        Timber.tag(TAG).i("Новое обновление обнаружено: $location, показываю диалог")
         try {
             val intent = UpdateAlertActivity.createIntent(
                 context,
@@ -231,7 +231,7 @@ internal class UdpUpdateServerCoordinator(
             lastKnownUpdateSha256 = currentSha256
             lastAlertShownTime = now
         } catch (t: Throwable) {
-            Log.e(TAG, "Не удалось показать диалог обновления", t)
+            Timber.tag(TAG).e(t, "Не удалось показать диалог обновления")
         }
     }
 
@@ -241,7 +241,7 @@ internal class UdpUpdateServerCoordinator(
     ): UpdateServerManager.Result? {
         synchronized(this) {
             if (ftpOperationInProgress) {
-                Log.i(TAG, "Пропускаю FTP $reason: предыдущая операция ещё выполняется")
+                Timber.tag(TAG).i("Пропускаю FTP $reason: предыдущая операция ещё выполняется")
                 return null
             }
             ftpOperationInProgress = true

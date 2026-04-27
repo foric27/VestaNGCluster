@@ -3,7 +3,7 @@ package ru.foric27.cluster
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.util.Log
+import timber.log.Timber
 import android.view.Surface
 
 /**
@@ -40,7 +40,7 @@ object PersistentVirtualDisplay {
                 existing.setSurface(surface)
                 return existing
             } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось переиспользовать VirtualDisplay, пересоздаю", t)
+                Timber.tag(TAG).w(t, "Не удалось переиспользовать VirtualDisplay, пересоздаю")
                 releaseLocked(clearState = false)
             }
         }
@@ -62,7 +62,7 @@ object PersistentVirtualDisplay {
         this.width = width
         this.height = height
         this.dpi = dpi
-        Log.i(TAG, "Создан новый VirtualDisplay ${width}x${height}@${dpi}")
+        Timber.tag(TAG).i("Создан новый VirtualDisplay ${width}x${height}@${dpi}")
         return created
     }
 
@@ -71,7 +71,7 @@ object PersistentVirtualDisplay {
         try {
             virtualDisplay?.setSurface(null)
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось отсоединить Surface от VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось отсоединить Surface от VirtualDisplay")
         }
     }
 
@@ -85,12 +85,12 @@ object PersistentVirtualDisplay {
         try {
             virtualDisplay?.setSurface(null)
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось очистить Surface у VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось очистить Surface у VirtualDisplay")
         }
         try {
             virtualDisplay?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось освободить VirtualDisplay")
         }
         virtualDisplay = null
         width = 0

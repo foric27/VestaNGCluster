@@ -6,7 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,7 +26,7 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 handleAction(appContext, action, intent)
             } catch (t: Throwable) {
-                Log.w(TAG, "$action: не удалось обработать broadcast", t)
+                Timber.tag(TAG).w(t, "$action: не удалось обработать broadcast")
             } finally {
                 pendingResult.finish()
             }
@@ -53,32 +53,32 @@ class BootReceiver : BroadcastReceiver() {
         logMissingPrerequisites(context, action)
         try {
             UdpStreamService.startServiceCompat(context)
-            Log.i(TAG, "$action: foreground-сервис запущен")
+            Timber.tag(TAG).i("$action: foreground-сервис запущен")
         } catch (t: Throwable) {
             if (isForegroundStartRestricted(t)) {
-                Log.i(TAG, "$action: прямой foreground-старт сейчас запрещён, планирую мягкое восстановление")
+                Timber.tag(TAG).i("$action: прямой foreground-старт сейчас запрещён, планирую мягкое восстановление")
                 scheduleDeferredRecovery(context, action)
                 return
             }
-            Log.w(TAG, "$action: не удалось запустить foreground-сервис", t)
+            Timber.tag(TAG).w(t, "$action: не удалось запустить foreground-сервис")
         }
         try {
             context.startActivity(
                 MainActivity.createLaunchIntent(context, keepInForeground = false)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
-            Log.i(TAG, "$action: UI поднят, будет свёрнут если разрешения уже выданы")
+            Timber.tag(TAG).i("$action: UI поднят, будет свёрнут если разрешения уже выданы")
         } catch (t: Throwable) {
-            Log.w(TAG, "$action: не удалось поднять UI (возможно, экран заблокирован)", t)
+            Timber.tag(TAG).w(t, "$action: не удалось поднять UI (возможно, экран заблокирован)")
         }
     }
 
     private fun logMissingPrerequisites(context: Context, action: String) {
         if (!StorageAccessManager.isAllFilesAccessGranted()) {
-            Log.w(TAG, "$action: нет MANAGE_EXTERNAL_STORAGE, FTP и update-path будут ограничены")
+            Timber.tag(TAG).w("$action: нет MANAGE_EXTERNAL_STORAGE, FTP и update-path будут ограничены")
         }
         if (!BatteryOptimizationManager.isIgnoringOptimizations(context)) {
-            Log.w(TAG, "$action: приложение не выведено из энергосбережения, автоподъём после сна может быть нестабилен")
+            Timber.tag(TAG).w("$action: приложение не выведено из энергосбережения, автоподъём после сна может быть нестабилен")
         }
     }
 
@@ -97,9 +97,9 @@ class BootReceiver : BroadcastReceiver() {
             } else {
                 alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             }
-            Log.i(TAG, "$action: отложенное восстановление приложения запланировано через ${RECOVERY_DELAY_MS}мс")
+            Timber.tag(TAG).i("$action: отложенное восстановление приложения запланировано через ${RECOVERY_DELAY_MS}мс")
         } catch (t: Throwable) {
-            Log.w(TAG, "$action: не удалось запланировать отложенное восстановление", t)
+            Timber.tag(TAG).w(t, "$action: не удалось запланировать отложенное восстановление")
         }
     }
 
@@ -118,7 +118,7 @@ class BootReceiver : BroadcastReceiver() {
         val path = intent?.data?.path.orEmpty()
         if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
             if (path.isNotBlank()) {
-                Log.i(TAG, "$action: пропускаю не-USB носитель: $path")
+                Timber.tag(TAG).i("$action: пропускаю не-USB носитель: $path")
             }
             return
         }
@@ -128,9 +128,7 @@ class BootReceiver : BroadcastReceiver() {
         } else {
             UdpStreamService.refreshUsbFtpCompat(context)
         }
-        Log.i(
-            TAG,
-            if (removed) {
+        Timber.tag(TAG).i(if (removed) {
                 "$action: запрошено обновление FTP после извлечения USB: $path"
             } else {
                 "$action: запрошено обновление FTP после подключения USB: $path"

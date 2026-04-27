@@ -2,7 +2,7 @@ package ru.foric27.cluster
 
 import android.os.Process
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -71,9 +71,7 @@ internal class UdpTransportStatsCoordinator(
                     -1L
                 }
 
-                Log.i(
-                    tag,
-                    String.format(
+                Timber.tag(tag).i(String.format(
                         Locale.US,
                         "UDP stats | dst=%s:%d | video: +%d frames, +%d packets, +%d bytes, %.3f Mbps | probes: +%d packets, +%d bytes | status: +%d packets, +%d bytes, %.2f kbps | errors:+%d | lastSendAgo=%dms",
                         snapshot.host,

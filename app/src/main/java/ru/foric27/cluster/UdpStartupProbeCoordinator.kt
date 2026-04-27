@@ -1,7 +1,7 @@
 package ru.foric27.cluster
 
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 
 internal class UdpStartupProbeCoordinator(
     private val tag: String,
@@ -29,7 +29,7 @@ internal class UdpStartupProbeCoordinator(
             val probeOk = try {
                 sender.probe()
             } catch (t: Throwable) {
-                Log.w(tag, "Исключение при проверке UDP", t)
+                Timber.tag(tag).w(t, "Исключение при проверке UDP")
                 false
             }
 
@@ -44,7 +44,7 @@ internal class UdpStartupProbeCoordinator(
 
             if (waitedMs - lastLoggedWaitMs >= 1_000L) {
                 lastLoggedWaitMs = waitedMs
-                Log.i(tag, "Ожидание готовности UDP: dst=$dstHost probeOk=$probeOk waited=${waitedMs}ms")
+                Timber.tag(tag).i("Ожидание готовности UDP: dst=$dstHost probeOk=$probeOk waited=${waitedMs}ms")
             }
 
             try {
@@ -65,7 +65,7 @@ internal class UdpStartupProbeCoordinator(
         setStartInProgress(false)
         val backoffMs = increaseRestartBackoff(noRouteRestartBackoffMinMs)
         logPipelineSnapshot("Маршрут не готов для $hostValue")
-        Log.w(tag, "Маршрут до $hostValue не готов; повторю позже. backoff=${backoffMs}ms")
+        Timber.tag(tag).w("Маршрут до $hostValue не готов; повторю позже. backoff=${backoffMs}ms")
         notifyNoRoute(hostValue, backoffMs)
         scheduleRestart("net_wait", null)
     }

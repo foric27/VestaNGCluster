@@ -3,8 +3,8 @@ package ru.foric27.cluster
 import android.content.Context
 import android.content.res.Resources
 import android.provider.Settings
-import android.util.Log
 import androidx.core.os.ConfigurationCompat
+import timber.log.Timber
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -79,7 +79,7 @@ internal class SyncHandler(
             data.lang = getLocalLang()
         }
         if (periodic || timeChanged || langChanged) {
-            Log.v(TAG, "Сформирован пакет sync: periodic=$periodic timeChanged=$timeChanged langChanged=$langChanged")
+            Timber.tag(TAG).v("Сформирован пакет sync: periodic=$periodic timeChanged=$timeChanged langChanged=$langChanged")
         }
         timeChanged = false
         langChanged = false
@@ -99,20 +99,20 @@ internal class SyncHandler(
                 } catch (_: StreamModeException) {
                     if (!warnedBadStreamModeValue) {
                         warnedBadStreamModeValue = true
-                        Log.w(TAG, context.getString(R.string.sync_invalid_stream_mode_value_fmt, STREAM_MODE_PARAM, raw))
+                        Timber.tag(TAG).w(context.getString(R.string.sync_invalid_stream_mode_value_fmt, STREAM_MODE_PARAM, raw))
                     }
                     ClusterMode.CLASSIC_NAV.streamModeValue
                 }
             } catch (_: Settings.SettingNotFoundException) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
-                    Log.w(TAG, context.getString(R.string.sync_missing_stream_mode_setting_fmt, STREAM_MODE_PARAM))
+                    Timber.tag(TAG).w(context.getString(R.string.sync_missing_stream_mode_setting_fmt, STREAM_MODE_PARAM))
                 }
                 ClusterMode.CLASSIC_NAV.streamModeValue
             } catch (inner: Throwable) {
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
-                    Log.w(TAG, context.getString(R.string.sync_read_stream_mode_failed_fmt, STREAM_MODE_PARAM), inner)
+                    Timber.tag(TAG).w(inner, context.getString(R.string.sync_read_stream_mode_failed_fmt, STREAM_MODE_PARAM))
                 }
                 ClusterMode.CLASSIC_NAV.streamModeValue
             }

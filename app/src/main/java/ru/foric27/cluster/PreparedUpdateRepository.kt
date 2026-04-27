@@ -1,7 +1,7 @@
 package ru.foric27.cluster
 
 import android.content.Context
-import android.util.Log
+import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 
@@ -80,7 +80,7 @@ internal class PreparedUpdateRepository {
         source: UpdateFileLocator.UpdateSourceFile,
         destination: File,
     ) {
-        Log.i(TAG, "Копирую ${source.debugPath} -> ${destination.absolutePath}")
+        Timber.tag(TAG).i("Копирую ${source.debugPath} -> ${destination.absolutePath}")
         source.openInputStream(context).use { input ->
             FileOutputStream(destination).use { output ->
                 input.copyTo(output)

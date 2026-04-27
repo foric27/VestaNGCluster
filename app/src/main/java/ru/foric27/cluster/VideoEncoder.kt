@@ -16,7 +16,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import android.view.Surface
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -81,7 +81,7 @@ internal class VideoEncoder(
         try {
             val handlerThread = HandlerThread("ClusterCodec", Process.THREAD_PRIORITY_URGENT_DISPLAY)
             handlerThread.start()
-            Log.i(TAG, "Приоритет потока кодека повышен: ClusterCodec -> ${Process.THREAD_PRIORITY_URGENT_DISPLAY}")
+            Timber.tag(TAG).i("Приоритет потока кодека повышен: ClusterCodec -> ${Process.THREAD_PRIORITY_URGENT_DISPLAY}")
             codecThread = handlerThread
             codecHandler = Handler(handlerThread.looper)
 
@@ -116,9 +116,7 @@ internal class VideoEncoder(
             mediaCodec.start()
             applyConfiguredBitrate()
 
-            Log.i(
-                TAG,
-                "Профиль захвата: ${RuntimeConfig.Video.SIZE_SHORT}@${dpi}, ${if (streamConfig.dynamicFps) "dynamicFps<=" else "constantFps="}${streamConfig.fps}, bitrate=${streamConfig.bitrate}bps, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
+            Timber.tag(TAG).i("Профиль захвата: ${RuntimeConfig.Video.SIZE_SHORT}@${dpi}, ${if (streamConfig.dynamicFps) "dynamicFps<=" else "constantFps="}${streamConfig.fps}, bitrate=${streamConfig.bitrate}bps, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
             )
 
             acquireVirtualDisplayOrThrow()
@@ -128,7 +126,7 @@ internal class VideoEncoder(
                 scheduleDynamicKeepaliveTick()
             }
         } catch (t: Throwable) {
-            Log.e(TAG, "Не удалось запустить видеокодер", t)
+            Timber.tag(TAG).e(t, "Не удалось запустить видеокодер")
             safeStopInternal(releasePersistentDisplay = false)
             running = false
             stopping = false
@@ -154,16 +152,16 @@ internal class VideoEncoder(
     fun relaunchTargetActivityIfNeeded(reason: String) {
         val displayId = virtualDisplay?.display?.displayId ?: VdspState.getDisplayId()
         if (displayId < 0) {
-            Log.w(TAG, "Пропускаю повторный запуск навигатора: displayId недоступен, reason=$reason")
+            Timber.tag(TAG).w("Пропускаю повторный запуск навигатора: displayId недоступен, reason=$reason")
             return
         }
 
         val relaunch = Runnable {
             try {
                 displayLauncher.launchOnDisplay(displayId)
-                Log.i(TAG, "Повторно активирую навигатор на display=$displayId, reason=$reason")
+                Timber.tag(TAG).i("Повторно активирую навигатор на display=$displayId, reason=$reason")
             } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось повторно активировать навигатор на display=$displayId, reason=$reason", t)
+                Timber.tag(TAG).w(t, "Не удалось повторно активировать навигатор на display=$displayId, reason=$reason")
             }
         }
         runOnCodecThread(relaunch)
@@ -180,9 +178,9 @@ internal class VideoEncoder(
                     drawKeepaliveFrame(SystemClock.elapsedRealtime())
                 }
                 requestSyncFrame()
-                Log.i(TAG, "Принудительно отправляю кадр после выхода из сна, reason=$reason")
+                Timber.tag(TAG).i("Принудительно отправляю кадр после выхода из сна, reason=$reason")
             } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось принудительно отправить кадр после выхода из сна, reason=$reason", t)
+                Timber.tag(TAG).w(t, "Не удалось принудительно отправить кадр после выхода из сна, reason=$reason")
             }
         }
         runOnCodecThread(render)
@@ -195,14 +193,14 @@ internal class VideoEncoder(
             try {
                 onEncoderOutput(codec, index, info)
             } catch (t: Throwable) {
-                Log.e(TAG, "Ошибка обработки output buffer -> рестарт", t)
+                Timber.tag(TAG).e(t, "Ошибка обработки output buffer -> рестарт")
                 releaseOutputBufferQuietly(codec, index)
                 safeRequestRestart()
             }
         }
 
         override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-            Log.e(TAG, "Ошибка MediaCodec -> рестарт", e)
+            Timber.tag(TAG).e(e, "Ошибка MediaCodec -> рестарт")
             safeRequestRestart()
         }
 
@@ -210,7 +208,7 @@ internal class VideoEncoder(
             val csd0 = format.getByteBuffer("csd-0")
             val csd1 = format.getByteBuffer("csd-1")
             configAnnexB = H264AnnexBUtil.buildConfigAnnexB(csd0, csd1)
-            Log.i(TAG, "Формат энкодера изменён, CSD обновлён")
+            Timber.tag(TAG).i("Формат энкодера изменён, CSD обновлён")
         }
     }
 
@@ -258,7 +256,7 @@ internal class VideoEncoder(
         try {
             virtualDisplay?.setSurface(null)
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось отвязать Surface от VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось отвязать Surface от VirtualDisplay")
         }
         if (releasePersistentDisplay) {
             PersistentVirtualDisplay.releaseAll()
@@ -271,7 +269,7 @@ internal class VideoEncoder(
         try {
             encoder?.stop()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось остановить MediaCodec", t)
+            Timber.tag(TAG).w(t, "Не удалось остановить MediaCodec")
         }
 
         // Завершаем поток кодека до освобождения GL-ресурсов
@@ -281,7 +279,7 @@ internal class VideoEncoder(
                 thread.quitSafely()
                 thread.join(CODEC_THREAD_JOIN_TIMEOUT_MS)
             } catch (t: Throwable) {
-                Log.w(TAG, "Не удалось корректно завершить поток кодека", t)
+                Timber.tag(TAG).w(t, "Не удалось корректно завершить поток кодека")
             }
         }
         codecThread = null
@@ -295,35 +293,35 @@ internal class VideoEncoder(
         try {
             vdSurfaceTexture?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить SurfaceTexture VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось освободить SurfaceTexture VirtualDisplay")
         }
         vdSurfaceTexture = null
 
         try {
             glComposer?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить GL-компоновщик", t)
+            Timber.tag(TAG).w(t, "Не удалось освободить GL-компоновщик")
         }
         glComposer = null
 
         try {
             vdInputSurface?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить surface VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось освободить surface VirtualDisplay")
         }
         vdInputSurface = null
 
         try {
             encoderInputSurface?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить входной Surface кодека", t)
+            Timber.tag(TAG).w(t, "Не удалось освободить входной Surface кодека")
         }
         encoderInputSurface = null
 
         try {
             encoder?.release()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось освободить MediaCodec", t)
+            Timber.tag(TAG).w(t, "Не удалось освободить MediaCodec")
         }
         encoder = null
 
@@ -352,9 +350,9 @@ internal class VideoEncoder(
         notifyDisplayReady(displayId, displayState)
 
         if (previousDisplayId >= 0 && previousDisplayId == displayId) {
-            Log.i(TAG, "Переиспользую существующий VirtualDisplay display=$displayId")
+            Timber.tag(TAG).i("Переиспользую существующий VirtualDisplay display=$displayId")
         } else {
-            Log.i(TAG, "Создан VirtualDisplay display=$displayId")
+            Timber.tag(TAG).i("Создан VirtualDisplay display=$displayId")
         }
 
         displayLauncher.launchOnDisplay(displayId)
@@ -378,7 +376,7 @@ internal class VideoEncoder(
                     .putExtra(VdspState.EXTRA_STATE, displayState.wireValue),
             )
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось отправить broadcast о готовности VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось отправить broadcast о готовности VirtualDisplay")
         }
     }
 
@@ -393,7 +391,7 @@ internal class VideoEncoder(
                     .putExtra(VdspState.EXTRA_STATE, VdspState.DisplayState.REMOVED.wireValue),
             )
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось отправить broadcast об исчезновении VirtualDisplay", t)
+            Timber.tag(TAG).w(t, "Не удалось отправить broadcast об исчезновении VirtualDisplay")
         }
     }
 
@@ -414,7 +412,7 @@ internal class VideoEncoder(
             hasPendingSurfaceFrame = false
             frameTimingController.markRendered(SystemClock.elapsedRealtime())
         } catch (t: Throwable) {
-            Log.e(TAG, "Ошибка GL-композиции кадра -> рестарт", t)
+            Timber.tag(TAG).e(t, "Ошибка GL-композиции кадра -> рестарт")
             safeRequestRestart()
         }
     }
@@ -436,7 +434,7 @@ internal class VideoEncoder(
             }
             frameTimingController.markRendered(SystemClock.elapsedRealtime())
         } catch (t: Throwable) {
-            Log.e(TAG, "Ошибка постоянного FPS -> рестарт", t)
+            Timber.tag(TAG).e(t, "Ошибка постоянного FPS -> рестарт")
             safeRequestRestart()
         }
     }
@@ -499,9 +497,9 @@ internal class VideoEncoder(
             if (frameTimingController.shouldEmitKeepalive(nowMs)) {
                 try {
                     drawKeepaliveFrame(nowMs)
-                    Log.i(TAG, "Отправляю keepalive-кадр для поддержания потока, idle=${idleMs}ms")
+                    Timber.tag(TAG).i("Отправляю keepalive-кадр для поддержания потока, idle=${idleMs}ms")
                 } catch (t: Throwable) {
-                    Log.e(TAG, "Ошибка keepalive-кадра в dynamicFps -> рестарт", t)
+                    Timber.tag(TAG).e(t, "Ошибка keepalive-кадра в dynamicFps -> рестарт")
                     safeRequestRestart()
                     return
                 }
@@ -545,9 +543,7 @@ internal class VideoEncoder(
         }
 
         val fps = fpsWindowFrames * 1000.0 / elapsedMs.toDouble()
-        Log.i(
-            TAG,
-            "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, ${if (streamConfig.dynamicFps) "dynamicMaxFps" else "constantFps"}=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
+        Timber.tag(TAG).i("Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, ${if (streamConfig.dynamicFps) "dynamicMaxFps" else "constantFps"}=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
         )
         fpsWindowStartedAtMs = nowMs
         fpsWindowFrames = 0
@@ -577,9 +573,9 @@ internal class VideoEncoder(
                     putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, streamConfig.bitrate)
                 },
             )
-            Log.i(TAG, "Принудительно применяю битрейт кодека: ${streamConfig.bitrate}bps")
+            Timber.tag(TAG).i("Принудительно применяю битрейт кодека: ${streamConfig.bitrate}bps")
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось принудительно применить битрейт кодека", t)
+            Timber.tag(TAG).w(t, "Не удалось принудительно применить битрейт кодека")
         }
     }
 
@@ -603,7 +599,7 @@ internal class VideoEncoder(
         try {
             restartCallback.requestRestart()
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось запросить перезапуск видеопайплайна", t)
+            Timber.tag(TAG).w(t, "Не удалось запросить перезапуск видеопайплайна")
         }
     }
 

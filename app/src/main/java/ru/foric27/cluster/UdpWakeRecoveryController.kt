@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -65,7 +65,7 @@ internal class UdpWakeRecoveryController(
             screenStateReceiver = receiver
             screenStateReceiverRegistered = true
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось зарегистрировать receiver экранных событий", t)
+            Timber.tag(TAG).w(t, "Не удалось зарегистрировать receiver экранных событий")
             screenStateReceiver = null
             screenStateReceiverRegistered = false
         }
@@ -91,7 +91,7 @@ internal class UdpWakeRecoveryController(
     private fun handleScreenOff() {
         screenSleepStartedAtMs = SystemClock.elapsedRealtime()
         stopStream()
-        Log.i(TAG, "Экран выключен; стрим остановлен, отслеживаю восстановление после выхода из сна")
+        Timber.tag(TAG).i("Экран выключен; стрим остановлен, отслеживаю восстановление после выхода из сна")
     }
 
     private fun handleWakeEvent(action: String) {
@@ -108,7 +108,7 @@ internal class UdpWakeRecoveryController(
         wakeRecoveryStage = 0
         wakeRecoveryGeneration += 1L
 
-        Log.i(TAG, "Устройство вышло из сна: action=$action, slept=${now - sleptAt}ms")
+        Timber.tag(TAG).i("Устройство вышло из сна: action=$action, slept=${now - sleptAt}ms")
         startStream()
         wakeRecoveryJob?.cancel()
         wakeRecoveryJob = scope.launch {
@@ -125,10 +125,10 @@ internal class UdpWakeRecoveryController(
             val startedAtMs = SystemClock.elapsedRealtime()
             val snapshot = snapshotProvider()
             val durationMs = SystemClock.elapsedRealtime() - startedAtMs
-            Log.i(TAG, "Wake health-check завершён за ${durationMs}мс, action=$action, stage=$stage")
+            Timber.tag(TAG).i("Wake health-check завершён за ${durationMs}мс, action=$action, stage=$stage")
             postToMain {
                 if (pendingWakeAction != action || wakeRecoveryGeneration != generation) {
-                    Log.i(TAG, "Игнорирую устаревший wake health-check, action=$action, stage=$stage")
+                    Timber.tag(TAG).i("Игнорирую устаревший wake health-check, action=$action, stage=$stage")
                     return@postToMain
                 }
                 verifyWakeRecovery(action, snapshot)
@@ -138,7 +138,7 @@ internal class UdpWakeRecoveryController(
 
     private fun verifyWakeRecovery(action: String, snapshot: UdpWakeRecoverySnapshot) {
         if (snapshot.streamHealthy) {
-            Log.i(TAG, "После выхода из сна поток уже активен; лишний relaunch не нужен")
+            Timber.tag(TAG).i("После выхода из сна поток уже активен; лишний relaunch не нужен")
             pendingWakeAction = null
             wakeRecoveryStage = 0
             return
@@ -178,7 +178,7 @@ internal class UdpWakeRecoveryController(
         }
 
         if (!snapshot.requiresFullRecovery) {
-            Log.i(TAG, "Wake recovery завершён без полного рестарта: soft-actions исчерпаны, full recovery не требуется")
+            Timber.tag(TAG).i("Wake recovery завершён без полного рестарта: soft-actions исчерпаны, full recovery не требуется")
             clearPendingState()
             return
         }

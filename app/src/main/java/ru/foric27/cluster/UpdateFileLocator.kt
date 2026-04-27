@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.util.Log
+import timber.log.Timber
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
 import java.io.FileInputStream
@@ -84,7 +84,7 @@ internal class UpdateFileLocator {
     ): List<ScanRoot> {
         val persistedTree = resolvePersistedTree(context) ?: return emptyList()
         if (searchPolicy == SearchPolicy.INTERNAL_ONLY && persistedTree.sourceKind != SourceKind.INTERNAL) {
-            Log.i(TAG, "Persisted SAF URI не указывает на внутреннюю память; INTERNAL_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
+            Timber.tag(TAG).i("Persisted SAF URI не указывает на внутреннюю память; INTERNAL_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
             return emptyList()
         }
         return listOf(persistedTree)
@@ -116,30 +116,30 @@ internal class UpdateFileLocator {
     private fun resolvePersistedTree(context: Context): ScanRoot? {
         val persistedTreeUri = getPersistedTreeUri(context)
         if (persistedTreeUri == null) {
-            Log.w(TAG, "Persisted SAF URI отсутствует; поиск OTA-файлов пропущен")
+            Timber.tag(TAG).w("Persisted SAF URI отсутствует; поиск OTA-файлов пропущен")
             return null
         }
 
         if (!hasPersistedReadPermission(context, persistedTreeUri)) {
-            Log.w(TAG, "Persisted SAF URI потерял read permission; очищаю сохранённую ссылку")
+            Timber.tag(TAG).w("Persisted SAF URI потерял read permission; очищаю сохранённую ссылку")
             clearPersistedTreeUri(context)
             return null
         }
 
         val documentRoot = DocumentFile.fromTreeUri(context, persistedTreeUri)
         if (documentRoot == null || !documentRoot.exists() || !documentRoot.isDirectory) {
-            Log.w(TAG, "Persisted SAF URI недоступен или не является каталогом: $persistedTreeUri")
+            Timber.tag(TAG).w("Persisted SAF URI недоступен или не является каталогом: $persistedTreeUri")
             return null
         }
 
         val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(persistedTreeUri) }
-            .onFailure { Log.w(TAG, "Не удалось получить treeDocumentId для $persistedTreeUri", it) }
+            .onFailure { Timber.tag(TAG).w(it, "Не удалось получить treeDocumentId для $persistedTreeUri") }
             .getOrNull()
             ?: return null
 
         val rootDescriptor = parseRootDescriptor(treeDocumentId)
         if (!rootDescriptor.isStorageRoot) {
-            Log.w(TAG, "Persisted SAF URI должен указывать на корень тома, получен=$treeDocumentId")
+            Timber.tag(TAG).w("Persisted SAF URI должен указывать на корень тома, получен=$treeDocumentId")
             return null
         }
 
@@ -191,9 +191,7 @@ internal class UpdateFileLocator {
         val zip = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_ZIP_NAME }
         val sig = children.firstOrNull { it.name == RuntimeConfig.UpdateFtp.UPDATE_SIG_NAME }
 
-        Log.i(
-            TAG,
-            "Проверяю SAF-корень: ${root.directoryLabel}, " +
+        Timber.tag(TAG).i("Проверяю SAF-корень: ${root.directoryLabel}, " +
                 "zip=${zip?.uri}[exists=${zip != null},isFile=${zip?.isFile == true}], " +
                 "sig=${sig?.uri}[exists=${sig != null},isFile=${sig?.isFile == true}]",
         )
@@ -202,9 +200,7 @@ internal class UpdateFileLocator {
 
         val zipFile = DocumentSourceFile(zip)
         val sigFile = DocumentSourceFile(sig)
-        Log.i(
-            TAG,
-            "Найдена пара обновления в SAF-корне: zip=${zip.uri}, sig=${sig.uri}, источник=${root.label}",
+        Timber.tag(TAG).i("Найдена пара обновления в SAF-корне: zip=${zip.uri}, sig=${sig.uri}, источник=${root.label}",
         )
         return LocatedUpdatePair(
             sourceKind = root.sourceKind,
@@ -250,7 +246,7 @@ internal class UpdateFileLocator {
     }
 
     private fun logInfo(message: String) {
-        runCatching { Log.i(TAG, message) }
+        runCatching { Timber.tag(TAG).i(message) }
     }
 
     companion object {
@@ -346,7 +342,7 @@ internal class UpdateFileLocator {
                 onTakePermission(persistableFlags)
                 prefs.edit().putString(KEY_TREE_URI, treeUriString).commit()
             }.onFailure {
-                Log.w(TAG, "Не удалось сохранить persisted SAF URI: $treeUriString", it)
+                Timber.tag(TAG).w(it, "Не удалось сохранить persisted SAF URI: $treeUriString")
             }.getOrDefault(false)
         }
 
@@ -375,7 +371,7 @@ internal class UpdateFileLocator {
                 runCatching {
                     onReleasePermission?.invoke()
                 }.onFailure {
-                    Log.w(TAG, "Не удалось освободить persisted SAF URI: $rawUri", it)
+                    Timber.tag(TAG).w(it, "Не удалось освободить persisted SAF URI: $rawUri")
                 }
             }
             return prefs.edit().remove(KEY_TREE_URI).commit()
@@ -398,7 +394,7 @@ internal class UpdateFileLocator {
             val rawUri = getPersistedTreeUriString(prefs) ?: return null
             return runCatching { uriParser(rawUri) }
                 .onFailure {
-                    Log.w(TAG, "Некорректный persisted SAF URI в SharedPreferences: $rawUri", it)
+                    Timber.tag(TAG).w(it, "Некорректный persisted SAF URI в SharedPreferences: $rawUri")
                 }
                 .getOrNull()
         }

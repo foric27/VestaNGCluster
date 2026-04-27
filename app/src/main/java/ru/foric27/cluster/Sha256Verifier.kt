@@ -1,7 +1,7 @@
 package ru.foric27.cluster
 
 import android.content.Context
-import android.util.Log
+import timber.log.Timber
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.security.MessageDigest
@@ -40,7 +40,7 @@ internal class Sha256Verifier {
                 details = details,
             )
         } catch (t: Throwable) {
-            Log.e(TAG, "Ошибка проверки SHA-256", t)
+            Timber.tag(TAG).e(t, "Ошибка проверки SHA-256")
             VerificationResult(
                 valid = false,
                 expectedSha256 = "",

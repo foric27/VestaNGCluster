@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Process
-import android.util.Log
+import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -75,10 +75,10 @@ internal class UdpStatusSyncCoordinator(
             val socket = if (!bindIp.isNullOrBlank()) {
                 try {
                     DatagramSocket(InetSocketAddress(InetAddress.getByName(bindIp), 0)).also {
-                        Log.i(tag, "StatusSocket привязан к локальному IP $bindIp")
+                        Timber.tag(tag).i("StatusSocket привязан к локальному IP $bindIp")
                     }
                 } catch (t: Throwable) {
-                    Log.w(tag, "Не удалось привязать statusSocket к $bindIp, использую bind 0.0.0.0", t)
+                    Timber.tag(tag).w(t, "Не удалось привязать statusSocket к $bindIp, использую bind 0.0.0.0")
                     DatagramSocket()
                 }
             } else {
@@ -101,7 +101,7 @@ internal class UdpStatusSyncCoordinator(
                         statusSendErrors.incrementAndGet()
                         consecutiveErrors++
                         if (consecutiveErrors == 1 || consecutiveErrors % statusErrorLogEvery == 0) {
-                            Log.w(tag, "Ошибка отправки status sync (ошибок подряд=$consecutiveErrors)", t)
+                            Timber.tag(tag).w(t, "Ошибка отправки status sync (ошибок подряд=$consecutiveErrors)")
                         }
                     }
 
@@ -113,9 +113,9 @@ internal class UdpStatusSyncCoordinator(
                 }
             }
 
-            Log.i(tag, "Status sync запущен (dst=$hostValue:$statusPort)")
+            Timber.tag(tag).i("Status sync запущен (dst=$hostValue:$statusPort)")
         } catch (t: Throwable) {
-            Log.w(tag, "Не удалось запустить status sync", t)
+            Timber.tag(tag).w(t, "Не удалось запустить status sync")
             stop()
         }
     }
@@ -129,7 +129,7 @@ internal class UdpStatusSyncCoordinator(
         try {
             statusSocket?.close()
         } catch (t: Throwable) {
-            Log.w(tag, "Не удалось закрыть statusSocket", t)
+            Timber.tag(tag).w(t, "Не удалось закрыть statusSocket")
         }
         statusSocket = null
 

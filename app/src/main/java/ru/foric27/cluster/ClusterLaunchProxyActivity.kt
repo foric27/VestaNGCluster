@@ -6,7 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import timber.log.Timber
 
 /**
  * Промежуточная activity для запуска cluster-activity Яндекс.Навигатора на нужном display
@@ -29,7 +29,7 @@ class ClusterLaunchProxyActivity : Activity() {
         val targetIntent = YandexLaunchTarget.buildTargetIntentFromProxyIntent(intent)
         val targetComponent = YandexLaunchTarget.describeTargetComponentFromProxyIntent(intent)
         if (targetIntent == null) {
-            Log.e(TAG, "Proxy: не удалось собрать target intent для cluster-activity")
+            Timber.tag(TAG).e("Proxy: не удалось собрать target intent для cluster-activity")
             AppWarningCenter.publish(getString(R.string.msg_output_app_launch_failed_fmt, targetComponent))
             finish()
             return
@@ -45,16 +45,14 @@ class ClusterLaunchProxyActivity : Activity() {
                 null
             }
             startActivity(targetIntent, options)
-            Log.i(
-                TAG,
-                "Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottomMask=encoder, display=$displayId",
+            Timber.tag(TAG).i("Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottomMask=encoder, display=$displayId",
             )
         } catch (e: ActivityNotFoundException) {
             val msg = getString(R.string.msg_yandex_navigator_not_found_fmt, targetComponent)
-            Log.e(TAG, "Proxy: Яндекс Навигатор не найден: $targetComponent", e)
+            Timber.tag(TAG).e(e, "Proxy: Яндекс Навигатор не найден: $targetComponent")
             AppWarningCenter.publish(msg)
         } catch (t: Throwable) {
-            Log.e(TAG, "Proxy: не удалось запустить cluster-activity", t)
+            Timber.tag(TAG).e(t, "Proxy: не удалось запустить cluster-activity")
             AppWarningCenter.publish(getString(R.string.msg_output_app_launch_failed_fmt, targetComponent))
         } finally {
             finish()

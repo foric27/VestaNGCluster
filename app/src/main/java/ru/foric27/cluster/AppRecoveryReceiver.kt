@@ -4,7 +4,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import timber.log.Timber
 
 /**
  * Восстанавливает сервис и при необходимости поднимает UI после закрытия задачи
@@ -27,12 +27,12 @@ class AppRecoveryReceiver : BroadcastReceiver() {
                         keepInForeground = keepInForeground,
                     ),
                 )
-                Log.i(TAG, "Восстановлены сервис и UI, reason=$reason, keepInForeground=$keepInForeground")
+                Timber.tag(TAG).i("Восстановлены сервис и UI, reason=$reason, keepInForeground=$keepInForeground")
             } else {
-                Log.i(TAG, "Восстановлен только сервис, reason=$reason")
+                Timber.tag(TAG).i("Восстановлен только сервис, reason=$reason")
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Не удалось выполнить восстановление, reason=$reason, launchUi=$launchUi", t)
+            Timber.tag(TAG).w(t, "Не удалось выполнить восстановление, reason=$reason, launchUi=$launchUi")
         }
     }
 

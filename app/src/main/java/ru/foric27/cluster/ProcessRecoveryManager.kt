@@ -4,7 +4,7 @@ import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 
 internal object ProcessRecoveryManager {
 
@@ -23,15 +23,15 @@ internal object ProcessRecoveryManager {
                 if (shouldScheduleRecovery(appContext)) {
                     scheduleRecovery(appContext, throwable.javaClass.simpleName.ifBlank { "uncaught_exception" })
                 } else {
-                    Log.w(TAG, "Автовосстановление после падения временно подавлено из-за crash loop")
+                    Timber.tag(TAG).w("Автовосстановление после падения временно подавлено из-за crash loop")
                 }
             }.onFailure { error ->
-                Log.e(TAG, "Не удалось запланировать восстановление после падения процесса", error)
+                Timber.tag(TAG).e(error, "Не удалось запланировать восстановление после падения процесса")
             }
 
             previousHandler?.uncaughtException(thread, throwable)
                 ?: run {
-                    Log.e(TAG, "Процесс завершён после необработанного исключения", throwable)
+                    Timber.tag(TAG).e(throwable, "Процесс завершён после необработанного исключения")
                     kotlin.system.exitProcess(2)
                 }
         }
@@ -74,6 +74,6 @@ internal object ProcessRecoveryManager {
         } else {
             alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
         }
-        Log.w(TAG, "Запланировано восстановление после падения процесса, reason=$reason")
+        Timber.tag(TAG).w("Запланировано восстановление после падения процесса, reason=$reason")
     }
 }

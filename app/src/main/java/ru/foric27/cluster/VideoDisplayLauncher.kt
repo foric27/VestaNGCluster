@@ -5,7 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import timber.log.Timber
 
 internal class VideoDisplayLauncher(
     private val context: Context,
@@ -43,29 +43,27 @@ internal class VideoDisplayLauncher(
             val direct = launchViaIntentBestEffort(displayId, command)
             if (direct.success) {
                 started = command
-                Log.i(TAG, "Proxy-activity запрошена через Context.startActivity на дисплее $displayId: ${command.component}, видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+                Timber.tag(TAG).i("Proxy-activity запрошена через Context.startActivity на дисплее $displayId: ${command.component}, видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
                 break
             }
             lastDirectError = direct.error
         }
 
         if (started != null) {
-            Log.i(TAG, "Запрос на активацию activity для вывода отправлен на дисплей $displayId: ${started.component} (${started.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+            Timber.tag(TAG).i("Запрос на активацию activity для вывода отправлен на дисплей $displayId: ${started.component} (${started.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
             return
         }
 
         val rootStarted = launchViaRootFallback(displayId, commands)
         if (rootStarted != null) {
-            Log.i(TAG, "Root fallback отправил proxy-запуск навигатора на display=$displayId: ${rootStarted.component} (${rootStarted.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
+            Timber.tag(TAG).i("Root fallback отправил proxy-запуск навигатора на display=$displayId: ${rootStarted.component} (${rootStarted.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
             return
         }
 
         if (lastDirectError is ActivityNotFoundException) {
             notifyLaunchAppMissing(commands.lastOrNull())
         }
-        Log.w(
-            TAG,
-            "Не удалось запустить Яндекс.Навигатор на display=$displayId. " +
+        Timber.tag(TAG).w("Не удалось запустить Яндекс.Навигатор на display=$displayId. " +
                 "Последняя попытка: ${commands.lastOrNull()?.component ?: "не задана"}. " +
                 "DirectError=${lastDirectError?.message ?: "null"}",
         )
@@ -99,9 +97,7 @@ internal class VideoDisplayLauncher(
             lastRootError = root.errorMessage
         }
 
-        Log.w(
-            TAG,
-            "Root fallback не смог запустить proxy-activity на display=$displayId. " +
+        Timber.tag(TAG).w("Root fallback не смог запустить proxy-activity на display=$displayId. " +
                 "Последняя попытка: ${commands.lastOrNull()?.component ?: "не задана"}. " +
                 "RootError=${lastRootError ?: "null"}",
         )
@@ -113,7 +109,7 @@ internal class VideoDisplayLauncher(
             R.string.msg_output_app_not_found_fmt,
             command?.component ?: YandexLaunchTarget.COMPONENT_AUTO_CLUSTER,
         )
-        Log.w(TAG, msg)
+        Timber.tag(TAG).w(msg)
     }
 
     private data class LaunchAttempt(
@@ -152,9 +148,7 @@ internal class VideoDisplayLauncher(
             try {
                 options.setLaunchDisplayId(displayId)
             } catch (securityException: SecurityException) {
-                Log.w(
-                    TAG,
-                    "Не удалось задать launch display $displayId для ${spec.proxyComponent}: ${securityException.message}",
+                Timber.tag(TAG).w("Не удалось задать launch display $displayId для ${spec.proxyComponent}: ${securityException.message}",
                     securityException,
                 )
             }

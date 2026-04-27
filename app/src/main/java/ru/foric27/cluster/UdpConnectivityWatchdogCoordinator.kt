@@ -2,7 +2,7 @@ package ru.foric27.cluster
 
 import android.os.Process
 import android.os.SystemClock
-import android.util.Log
+import timber.log.Timber
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class UdpConnectivityWatchdogCoordinator(
@@ -54,7 +54,7 @@ internal class UdpConnectivityWatchdogCoordinator(
 
                 val activeProbeState = RootNetUtil.getIfaceProbeState(force = false)
                 if (!activeProbeState.rootRequired && activeProbeState.exists && !activeProbeState.linkUp) {
-                    Log.w(tag, "Watchdog: link ${activeProbeState.iface} down во время активного стрима")
+                    Timber.tag(tag).w("Watchdog: link ${activeProbeState.iface} down во время активного стрима")
                     requestImmediateRecovery(
                         "root_iface_link_down",
                         ifaceMissingRestartBackoffMinMs,
@@ -63,7 +63,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                     continue
                 }
                 if (!activeProbeState.rootRequired && !activeProbeState.exists) {
-                    Log.w(tag, "Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
+                    Timber.tag(tag).w("Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
                     requestImmediateRecovery(
                         RuntimeConfig.Root.MISSING_RUNTIME_REASON,
                         ifaceMissingRestartBackoffMinMs,
@@ -75,7 +75,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                 val pinnedIface = activeRootIfaceProvider()?.takeIf { it.isNotBlank() }
                 val selectedIface = RootNetUtil.getSelectedIfaceName(force = false)
                 if (!activeProbeState.rootRequired && !pinnedIface.isNullOrBlank() && !selectedIface.equals(pinnedIface, ignoreCase = true)) {
-                    Log.w(tag, "Watchdog: активный root-интерфейс $pinnedIface сменился на ${selectedIface ?: "none"}")
+                    Timber.tag(tag).w("Watchdog: активный root-интерфейс $pinnedIface сменился на ${selectedIface ?: "none"}")
                     requestImmediateRecovery(
                         "root_iface_changed",
                         ifaceMissingRestartBackoffMinMs,
@@ -86,7 +86,7 @@ internal class UdpConnectivityWatchdogCoordinator(
 
                 if (recentVideoTraffic) {
                     if (routeFailureStreak != 0) {
-                        Log.i(tag, "Watchdog: есть свежая видеопередача, сбрасываю route-failure streak")
+                        Timber.tag(tag).i("Watchdog: есть свежая видеопередача, сбрасываю route-failure streak")
                     }
                     routeFailureStreak = 0
                     continue
@@ -94,7 +94,7 @@ internal class UdpConnectivityWatchdogCoordinator(
 
                 val probeState = RootNetUtil.getIfaceProbeState(force = false)
                 if (!probeState.rootRequired && probeState.exists && !probeState.linkUp) {
-                    Log.w(tag, "Watchdog: link ${probeState.iface} down во время активного стрима")
+                    Timber.tag(tag).w("Watchdog: link ${probeState.iface} down во время активного стрима")
                     requestImmediateRecovery(
                         "root_iface_link_down",
                         ifaceMissingRestartBackoffMinMs,
@@ -103,7 +103,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                     continue
                 }
                 if (!probeState.rootRequired && !probeState.exists) {
-                    Log.w(tag, "Watchdog: ${probeState.iface} пропал во время активного стрима")
+                    Timber.tag(tag).w("Watchdog: ${probeState.iface} пропал во время активного стрима")
                     requestImmediateRecovery(
                         RuntimeConfig.Root.MISSING_RUNTIME_REASON,
                         ifaceMissingRestartBackoffMinMs,
@@ -125,7 +125,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                         try {
                             currentSender.probe()
                         } catch (t: Throwable) {
-                            Log.w(tag, "Watchdog: исключение при UDP probe во время route-check", t)
+                            Timber.tag(tag).w(t, "Watchdog: исключение при UDP probe во время route-check")
                             false
                         }
                     } else {
@@ -139,7 +139,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                     )
                     if (connectionHealthy) {
                         if (routeFailureStreak != 0) {
-                            Log.i(tag, "Watchdog: связность подтверждена, сбрасываю route-failure streak")
+                            Timber.tag(tag).i("Watchdog: связность подтверждена, сбрасываю route-failure streak")
                         }
                         routeFailureStreak = 0
                     } else {
@@ -149,7 +149,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                             peerCheck.failed -> "ping до $targetHost не проходит"
                             else -> "нет живой UDP-отправки"
                         }
-                        Log.w(tag, "Watchdog: $failureReason через ${probeState.iface} (streak=$routeFailureStreak)")
+                        Timber.tag(tag).w("Watchdog: $failureReason через ${probeState.iface} (streak=$routeFailureStreak)")
                         if (routeFailureStreak >= routeFailuresBeforeRestart) {
                             routeFailureStreak = 0
                             requestImmediateRecovery(
