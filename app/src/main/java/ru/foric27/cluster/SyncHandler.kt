@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.res.Resources
 import android.provider.Settings
 import androidx.core.os.ConfigurationCompat
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import timber.log.Timber
 import java.time.Instant
 import java.time.ZoneOffset
@@ -52,11 +55,12 @@ internal class SyncHandler(
         var syncTime: SyncTime? = null
 
         override fun toString(): String {
-            val json = SimpleJsonContainer()
-            streamMode?.let { json.addValue("vid", it) }
-            syncTime?.let { json.addValue("time", it.toString()) }
-            lang?.let { json.addValue("lang", it) }
-            return json.toString()
+            val payload = buildJsonObject {
+                streamMode?.let { put("vid", it) }
+                syncTime?.let { put("time", it.toString()) }
+                lang?.let { put("lang", it) }
+            }
+            return Json.encodeToString(payload)
         }
     }
 
