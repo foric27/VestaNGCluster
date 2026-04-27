@@ -211,15 +211,25 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         startOrRefreshUpdateServer()
                     }
                     updateCoordinator.scheduleInternalUpdatePoll()
+                    if (!networkPrep.ifacePresent) {
+                        val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
+                        if (!RootNetUtil.wasSelectedIfaceEverPresent) {
+                            Timber.tag(TAG).i("$ifaceName отсутствует; запуск стрима отменён — интерфейс никогда не поднимался")
+                            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
+                            startInProgress = false
+                            return@startDetachedWorker
+                        }
+                        Timber.tag(TAG).w("$ifaceName отсутствует; запуск отложен до появления интерфейса")
+                        serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
+                        startInProgress = false
+                        return@startDetachedWorker
+                    }
+
                     mainHandler.post {
                         if (!sServiceRunning || lastCfg != cfg || !startInProgress) {
                             return@post
                         }
-                        activeRootIface = if (networkPrep.ifacePresent) {
-                            networkPrep.ifaceName
-                        } else {
-                            null
-                        }
+                        activeRootIface = networkPrep.ifaceName
                         startPipelineAsync(
                             cfg = cfg,
                             hostValue = targetHost,

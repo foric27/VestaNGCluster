@@ -44,6 +44,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                 }
                 if (watchdogStop.get()) break
 
+                try {
                 val cfg = configProvider() ?: continue
                 val currentSender = senderProvider() ?: continue
                 val snapshot = currentSender.snapshot()
@@ -64,14 +65,14 @@ internal class UdpConnectivityWatchdogCoordinator(
                     )
                     continue
                 }
-                if (!activeProbeState.rootRequired && !activeProbeState.exists) {
-                    if (!RootNetUtil.wasSelectedIfaceEverPresent) {
-                        if (!ifaceMissingGraceLogged) {
-                            Timber.tag(tag).i("Watchdog: ${activeProbeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
-                            ifaceMissingGraceLogged = true
-                        }
-                        continue
+                if (!activeProbeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent) {
+                    if (!ifaceMissingGraceLogged) {
+                        Timber.tag(tag).w("Watchdog: ${activeProbeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
+                        ifaceMissingGraceLogged = true
                     }
+                    continue
+                }
+                if (!activeProbeState.rootRequired && !activeProbeState.exists) {
                     Timber.tag(tag).w("Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
                     requestImmediateRecovery(
                         RuntimeConfig.Root.MISSING_RUNTIME_REASON,
@@ -111,14 +112,14 @@ internal class UdpConnectivityWatchdogCoordinator(
                     )
                     continue
                 }
-                if (!probeState.rootRequired && !probeState.exists) {
-                    if (!RootNetUtil.wasSelectedIfaceEverPresent) {
-                        if (!ifaceMissingGraceLogged) {
-                            Timber.tag(tag).i("Watchdog: ${probeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
-                            ifaceMissingGraceLogged = true
-                        }
-                        continue
+                if (!probeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent) {
+                    if (!ifaceMissingGraceLogged) {
+                        Timber.tag(tag).i("Watchdog: ${probeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
+                        ifaceMissingGraceLogged = true
                     }
+                    continue
+                }
+                if (!probeState.rootRequired && !probeState.exists) {
                     Timber.tag(tag).w("Watchdog: ${probeState.iface} пропал во время активного стрима")
                     requestImmediateRecovery(
                         RuntimeConfig.Root.MISSING_RUNTIME_REASON,
@@ -184,6 +185,9 @@ internal class UdpConnectivityWatchdogCoordinator(
                 // Для режима Dynamic FPS отсутствие новых видеокадров само по себе не считается ошибкой:
                 // при статичной картинке на VirtualDisplay кодек может долго не отдавать выходные буферы.
                 // Восстановление здесь выполняется только по проверке маршрута, probe и явным ошибкам сокета или энкодера.
+                } catch (t: Throwable) {
+                    Timber.tag(tag).e(t, "Watchdog: непредвиденная ошибка в цикле")
+                }
             }
         }
     }
