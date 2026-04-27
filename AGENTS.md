@@ -149,6 +149,13 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 - `org.gradle.parallel=true`, `org.gradle.configureondemand=true`, `org.gradle.caching=true`.
 - JVM heap: `-Xmx4096m`.
 
+## DEVICE INSTALL (MCP)
+
+- **Только обновление** (`pm install -r`), никогда полная переустановка — сохраняются данные и настройки.
+- Путь: push APK в `/data/local/tmp/`, затем `pm install -r`, затем удалить temp-файл.
+- Использовать MCP adb tools: `adb_push` → `adb_shell` → `adb_rm`.
+- Не использовать `adb uninstall` перед установкой.
+
 ## CLEANUP
 
 - После установки на устройство: `adb shell rm -f /data/local/tmp/app-release*.apk`.
