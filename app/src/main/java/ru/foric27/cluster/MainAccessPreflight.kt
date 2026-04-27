@@ -15,6 +15,9 @@ internal class MainAccessPreflight(
     private val activity: AppCompatActivity,
     private val showNotice: (String, Boolean) -> Unit,
     private val onAllFilesAccessGranted: () -> Unit,
+    private val requestNotificationsPermission: () -> Unit,
+    private val requestReadStoragePermission: () -> Unit,
+    private val launchSettingsIntent: (Intent, Intent?, (Throwable) -> Unit) -> Unit,
 ) {
 
     private var hadAllFilesAccess = false
@@ -34,45 +37,42 @@ internal class MainAccessPreflight(
         showNotice(activity.getString(R.string.main_permissions_all_set), false)
     }
 
-    fun handlePermissionsResult(requestCode: Int, grantResults: IntArray): Boolean {
-        when (requestCode) {
-            REQUEST_NOTIFICATIONS_CODE -> {
-                notificationsPermissionPending = false
-                val granted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-                if (granted) {
-                    showNotice(activity.getString(R.string.main_notifications_granted), false)
-                    run()
-                    return true
-                }
-
-                if (Build.VERSION.SDK_INT >= 33) {
-                    showNotice(activity.getString(R.string.main_notifications_missing), true)
-                    if (!activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
-                        runCatching {
-                            activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = Uri.parse("package:${activity.packageName}")
-                            })
-                        }.onFailure { error ->
-                            Timber.tag(TAG).w(error, "Не удалось открыть настройки уведомлений приложения")
-                            showNotice(activity.getString(R.string.main_notifications_missing_settings_message), true)
-                        }
-                    }
-                }
-                return true
-            }
-            REQUEST_READ_STORAGE_CODE -> {
-                readStoragePermissionPending = false
-                val granted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-                if (granted) {
-                    showNotice(activity.getString(R.string.main_read_storage_granted), false)
-                    run()
-                    return true
-                }
-                showNotice(activity.getString(R.string.main_read_storage_missing), true)
-                return true
-            }
-            else -> return false
+    fun handleNotificationsPermissionResult(granted: Boolean) {
+        notificationsPermissionPending = false
+        if (granted) {
+            showNotice(activity.getString(R.string.main_notifications_granted), false)
+            run()
+            return
         }
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            showNotice(activity.getString(R.string.main_notifications_missing), true)
+            if (!activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
+                launchSettingsIntent(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${activity.packageName}")
+                    },
+                    null,
+                ) { error ->
+                    Timber.tag(TAG).w(error, "Не удалось открыть настройки уведомлений приложения")
+                    showNotice(activity.getString(R.string.main_notifications_missing_settings_message), true)
+                }
+            }
+        }
+    }
+
+    fun handleReadStoragePermissionResult(granted: Boolean) {
+        readStoragePermissionPending = false
+        if (granted) {
+            showNotice(activity.getString(R.string.main_read_storage_granted), false)
+            run()
+            return
+        }
+        showNotice(activity.getString(R.string.main_read_storage_missing), true)
+    }
+
+    fun handleSettingsActivityResult() {
+        run()
     }
 
     fun isNotificationsPermissionPending(): Boolean = notificationsPermissionPending
@@ -95,10 +95,7 @@ internal class MainAccessPreflight(
         if (hasReadStoragePermission()) return false
         showNotice(activity.getString(R.string.main_read_storage_missing), true)
         readStoragePermissionPending = true
-        activity.requestPermissions(
-            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-            REQUEST_READ_STORAGE_CODE,
-        )
+        requestReadStoragePermission()
         return true
     }
 
@@ -152,10 +149,7 @@ internal class MainAccessPreflight(
         if (hasNotificationsPermission()) return false
         showNotice(activity.getString(R.string.main_notifications_missing), true)
         notificationsPermissionPending = true
-        activity.requestPermissions(
-            arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-            REQUEST_NOTIFICATIONS_CODE,
-        )
+        requestNotificationsPermission()
         return true
     }
 
@@ -165,22 +159,20 @@ internal class MainAccessPreflight(
     }
 
     private fun openManageAllFilesAccessSettings() {
-        runCatching {
-            activity.startActivity(StorageAccessManager.buildManageAllFilesAccessIntent(activity))
-        }.recoverCatching {
-            activity.startActivity(StorageAccessManager.buildManageAllFilesAccessFallbackIntent())
-        }.onFailure { error ->
+        launchSettingsIntent(
+            StorageAccessManager.buildManageAllFilesAccessIntent(activity),
+            StorageAccessManager.buildManageAllFilesAccessFallbackIntent(),
+        ) { error ->
             Timber.tag(TAG).w(error, "Не удалось открыть настройки доступа ко всем файлам")
             showNotice(activity.getString(R.string.main_open_files_settings_failed), true)
         }
     }
 
     private fun openBatteryOptimizationSettings() {
-        runCatching {
-            activity.startActivity(BatteryOptimizationManager.buildRequestIgnoreOptimizationsIntent(activity))
-        }.recoverCatching {
-            activity.startActivity(BatteryOptimizationManager.buildBatteryOptimizationSettingsIntent())
-        }.onFailure { error ->
+        launchSettingsIntent(
+            BatteryOptimizationManager.buildRequestIgnoreOptimizationsIntent(activity),
+            BatteryOptimizationManager.buildBatteryOptimizationSettingsIntent(),
+        ) { error ->
             Timber.tag(TAG).w(error, "Не удалось открыть настройки энергосбережения")
             showNotice(activity.getString(R.string.main_open_battery_settings_failed), true)
         }
@@ -195,11 +187,12 @@ internal class MainAccessPreflight(
         }
         showNotice(activity.getString(R.string.main_exact_alarm_missing), true)
         exactAlarmJustRequested = true
-        runCatching {
-            activity.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+        launchSettingsIntent(
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                 data = Uri.parse("package:${activity.packageName}")
-            })
-        }.onFailure { error ->
+            },
+            null,
+        ) { error ->
             Timber.tag(TAG).w(error, "Не удалось открыть настройки exact alarm")
         }
         return true
@@ -212,7 +205,5 @@ internal class MainAccessPreflight(
 
     private companion object {
         private const val TAG = "MainAccessPreflight"
-        const val REQUEST_NOTIFICATIONS_CODE = 10
-        const val REQUEST_READ_STORAGE_CODE = 11
     }
 }

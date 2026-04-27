@@ -1,10 +1,10 @@
 package ru.foric27.cluster
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
@@ -14,6 +14,8 @@ import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -37,6 +39,27 @@ class MainActivity : AppCompatActivity() {
     private var versionTapCount = 0
     private var lastVersionTapAt = 0L
     private var backgroundLaunchHandled = false
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        accessPreflight.handleNotificationsPermissionResult(granted)
+        tryMoveTaskToBackIfNeeded()
+    }
+
+    private val readStoragePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        accessPreflight.handleReadStoragePermissionResult(granted)
+        tryMoveTaskToBackIfNeeded()
+    }
+
+    private val settingsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        accessPreflight.handleSettingsActivityResult()
+        tryMoveTaskToBackIfNeeded()
+    }
 
     private val vdspReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -81,6 +104,13 @@ class MainActivity : AppCompatActivity() {
                 UdpStreamService.startServiceCompat(this)
                 renderFtpState()
             },
+            requestNotificationsPermission = {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            requestReadStoragePermission = {
+                readStoragePermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            },
+            launchSettingsIntent = ::launchSettingsIntent,
         )
 
         noticeLog.bindClearAction()
@@ -349,14 +379,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
+    private fun launchSettingsIntent(
+        primary: Intent,
+        fallback: Intent?,
+        onFailure: (Throwable) -> Unit,
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (!accessPreflight.handlePermissionsResult(requestCode, grantResults)) return
-        tryMoveTaskToBackIfNeeded()
+        launchWithFallback(settingsLauncher, primary, fallback, onFailure)
+    }
+
+    private fun launchWithFallback(
+        launcher: ActivityResultLauncher<Intent>,
+        primary: Intent,
+        fallback: Intent?,
+        onFailure: (Throwable) -> Unit,
+    ) {
+        runCatching {
+            launcher.launch(primary)
+        }.recoverCatching { error ->
+            fallback?.let { launcher.launch(it) } ?: throw error
+        }.onFailure(onFailure)
     }
 
     private fun tryMoveTaskToBackIfNeeded() {
