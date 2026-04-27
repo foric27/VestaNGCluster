@@ -1,7 +1,6 @@
 package ru.foric27.cluster
 
 import timber.log.Timber
-import java.io.File
 import java.net.NetworkInterface
 import java.util.TreeSet
 
@@ -86,23 +85,6 @@ object NetworkInterfaceSelector {
             Timber.tag(TAG).w(it, "Не удалось получить список интерфейсов через NetworkInterface")
         }
 
-        runCatching {
-            val sysClassNet = File("/sys/class/net")
-            val listed = sysClassNet.list()?.map { it.trim() }.orEmpty()
-            listed.filter { it.isNotEmpty() }.forEach { names += it }
-        }.onFailure {
-            logDiscoveryFailure("/sys/class/net", it)
-        }
-
         return names.toList()
-    }
-
-    private fun logDiscoveryFailure(source: String, error: Throwable) {
-        val message = error.message.orEmpty()
-        if (message.contains("EACCES", ignoreCase = true) || message.contains("Permission denied", ignoreCase = true)) {
-            Timber.tag(TAG).i("Доступ к $source ограничен на этом устройстве")
-            return
-        }
-        Timber.tag(TAG).w(error, "Не удалось получить список интерфейсов через $source")
     }
 }

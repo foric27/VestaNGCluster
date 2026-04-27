@@ -29,9 +29,11 @@ internal class UdpConnectivityWatchdogCoordinator(
     @Volatile private var watchdogThread: Thread? = null
     private val watchdogStop = AtomicBoolean(false)
     @Volatile private var routeFailureStreak = 0
+    @Volatile private var ifaceMissingGraceLogged = false
 
     fun start() {
         stop()
+        ifaceMissingGraceLogged = false
         watchdogStop.set(false)
         watchdogThread = launchWorker("ConnectivityWatchdog", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
             while (!watchdogStop.get()) {
@@ -63,6 +65,13 @@ internal class UdpConnectivityWatchdogCoordinator(
                     continue
                 }
                 if (!activeProbeState.rootRequired && !activeProbeState.exists) {
+                    if (!RootNetUtil.wasSelectedIfaceEverPresent) {
+                        if (!ifaceMissingGraceLogged) {
+                            Timber.tag(tag).i("Watchdog: ${activeProbeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
+                            ifaceMissingGraceLogged = true
+                        }
+                        continue
+                    }
                     Timber.tag(tag).w("Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
                     requestImmediateRecovery(
                         RuntimeConfig.Root.MISSING_RUNTIME_REASON,
@@ -103,6 +112,13 @@ internal class UdpConnectivityWatchdogCoordinator(
                     continue
                 }
                 if (!probeState.rootRequired && !probeState.exists) {
+                    if (!RootNetUtil.wasSelectedIfaceEverPresent) {
+                        if (!ifaceMissingGraceLogged) {
+                            Timber.tag(tag).i("Watchdog: ${probeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
+                            ifaceMissingGraceLogged = true
+                        }
+                        continue
+                    }
                     Timber.tag(tag).w("Watchdog: ${probeState.iface} пропал во время активного стрима")
                     requestImmediateRecovery(
                         RuntimeConfig.Root.MISSING_RUNTIME_REASON,

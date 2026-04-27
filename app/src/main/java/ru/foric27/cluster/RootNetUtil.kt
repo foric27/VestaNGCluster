@@ -26,6 +26,14 @@ internal object RootNetUtil {
     @Volatile private var cachedIfaceName: String? = null
     @Volatile private var cachedIfaceExists: Boolean? = null
     @Volatile private var cachedIfaceCheckAtMs: Long = 0L
+
+    /**
+     * Флаг: выбранный root-интерфейс хотя бы раз присутствовал на устройстве.
+     * Используется для отличия "пропал" от "никогда не существовал".
+     */
+    @Volatile var wasSelectedIfaceEverPresent: Boolean = false
+        private set
+
     @Volatile private var cachedRouteIface: String? = null
     @Volatile private var cachedRouteDstIp: String? = null
     @Volatile private var cachedRouteExpectedSrcIp: String? = null
@@ -433,6 +441,7 @@ internal object RootNetUtil {
         val linkUp = exists && isIfaceLinkUp(result.output)
         cachedIfaceName = iface
         cachedIfaceExists = exists
+        if (exists) wasSelectedIfaceEverPresent = true
         cachedIfaceCheckAtMs = now
         return ProbeState(
             iface = iface,

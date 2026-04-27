@@ -700,8 +700,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     mainHandler.post {
                         if (!sServiceRunning) return@post
                         startInProgress = false
-                        val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
                         val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
+                        if (!RootNetUtil.wasSelectedIfaceEverPresent) {
+                            Timber.tag(TAG).i("$ifaceName отсутствует на устройстве; повторный запуск отменён — интерфейс никогда не поднимался")
+                            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
+                            return@post
+                        }
+                        val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
                         Timber.tag(TAG).w("$ifaceName отсутствует на устройстве; повторю позже. backoff=${backoffMs}ms")
                         serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, backoffMs / 1000))
                         restartController.schedule(RuntimeConfig.Root.MISSING_REASON, null)
