@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-26  
-**Commit:** `48c2c64`  
+**Generated:** 2026-04-27  
+**Commit:** `4f9c2b7`  
 **Branch:** `main`  
 **Language:** Russian default, English only in `values-en/`  
 **Stack:** single-module Android app, Kotlin + XML/ViewBinding, no Compose
