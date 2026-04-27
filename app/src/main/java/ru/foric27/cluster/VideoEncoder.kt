@@ -253,12 +253,8 @@ internal class VideoEncoder(
     }
 
     private fun safeStopInternal(releasePersistentDisplay: Boolean) {
-        try {
-            virtualDisplay?.setSurface(null)
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось отвязать Surface от VirtualDisplay")
-        }
         if (releasePersistentDisplay) {
+
             PersistentVirtualDisplay.releaseAll()
         } else {
             PersistentVirtualDisplay.detachSurface()

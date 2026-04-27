@@ -16,8 +16,8 @@ internal class UdpConnectivityWatchdogCoordinator(
     private val activeRootIfaceProvider: () -> String?,
     private val ipFromCidr: (String) -> String?,
     private val logRouteVerdict: (String, RootNetUtil.RouteCheckResult) -> Unit,
-    private val evaluatePeerReachability: (String, Boolean) -> PeerCheckResult,
     private val requestImmediateRecovery: (reason: String, minBackoffMs: Long, userMessage: String) -> Unit,
+
     private val routeRecentSendGraceMs: Long,
     private val connectivityWatchdogPeriodMs: Long,
     private val ifaceMissingRestartBackoffMinMs: Long,
@@ -133,27 +133,19 @@ internal class UdpConnectivityWatchdogCoordinator(
                     val routeCheck = RootNetUtil.checkRouteTo(targetHost, expectedBindIp, forceProbe = false)
                     val routeReady = routeCheck.ok
                     logRouteVerdict("watchdog", routeCheck)
-                    val peerCheck = if (routeReady) {
-                        evaluatePeerReachability(targetHost, false)
-                    } else {
-                        PeerCheckResult(attempted = false, ok = false)
-                    }
-                    val probeOk = if (!peerCheck.attempted) {
-                        try {
-                            currentSender.probe()
-                        } catch (t: Throwable) {
-                            Timber.tag(tag).w(t, "Watchdog: исключение при UDP probe во время route-check")
-                            false
-                        }
-                    } else {
+                    val probeOk = try {
+                        currentSender.probe()
+                    } catch (t: Throwable) {
+                        Timber.tag(tag).w(t, "Watchdog: исключение при UDP probe во время route-check")
                         false
                     }
+
                     val connectionHealthy = ConnectivityHealth.isWatchdogConnectionHealthy(
                         recentVideoTraffic = recentVideoTraffic,
                         routeReady = routeReady,
-                        peerCheck = peerCheck,
                         udpProbeOk = probeOk,
                     )
+
                     if (connectionHealthy) {
                         if (routeFailureStreak != 0) {
                             Timber.tag(tag).i("Watchdog: связность подтверждена, сбрасываю route-failure streak")
@@ -163,21 +155,18 @@ internal class UdpConnectivityWatchdogCoordinator(
                         routeFailureStreak += 1
                         val failureReason = when {
                             !routeReady -> "маршрут недоступен"
-                            peerCheck.failed -> "ping до $targetHost не проходит"
                             else -> "нет живой UDP-отправки"
                         }
+
                         Timber.tag(tag).w("Watchdog: $failureReason через ${probeState.iface} (streak=$routeFailureStreak)")
                         if (routeFailureStreak >= routeFailuresBeforeRestart) {
                             routeFailureStreak = 0
                             requestImmediateRecovery(
-                                if (peerCheck.failed) "peer_unreachable_runtime" else "route_lost_runtime",
+                                "route_lost_runtime",
                                 noRouteRestartBackoffMinMs,
-                                if (peerCheck.failed) {
-                                    "Приёмник $targetHost недоступен по ping. Перезапуск стрима…"
-                                } else {
-                                    "Маршрут через ${probeState.iface} потерян. Перезапуск стрима…"
-                                },
+                                "Маршрут через ${probeState.iface} потерян. Перезапуск стрима…",
                             )
+
                             continue
                         }
                     }

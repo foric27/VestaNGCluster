@@ -378,7 +378,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             activeRootIfaceProvider = { activeRootIface },
             ipFromCidr = ::ipFromCidr,
             logRouteVerdict = serviceAlerts::logRouteVerdict,
-            evaluatePeerReachability = ::evaluatePeerReachability,
+
             requestImmediateRecovery = ::requestImmediateRecovery,
             routeRecentSendGraceMs = ROUTE_RECENT_SEND_GRACE_MS,
             connectivityWatchdogPeriodMs = CONNECTIVITY_WATCHDOG_PERIOD_MS,
@@ -569,7 +569,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             displayReady = displayId >= 0,
             recentVideoTraffic = recentVideoTraffic,
             routeReady = routeCheck?.ok ?: true,
-            peerCheck = evaluatePeerReachability(targetHost, force = true),
+
         )
         Timber.tag(TAG).i("Wake snapshot: ${ConnectivityHealth.describeWakeSnapshot(runtimeSnapshot)} | " +
                 ConnectivityHealth.describeWakeDecision(runtimeSnapshot),
@@ -873,10 +873,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
-    private fun evaluatePeerReachability(targetHost: String, force: Boolean): PeerCheckResult {
-        // Ping через root удалён; проверка доступности выполняется только через UDP-probe
-        return PeerCheckResult(attempted = false, ok = false)
-    }
+
 
     private fun isVideoStreamModeSelected(): Boolean {
         return try {

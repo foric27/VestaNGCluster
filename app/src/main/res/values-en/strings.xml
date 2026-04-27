@@ -24,7 +24,7 @@
     <string name="msg_root_missing_toast">Root permissions not granted. Some features are unavailable.</string>
     <string name="msg_privileged_access_required">Privileged/root access via su is required</string>
     <string name="msg_output_app_not_found_fmt">Output application not found: %1$s</string>
-    <string name="msg_yandex_navigator_not_found_fmt">Yandex Navigator not found: %1$s</string>
+    <string name="msg_target_app_not_found_fmt">Target application not found: %1$s</string>
     <string name="msg_output_app_launch_failed_fmt">Failed to launch output application: %1$s</string>
 
     <string name="ftp_title">FTP update</string>

@@ -24,7 +24,7 @@
     <string name="msg_root_missing_toast">Root-права не выданы. Некоторые функции недоступны.</string>
     <string name="msg_privileged_access_required">Нужен privileged/root-доступ через su</string>
     <string name="msg_output_app_not_found_fmt">Приложение для вывода не найдено: %1$s</string>
-    <string name="msg_yandex_navigator_not_found_fmt">Яндекс Навигатор не найден: %1$s</string>
+    <string name="msg_target_app_not_found_fmt">Целевое приложение не найдено: %1$s</string>
     <string name="msg_output_app_launch_failed_fmt">Не удалось запустить приложение вывода: %1$s</string>
 
     <string name="ftp_title">FTP обновление</string>

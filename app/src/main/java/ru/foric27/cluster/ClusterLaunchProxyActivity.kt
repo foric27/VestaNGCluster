@@ -48,8 +48,8 @@ class ClusterLaunchProxyActivity : Activity() {
             Timber.tag(TAG).i("Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottomMask=encoder, display=$displayId",
             )
         } catch (e: ActivityNotFoundException) {
-            val msg = getString(R.string.msg_yandex_navigator_not_found_fmt, targetComponent)
-            Timber.tag(TAG).e(e, "Proxy: Яндекс Навигатор не найден: $targetComponent")
+            val msg = getString(R.string.msg_target_app_not_found_fmt, targetComponent)
+            Timber.tag(TAG).e(e, "Proxy: целевое приложение не найдено: $targetComponent")
             AppWarningCenter.publish(msg)
         } catch (t: Throwable) {
             Timber.tag(TAG).e(t, "Proxy: не удалось запустить cluster-activity")

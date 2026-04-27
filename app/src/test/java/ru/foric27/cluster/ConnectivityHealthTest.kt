@@ -7,7 +7,7 @@ import org.junit.Test
 class ConnectivityHealthTest {
 
     @Test
-    fun `wake stream is healthy when traffic route and peer are healthy`() {
+    fun `wake stream is healthy when traffic and route are healthy`() {
         val snapshot = RuntimeHealthSnapshot(
             streamActive = true,
             startInProgress = false,
@@ -15,7 +15,6 @@ class ConnectivityHealthTest {
             displayReady = true,
             recentVideoTraffic = true,
             routeReady = true,
-            peerCheck = PeerCheckResult(attempted = true, ok = true),
         )
 
         assertTrue(ConnectivityHealth.isWakeStreamHealthy(snapshot))
@@ -23,25 +22,23 @@ class ConnectivityHealthTest {
     }
 
     @Test
-    fun `watchdog connection stays healthy with successful udp probe when ping unavailable`() {
+    fun `watchdog connection stays healthy with successful udp probe`() {
         assertTrue(
             ConnectivityHealth.isWatchdogConnectionHealthy(
                 recentVideoTraffic = false,
                 routeReady = true,
-                peerCheck = PeerCheckResult(attempted = false, ok = false),
                 udpProbeOk = true,
             ),
         )
     }
 
     @Test
-    fun `watchdog falls back to udp probe when ping is unavailable`() {
-        assertTrue(
+    fun `watchdog connection is unhealthy when udp probe fails`() {
+        assertFalse(
             ConnectivityHealth.isWatchdogConnectionHealthy(
                 recentVideoTraffic = false,
                 routeReady = true,
-                peerCheck = PeerCheckResult(attempted = false, ok = false),
-                udpProbeOk = true,
+                udpProbeOk = false,
             ),
         )
     }
