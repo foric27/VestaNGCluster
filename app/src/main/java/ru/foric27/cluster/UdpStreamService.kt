@@ -17,7 +17,6 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
-import timber.log.Timber
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -25,8 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.util.Locale
-import java.util.concurrent.atomic.AtomicBoolean
+import timber.log.Timber
 
 /**
  * Главный foreground-сервис cluster-проекта.
@@ -56,8 +54,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     @Volatile private var activeRootIface: String? = null
     private var streamWakeLock: PowerManager.WakeLock? = null
 
-    private var host: String? = null
-    private var port: Int = 0
+    private var targetHost: String? = null
+    private var targetPort: Int = 0
     private var lastCfg: StreamConfig? = null
     private lateinit var updateCoordinator: UdpUpdateServerCoordinator
     private lateinit var wakeRecoveryController: UdpWakeRecoveryController
@@ -83,8 +81,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         if (!networkRootShell.isAvailable()) {
             Timber.tag(TAG).e("ROOT НЕ ДОСТУПЕН: сервис запущен без root-прав, сетевые функции и видеотрансляция будут недоступны")
         }
-        sServiceRunning = true
-        sStreamActive = false
+        serviceRunning = true
+        streamActiveState = false
         initWakeLock()
         initCollaborators()
         ensureNotificationChannel()
@@ -99,159 +97,24 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
      * Главная точка входа сервиса. Разруливает команды refresh/restart и
      * запускает подготовку сети перед стартом видеопайплайна.
      */
-    @Volatile private var sleepStopped = false
+    @Volatile private var streamStoppedForSleep = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ensureNotificationChannel()
         startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
         try {
-            val action = intent?.action
-            when (action) {
-                ACTION_STOP_STREAM -> {
-                    synchronized(serviceLock) {
-                        if (streamActive) {
-                            sleepStopped = true
-                            stopInternalKeepService()
-                            PersistentVirtualDisplay.releaseAll()
-                            updateNotification(getString(R.string.service_notification_sleep_stopped))
-                        }
-                    }
-                    return START_STICKY
-                }
-                ACTION_START_STREAM -> {
-                    synchronized(serviceLock) {
-                        sleepStopped = false
-                        if (!streamActive && !startInProgress) {
-                            attemptRestart("user_start_from_notification")
-                        } else {
-                            updateNotification(getNotificationStateText())
-                        }
-                    }
-                    return START_STICKY
-                }
-                ACTION_REFRESH_FTP_NOW -> {
-                    startDetachedWorker("RefreshFtpNow") {
-                        try {
-                            startOrRefreshUpdateServer()
-                        } catch (t: Throwable) {
-                            Timber.tag(TAG).e(t, "Ошибка немедленного обновления FTP")
-                        }
-                    }
-                    return START_STICKY
-                }
-                ACTION_REFRESH_USB_FTP_NOW -> {
-                    startDetachedWorker("RefreshUsbFtpNow") {
-                        try {
-                            updateCoordinator.refreshUsbUpdateServer()
-                        } catch (t: Throwable) {
-                            Timber.tag(TAG).e(t, "Ошибка USB-aware обновления FTP")
-                        }
-                    }
-                    return START_STICKY
-                }
-                ACTION_REFRESH_USB_REMOVED_FTP_NOW -> {
-                    startDetachedWorker("RefreshUsbRemovedFtpNow") {
-                        try {
-                            updateCoordinator.refreshAfterUsbRemoved()
-                        } catch (t: Throwable) {
-                            Timber.tag(TAG).e(t, "Ошибка обновления FTP после извлечения USB")
-                        }
-                    }
-                    return START_STICKY
-                }
+            when (intent?.action) {
+                ACTION_STOP_STREAM -> return handleStopStreamAction()
+                ACTION_START_STREAM -> return handleStartStreamAction()
+                ACTION_REFRESH_FTP_NOW -> return handleRefreshFtpAction()
+                ACTION_REFRESH_USB_FTP_NOW -> return handleRefreshUsbFtpAction()
+                ACTION_REFRESH_USB_REMOVED_FTP_NOW -> return handleRefreshUsbRemovedFtpAction()
             }
 
-            val forceRestart = action == ACTION_RESTART_SERVICE_NOW
-            val safeIntent = intent ?: createStartIntent(this).also {
-                Timber.tag(TAG).w("onStartCommand(): получен null intent, использую fixedConfig(context)")
-            }
-            val cfg = readConfig(safeIntent)
-            val targetHost = cfg.ip?.trim().orEmpty()
-            val targetPort = cfg.port
-            if (targetHost.isEmpty() || targetPort !in 1..65535) {
-                startInProgress = false
-                Timber.tag(TAG).e("Ошибка запуска: некорректные host/port")
-                recoveryScheduler.schedule("invalid_config", SERVICE_RECOVERY_DELAY_MS)
-                return START_STICKY
-            }
-
-            synchronized(serviceLock) {
-                if (!forceRestart && lastCfg == cfg && (streamActive || startInProgress || sender != null)) {
-                    Timber.tag(TAG).i("Игнорирую повторный startCommand: стрим уже активен или запускается")
-                    startDetachedWorker("DuplicateStartFtpRefresh") {
-                        try {
-                            startOrRefreshUpdateServer()
-                        } catch (t: Throwable) {
-                            Timber.tag(TAG).e(t, "Ошибка обновления FTP при повторном startCommand")
-                        }
-                    }
-                    updateNotification(getNotificationStateText())
-                    return START_STICKY
-                }
-
-                stopInternalKeepService()
-                restartController.cancel()
-
-                lastCfg = cfg
-                host = targetHost
-                port = targetPort
-                startInProgress = true
-            }
-
-            startDetachedWorker("StartupWorker") {
-                try {
-                    val networkPrep = networkPreparationCoordinator.prepare(cfg)
-                    if (networkPrep.rootRequired) {
-                        mainHandler.post {
-                            if (!sServiceRunning) return@post
-                            startInProgress = false
-                            serviceAlerts.notifyRootRequiredOnce()
-                        }
-                        return@startDetachedWorker
-                    }
-                    if (forceRestart) {
-                        updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_FIRST)
-                    } else {
-                        startOrRefreshUpdateServer()
-                    }
-                    updateCoordinator.scheduleInternalUpdatePoll()
-                    if (!networkPrep.ifacePresent) {
-                        val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
-                        if (!RootNetUtil.wasSelectedIfaceEverPresent) {
-                            Timber.tag(TAG).i("$ifaceName отсутствует; запуск стрима отменён — интерфейс никогда не поднимался")
-                            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
-                            startInProgress = false
-                            return@startDetachedWorker
-                        }
-                        Timber.tag(TAG).w("$ifaceName отсутствует; запуск отложен до появления интерфейса")
-                        serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
-                        startInProgress = false
-                        return@startDetachedWorker
-                    }
-
-                    mainHandler.post {
-                        if (!sServiceRunning || lastCfg != cfg || !startInProgress) {
-                            return@post
-                        }
-                        activeRootIface = networkPrep.ifaceName
-                        startPipelineAsync(
-                            cfg = cfg,
-                            hostValue = targetHost,
-                            bindIp = networkPrep.bindIp,
-                            launchComponent = cfg.launchComponent,
-                            restartLog = false,
-                        )
-                    }
-                } catch (t: Throwable) {
-                    mainHandler.post {
-                        if (!sServiceRunning) return@post
-                        startInProgress = false
-                        Timber.tag(TAG).e(t, "Ошибка подготовки сети")
-                        restartController.schedule("network_prep", t)
-                    }
-                }
-            }
-            return START_STICKY
+            return handleStartupCommand(
+                intent = intent,
+                forceRestart = intent?.action == ACTION_RESTART_SERVICE_NOW,
+            )
         } catch (se: SecurityException) {
             startInProgress = false
             Timber.tag(TAG).e(se, "Ошибка запуска: SecurityException")
@@ -279,8 +142,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     override fun onDestroy() {
-        sStreamActive = false
-        sServiceRunning = false
+        streamActiveState = false
+        serviceRunning = false
         synchronized(serviceLock) {
             restartInProgress = false
         }
@@ -294,7 +157,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         unregisterUsbMediaReceiver()
         stopInternalFull()
         networkRootShell.close()
-        releaseStreamWakeLock()
+        updateStreamWakeLock(held = false)
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -313,6 +176,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun initCollaborators() {
+        initRecoveryCoordinators()
+        initUpdateCoordinator()
+        initNetworkCoordinators()
+        initVideoCoordinators()
+    }
+
+    private fun initRecoveryCoordinators() {
         restartController = UdpServiceRestartController(
             scope = serviceScope,
             tag = TAG,
@@ -339,13 +209,34 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 startServiceCompat(applicationContext)
             },
         )
+        wakeRecoveryController = UdpWakeRecoveryController(
+            context = this,
+            scope = serviceScope,
+            startDetachedWorker = ::startDetachedWorker,
+            postToMain = { block -> mainHandler.post { block() } },
+            registerLocalReceiver = ::registerLocalReceiver,
+            unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
+            snapshotProvider = ::buildWakeRecoverySnapshot,
+            logPipelineSnapshot = ::logPipelineSnapshot,
+            forceOutputFrame = { reason -> encoder?.forceOutputFrame(reason) ?: Unit },
+            relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
+            requestImmediateRecovery = ::requestImmediateRecovery,
+            stopStream = ::stopStreamForSleep,
+            startStream = ::resumeStreamAfterSleep,
+        )
+    }
+
+    private fun initUpdateCoordinator() {
         updateCoordinator = UdpUpdateServerCoordinator(
             context = applicationContext,
             mainHandler = mainHandler,
-            isServiceRunning = { sServiceRunning },
+            isServiceRunning = { serviceRunning },
             startDetachedWorker = ::startDetachedWorker,
             publishWarning = { AppWarningCenter.publish(it) },
         )
+    }
+
+    private fun initNetworkCoordinators() {
         statusSyncCoordinator = UdpStatusSyncCoordinator(
             context = applicationContext,
             tag = TAG,
@@ -374,11 +265,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             joinThreadQuietly = ::joinThreadQuietly,
             configProvider = { lastCfg },
             senderProvider = { sender },
-            hostProvider = { host },
+            hostProvider = { targetHost },
             activeRootIfaceProvider = { activeRootIface },
             ipFromCidr = ::ipFromCidr,
             logRouteVerdict = serviceAlerts::logRouteVerdict,
-
             requestImmediateRecovery = ::requestImmediateRecovery,
             routeRecentSendGraceMs = ROUTE_RECENT_SEND_GRACE_MS,
             connectivityWatchdogPeriodMs = CONNECTIVITY_WATCHDOG_PERIOD_MS,
@@ -387,6 +277,16 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             routeFailuresBeforeRestart = ROUTE_FAILURES_BEFORE_RESTART,
             defaultUsbLocalCidr = DEF_USB_LOCAL_CIDR,
         )
+        networkPreparationCoordinator = UdpNetworkPreparationCoordinator(
+            tag = TAG,
+            defaultUsbLocalCidr = DEF_USB_LOCAL_CIDR,
+            defaultUsbGateway = DEF_USB_GATEWAY,
+            ipFromCidr = ::ipFromCidr,
+            logRouteVerdict = serviceAlerts::logRouteVerdict,
+        )
+    }
+
+    private fun initVideoCoordinators() {
         pipelineStartCoordinator = UdpPipelineStartCoordinator(
             tag = TAG,
             createVideoEncoder = { cfg, launchComponent, localSender ->
@@ -413,25 +313,24 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             startConnectivityWatchdog = connectivityWatchdogCoordinator::start,
             setStreamActive = {
                 streamActive = it
-                sStreamActive = it
+                streamActiveState = it
             },
             setStartInProgress = { startInProgress = it },
             resetRestartBackoff = restartController::resetBackoff,
             setRestartBackoff = restartController::setBackoff,
             resetNoLinkWarning = serviceAlerts::resetNoLinkWarning,
             replayRootWarningIfPresent = serviceAlerts::replayRootWarningIfPresent,
-            acquireStreamWakeLock = ::acquireStreamWakeLock,
-            releaseStreamWakeLock = ::releaseStreamWakeLock,
+            acquireStreamWakeLock = { updateStreamWakeLock(held = true) },
+            releaseStreamWakeLock = { updateStreamWakeLock(held = false) },
             cancelPendingRestart = restartController::cancel,
             cancelRecovery = recoveryScheduler::cancel,
             updateNotification = { updateNotification(getNotificationStateText()) },
             scheduleRestart = restartController::schedule,
             stopEncoderQuietly = {
-                try {
-                    encoder?.stop()
-                } catch (stopError: Throwable) {
-                    Timber.tag(TAG).w(stopError, "Не удалось остановить частично запущенный VideoEncoder")
-                }
+                runCatching { encoder?.stop() }
+                    .onFailure { stopError ->
+                        Timber.tag(TAG).w(stopError, "Не удалось остановить частично запущенный VideoEncoder")
+                    }
             },
         )
         startupProbeCoordinator = UdpStartupProbeCoordinator(
@@ -446,9 +345,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             setStartInProgress = { startInProgress = it },
             increaseRestartBackoff = restartController::increaseBackoff,
             logPipelineSnapshot = ::logPipelineSnapshot,
-            notifyNoRoute = { hostValue, backoffMs ->
+            notifyNoRoute = { targetHostValue, backoffMs ->
                 serviceAlerts.notifyNoLinkOnce(
-                    getString(R.string.service_notification_no_route_fmt, hostValue, backoffMs / 1000),
+                    getString(R.string.service_notification_no_route_fmt, targetHostValue, backoffMs / 1000),
                 )
             },
             scheduleRestart = restartController::schedule,
@@ -468,47 +367,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             waitForUdpReady = startupProbeCoordinator::waitForUdpReady,
             handleRouteNotReady = startupProbeCoordinator::handleRouteNotReady,
         )
-        networkPreparationCoordinator = UdpNetworkPreparationCoordinator(
-            tag = TAG,
-            defaultUsbLocalCidr = DEF_USB_LOCAL_CIDR,
-            defaultUsbGateway = DEF_USB_GATEWAY,
-            ipFromCidr = ::ipFromCidr,
-            logRouteVerdict = serviceAlerts::logRouteVerdict,
-        )
-        wakeRecoveryController = UdpWakeRecoveryController(
-            context = this,
-            scope = serviceScope,
-            startDetachedWorker = ::startDetachedWorker,
-            postToMain = { block -> mainHandler.post { block() } },
-            registerLocalReceiver = ::registerLocalReceiver,
-            unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
-            snapshotProvider = ::buildWakeRecoverySnapshot,
-            logPipelineSnapshot = ::logPipelineSnapshot,
-            forceOutputFrame = { reason -> encoder?.forceOutputFrame(reason) ?: Unit },
-            relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
-            requestImmediateRecovery = ::requestImmediateRecovery,
-            stopStream = {
-                synchronized(serviceLock) {
-                    if (streamActive) {
-                        sleepStopped = true
-                        stopInternalKeepService()
-                        PersistentVirtualDisplay.releaseAll()
-                        Timber.tag(TAG).i("Экран выключен — стрим и VirtualDisplay освобождены для экономии заряда")
-                        updateNotification(getString(R.string.service_notification_sleep_stopped))
-                    }
-                }
-            },
-            startStream = {
-                synchronized(serviceLock) {
-                    sleepStopped = false
-                    if (!streamActive && !startInProgress) {
-                        attemptRestart("wake_recovery")
-                    } else {
-                        updateNotification(getString(R.string.service_notification_wake_started))
-                    }
-                }
-            },
-        )
     }
 
     private fun initWakeLock() {
@@ -518,25 +376,21 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
-    private fun acquireStreamWakeLock() {
+    private fun updateStreamWakeLock(held: Boolean) {
         val wakeLock = streamWakeLock ?: return
-        if (wakeLock.isHeld) return
-        try {
-            wakeLock.acquire(STREAM_WAKE_LOCK_TIMEOUT_MS)
-            Timber.tag(TAG).i("Удерживаю PARTIAL_WAKE_LOCK для активного стрима")
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось захватить PARTIAL_WAKE_LOCK")
-        }
-    }
-
-    private fun releaseStreamWakeLock() {
-        val wakeLock = streamWakeLock ?: return
-        if (!wakeLock.isHeld) return
-        try {
-            wakeLock.release()
-            Timber.tag(TAG).i("Освобождаю PARTIAL_WAKE_LOCK стрима")
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось освободить PARTIAL_WAKE_LOCK")
+        if (held == wakeLock.isHeld) return
+        runCatching {
+            if (held) {
+                wakeLock.acquire(STREAM_WAKE_LOCK_TIMEOUT_MS)
+            } else {
+                wakeLock.release()
+            }
+        }.onSuccess {
+            val action = if (held) "Удерживаю" else "Освобождаю"
+            Timber.tag(TAG).i("$action PARTIAL_WAKE_LOCK стрима")
+        }.onFailure { t ->
+            val action = if (held) "захватить" else "освободить"
+            Timber.tag(TAG).w(t, "Не удалось $action PARTIAL_WAKE_LOCK")
         }
     }
 
@@ -554,12 +408,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
         } == true
         val displayId = VdspState.getDisplayId()
-        val targetHost = host?.takeIf { it.isNotBlank() } ?: cfg.ip
+        val targetHostValue = targetHost?.takeIf { it.isNotBlank() } ?: cfg.ip
         val expectedBindIp = cfg.bindIp?.takeIf { it.isNotBlank() } ?: cfg.localCidr?.let(::ipFromCidr)
-        val routeCheck = if (!expectedBindIp.isNullOrBlank()) {
-            RootNetUtil.checkRouteTo(targetHost, expectedBindIp, forceProbe = true)
-        } else {
-            null
+        val routeCheck = expectedBindIp?.takeIf { it.isNotBlank() }?.let {
+            RootNetUtil.checkRouteTo(targetHostValue, it, forceProbe = true)
         }
         routeCheck?.let { serviceAlerts.logRouteVerdict("wake snapshot", it) }
         val runtimeSnapshot = RuntimeHealthSnapshot(
@@ -571,7 +423,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             routeReady = routeCheck?.ok ?: true,
 
         )
-        Timber.tag(TAG).i("Wake snapshot: ${ConnectivityHealth.describeWakeSnapshot(runtimeSnapshot)} | " +
+        Timber.tag(TAG).i(
+            "Wake snapshot: ${ConnectivityHealth.describeWakeSnapshot(runtimeSnapshot)} | " +
                 ConnectivityHealth.describeWakeDecision(runtimeSnapshot),
         )
         return UdpWakeRecoverySnapshot(
@@ -581,29 +434,32 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun registerDisplayStateReceiver() {
-        if (displayStateReceiverRegistered) return
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != VdspState.ACTION_VDSP_STATE_CHANGED) return
-                val state = intent.getStringExtra(VdspState.EXTRA_STATE).orEmpty()
-                val displayId = intent.getIntExtra(VdspState.EXTRA_DISPLAY_ID, -1)
-                Timber.tag(TAG).i("Состояние cluster display изменилось: state=$state, displayId=$displayId")
-                if (state == VdspState.DisplayState.REMOVED.wireValue && streamActive && !startInProgress) {
-                    requestImmediateRecovery(
-                        "display_removed",
-                        NO_ROUTE_RESTART_BACKOFF_MIN_MS,
-                        getString(R.string.service_notification_display_removed_restart),
-                    )
+        registerManagedReceiver(
+            isRegistered = { displayStateReceiverRegistered },
+            setReceiver = { displayStateReceiver = it },
+            setRegistered = { displayStateReceiverRegistered = it },
+            createReceiver = {
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        if (intent?.action != VdspState.ACTION_VDSP_STATE_CHANGED) return
+                        val state = intent.getStringExtra(VdspState.EXTRA_STATE).orEmpty()
+                        val displayId = intent.getIntExtra(VdspState.EXTRA_DISPLAY_ID, -1)
+                        Timber.tag(TAG).i("Состояние cluster display изменилось: state=$state, displayId=$displayId")
+                        if (state == VdspState.DisplayState.REMOVED.wireValue && streamActive && !startInProgress) {
+                            requestImmediateRecovery(
+                                "display_removed",
+                                NO_ROUTE_RESTART_BACKOFF_MIN_MS,
+                                getString(R.string.service_notification_display_removed_restart),
+                            )
+                        }
+                    }
                 }
-            }
-        }
-        try {
-            registerLocalReceiver(receiver, IntentFilter(VdspState.ACTION_VDSP_STATE_CHANGED))
-            displayStateReceiver = receiver
-            displayStateReceiverRegistered = true
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось зарегистрировать receiver состояния cluster display")
-        }
+            },
+            register = { receiver ->
+                registerLocalReceiver(receiver, IntentFilter(VdspState.ACTION_VDSP_STATE_CHANGED))
+            },
+            failureMessage = "Не удалось зарегистрировать receiver состояния cluster display",
+        )
     }
 
     private fun unregisterDisplayStateReceiver() {
@@ -614,60 +470,60 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun registerUsbMediaReceiver() {
-        if (usbMediaReceiverRegistered) return
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val action = intent.action.orEmpty()
-                val path = intent.data?.path.orEmpty()
-                when (action) {
-                    Intent.ACTION_MEDIA_MOUNTED -> {
-                        if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
-                            Timber.tag(TAG).i("Пропускаю runtime mount не-USB носителя: $path")
-                            return
-                        }
-                        startDetachedWorker("UsbMountedRefresh") {
-                            updateCoordinator.refreshUsbUpdateServer()
-                            Timber.tag(TAG).i("USB вставлен во время работы приложения: $path, FTP обновлён")
-                        }
-                    }
-                    Intent.ACTION_MEDIA_REMOVED,
-                    Intent.ACTION_MEDIA_UNMOUNTED,
-                    Intent.ACTION_MEDIA_EJECT -> {
-                        if (path.isNotBlank() && !UsbStoragePathMatcher.isUsbStoragePath(path)) {
-                            Timber.tag(TAG).i("Пропускаю runtime remove не-USB носителя: $path")
-                            return
-                        }
-                        startDetachedWorker("UsbRemovedRefresh") {
-                            updateCoordinator.refreshAfterUsbRemoved()
-                            Timber.tag(TAG).i("USB извлечён во время работы приложения: $path, FTP обновлён")
+        registerManagedReceiver(
+            isRegistered = { usbMediaReceiverRegistered },
+            setReceiver = { usbMediaReceiver = it },
+            setRegistered = { usbMediaReceiverRegistered = it },
+            createReceiver = {
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        val action = intent.action.orEmpty()
+                        val path = intent.data?.path.orEmpty()
+                        when (action) {
+                            Intent.ACTION_MEDIA_MOUNTED -> {
+                                if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
+                                    Timber.tag(TAG).i("Пропускаю runtime mount не-USB носителя: $path")
+                                    return
+                                }
+                                startDetachedWorker("UsbMountedRefresh") {
+                                    updateCoordinator.refreshUsbUpdateServer()
+                                    Timber.tag(TAG).i("USB вставлен во время работы приложения: $path, FTP обновлён")
+                                }
+                            }
+
+                            Intent.ACTION_MEDIA_REMOVED,
+                            Intent.ACTION_MEDIA_UNMOUNTED,
+                            Intent.ACTION_MEDIA_EJECT -> {
+                                if (path.isNotBlank() && !UsbStoragePathMatcher.isUsbStoragePath(path)) {
+                                    Timber.tag(TAG).i("Пропускаю runtime remove не-USB носителя: $path")
+                                    return
+                                }
+                                startDetachedWorker("UsbRemovedRefresh") {
+                                    updateCoordinator.refreshAfterUsbRemoved()
+                                    Timber.tag(TAG).i("USB извлечён во время работы приложения: $path, FTP обновлён")
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
-
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_MEDIA_MOUNTED)
-            addAction(Intent.ACTION_MEDIA_UNMOUNTED)
-            addAction(Intent.ACTION_MEDIA_REMOVED)
-            addAction(Intent.ACTION_MEDIA_EJECT)
-            addDataScheme("file")
-        }
-
-        try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-            } else {
-                @Suppress("DEPRECATION")
-                registerReceiver(receiver, filter)
-            }
-            usbMediaReceiver = receiver
-            usbMediaReceiverRegistered = true
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось зарегистрировать USB media receiver")
-            usbMediaReceiver = null
-            usbMediaReceiverRegistered = false
-        }
+            },
+            register = { receiver ->
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_MEDIA_MOUNTED)
+                    addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+                    addAction(Intent.ACTION_MEDIA_REMOVED)
+                    addAction(Intent.ACTION_MEDIA_EJECT)
+                    addDataScheme("file")
+                }
+                if (Build.VERSION.SDK_INT >= 33) {
+                    registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+                } else {
+                    @Suppress("DEPRECATION")
+                    registerReceiver(receiver, filter)
+                }
+            },
+            failureMessage = "Не удалось зарегистрировать USB media receiver",
+        )
     }
 
     private fun unregisterUsbMediaReceiver() {
@@ -678,7 +534,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun attemptRestart(reason: String?) {
-        if (!sServiceRunning) {
+        if (!serviceRunning) {
             Timber.tag(TAG).w("attemptRestart отменён: сервис уже уничтожен")
             return
         }
@@ -700,12 +556,12 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         startDetachedWorker("RestartWorker") {
             try {
                 val cfg = lastCfg ?: StreamConfig.fixedConfig(this@UdpStreamService)
-                val targetHost = host ?: cfg.ip
+                val requestedTargetHost = targetHost ?: cfg.ip
                 val networkPrep = networkPreparationCoordinator.prepare(cfg)
 
                 if (networkPrep.rootRequired) {
                     mainHandler.post {
-                        if (!sServiceRunning) return@post
+                        if (!serviceRunning) return@post
                         startInProgress = false
                         serviceAlerts.notifyRootRequiredOnce()
                     }
@@ -714,27 +570,17 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                 if (!networkPrep.ifacePresent) {
                     mainHandler.post {
-                        if (!sServiceRunning) return@post
-                        startInProgress = false
-                        val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
-                        if (!RootNetUtil.wasSelectedIfaceEverPresent) {
-                            Timber.tag(TAG).i("$ifaceName отсутствует на устройстве; повторный запуск отменён — интерфейс никогда не поднимался")
-                            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
-                            return@post
-                        }
-                        val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
-                        Timber.tag(TAG).w("$ifaceName отсутствует на устройстве; повторю позже. backoff=${backoffMs}ms")
-                        serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, backoffMs / 1000))
-                        restartController.schedule(RuntimeConfig.Root.MISSING_REASON, null)
+                        if (!serviceRunning) return@post
+                        handleMissingInterface(scheduleRestart = true)
                     }
                     return@startDetachedWorker
                 }
 
                 mainHandler.post {
-                    if (!sServiceRunning) return@post
+                    if (!serviceRunning) return@post
                     startPipelineAsync(
                         cfg = cfg,
-                        hostValue = targetHost,
+                        targetHostValue = requestedTargetHost,
                         bindIp = networkPrep.bindIp,
                         launchComponent = cfg.launchComponent,
                         restartLog = true,
@@ -742,7 +588,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 }
             } catch (t: Throwable) {
                 mainHandler.post {
-                    if (!sServiceRunning) return@post
+                    if (!serviceRunning) return@post
                     startInProgress = false
                     val backoffMs = restartController.increaseBackoff()
                     Timber.tag(TAG).w(t, "Попытка рестарта завершилась ошибкой; повторю позже. backoff=${backoffMs}ms")
@@ -764,12 +610,12 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun scheduleStartupUpdateServerRefresh() {
         mainHandler.postDelayed(
             {
-                if (!sServiceRunning) return@postDelayed
+                if (!serviceRunning) return@postDelayed
                 startDetachedWorker("StartupFtpRefresh") {
-                    try {
+                    runCatching {
                         Timber.tag(TAG).i("Проверяю FTP обновлений после создания сервиса")
                         startOrRefreshUpdateServer()
-                    } catch (t: Throwable) {
+                    }.onFailure { t ->
                         Timber.tag(TAG).e(t, "Ошибка отложенного запуска FTP обновлений")
                     }
                 }
@@ -786,24 +632,18 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             updateCoordinator.stop()
             connectivityWatchdogCoordinator.resetRouteFailureStreak()
             activeRootIface = null
-            releaseStreamWakeLock()
+            updateStreamWakeLock(held = false)
 
-            try {
-                encoder?.stop()
-            } catch (t: Throwable) {
-                Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder")
-            }
+            runCatching { encoder?.stop() }
+                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
             encoder = null
 
             streamActive = false
-            sStreamActive = false
+            streamActiveState = false
             startInProgress = false
 
-            try {
-                sender?.close()
-            } catch (t: Throwable) {
-                Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender")
-            }
+            runCatching { sender?.close() }
+                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
         }
     }
@@ -815,13 +655,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         RootNetUtil.clearCaches()
         PersistentVirtualDisplay.releaseAll()
     }
+
     private fun requestImmediateRecovery(
         reason: String,
         minBackoffMs: Long,
         userMessage: String,
     ) {
         startDetachedWorker("ImmediateRecovery") {
-            if (!sServiceRunning) return@startDetachedWorker
+            if (!serviceRunning) return@startDetachedWorker
             restartController.prepareImmediateRecovery(
                 reason = reason,
                 minBackoffMs = minBackoffMs,
@@ -838,22 +679,22 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun startPipelineAsync(
         cfg: StreamConfig,
-        hostValue: String,
+        targetHostValue: String,
         bindIp: String?,
         launchComponent: String?,
         restartLog: Boolean,
     ) {
         startupFlowCoordinator.start(
-            hostValue = hostValue,
-            port = port,
+            hostValue = targetHostValue,
+            port = targetPort,
             bindIp = bindIp,
             routeWaitTimeoutMs = ROUTE_WAIT_TIMEOUT_MS,
             noRouteRestartBackoffMinMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
             onReadyPipeline = { localSender ->
                 pipelineStartCoordinator.startReadyPipeline(
                     cfg = cfg,
-                    hostValue = hostValue,
-                    port = port,
+                    hostValue = targetHostValue,
+                    port = targetPort,
                     bindIp = bindIp,
                     launchComponent = launchComponent,
                     restartLog = restartLog,
@@ -872,8 +713,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             null
         }
     }
-
-
 
     private fun isVideoStreamModeSelected(): Boolean {
         return try {
@@ -927,6 +766,28 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
     }
 
+    private fun registerManagedReceiver(
+        isRegistered: () -> Boolean,
+        setReceiver: (BroadcastReceiver?) -> Unit,
+        setRegistered: (Boolean) -> Unit,
+        createReceiver: () -> BroadcastReceiver,
+        register: (BroadcastReceiver) -> Unit,
+        failureMessage: String,
+    ) {
+        if (isRegistered()) return
+        val receiver = createReceiver()
+        runCatching { register(receiver) }
+            .onSuccess {
+                setReceiver(receiver)
+                setRegistered(true)
+            }
+            .onFailure { t ->
+                Timber.tag(TAG).w(t, failureMessage)
+                setReceiver(null)
+                setRegistered(false)
+            }
+    }
+
     private fun unregisterReceiverBestEffort(receiver: BroadcastReceiver?, label: String) {
         try {
             receiver?.let { unregisterReceiver(it) }
@@ -957,8 +818,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val lastSendAgoMs = senderSnapshot?.lastSendElapsedRealtimeMs?.takeIf { it > 0L }?.let {
             SystemClock.elapsedRealtime() - it
         } ?: -1L
-        Timber.tag(TAG).i("Снимок сервиса | $prefix | streamActive=$streamActive, startInProgress=$startInProgress, displayId=$displayId, " +
-                "sender=${senderSnapshot != null}, host=${senderSnapshot?.host ?: host ?: "unknown"}, " +
+        Timber.tag(TAG).i(
+            "Снимок сервиса | $prefix | streamActive=$streamActive, startInProgress=$startInProgress, displayId=$displayId, " +
+                "sender=${senderSnapshot != null}, host=${senderSnapshot?.host ?: targetHost ?: "unknown"}, " +
                 "videoFrames=${senderSnapshot?.videoFramesSent ?: 0}, videoPackets=${senderSnapshot?.videoPacketsSent ?: 0}, " +
                 "sendErrors=${senderSnapshot?.sendErrors ?: 0}, lastSendAgo=${lastSendAgoMs}ms, routeFailureStreak=${connectivityWatchdogCoordinator.currentRouteFailureStreak()}",
         )
@@ -966,8 +828,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun ensureNotificationChannel() {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        val channel = NotificationChannel(CHANNEL_ID, RuntimeConfig.Service.NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW)
-        notificationManager.createNotificationChannel(channel)
+        NotificationChannel(
+            CHANNEL_ID,
+            RuntimeConfig.Service.NOTIFICATION_CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_LOW,
+        ).also(notificationManager::createNotificationChannel)
     }
 
     private fun buildNotification(): Notification {
@@ -1007,9 +872,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun getNotificationStateText(): String {
         return when {
-            streamActive && sleepStopped -> getString(R.string.service_notification_wake_started)
+            streamActive && streamStoppedForSleep -> getString(R.string.service_notification_wake_started)
             streamActive -> getString(R.string.service_notification_stream_running)
-            sleepStopped -> getString(R.string.service_notification_sleep_stopped)
+            streamStoppedForSleep -> getString(R.string.service_notification_sleep_stopped)
             else -> getString(R.string.service_notification_stream_stopped)
         }
     }
@@ -1043,14 +908,196 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         return PendingIntent.FLAG_IMMUTABLE
     }
 
+    private fun handleStopStreamAction(): Int {
+        synchronized(serviceLock) {
+            if (streamActive) {
+                streamStoppedForSleep = true
+                stopInternalKeepService()
+                PersistentVirtualDisplay.releaseAll()
+                updateNotification(getString(R.string.service_notification_sleep_stopped))
+            }
+        }
+        return START_STICKY
+    }
+
+    private fun handleStartStreamAction(): Int {
+        synchronized(serviceLock) {
+            streamStoppedForSleep = false
+            if (!streamActive && !startInProgress) {
+                attemptRestart("user_start_from_notification")
+            } else {
+                updateNotification(getNotificationStateText())
+            }
+        }
+        return START_STICKY
+    }
+
+    private fun handleRefreshFtpAction(): Int {
+        launchUpdateRefreshWorker("RefreshFtpNow", "Ошибка немедленного обновления FTP") {
+            startOrRefreshUpdateServer()
+        }
+        return START_STICKY
+    }
+
+    private fun handleRefreshUsbFtpAction(): Int {
+        launchUpdateRefreshWorker("RefreshUsbFtpNow", "Ошибка USB-aware обновления FTP") {
+            updateCoordinator.refreshUsbUpdateServer()
+        }
+        return START_STICKY
+    }
+
+    private fun handleRefreshUsbRemovedFtpAction(): Int {
+        launchUpdateRefreshWorker("RefreshUsbRemovedFtpNow", "Ошибка обновления FTP после извлечения USB") {
+            updateCoordinator.refreshAfterUsbRemoved()
+        }
+        return START_STICKY
+    }
+
+    private fun handleStartupCommand(intent: Intent?, forceRestart: Boolean): Int {
+        val safeIntent = intent ?: createStartIntent(this).also {
+            Timber.tag(TAG).w("onStartCommand(): получен null intent, использую fixedConfig(context)")
+        }
+        val cfg = readConfig(safeIntent)
+        val requestedTargetHost = cfg.ip?.trim().takeIf { !it.isNullOrEmpty() }
+        val requestedTargetPort = cfg.port.takeIf { it in 1..65535 }
+        if (requestedTargetHost == null || requestedTargetPort == null) {
+            startInProgress = false
+            Timber.tag(TAG).e("Ошибка запуска: некорректные host/port")
+            recoveryScheduler.schedule("invalid_config", SERVICE_RECOVERY_DELAY_MS)
+            return START_STICKY
+        }
+
+        synchronized(serviceLock) {
+            if (!forceRestart && lastCfg == cfg && (streamActive || startInProgress || sender != null)) {
+                Timber.tag(TAG).i("Игнорирую повторный startCommand: стрим уже активен или запускается")
+                launchUpdateRefreshWorker("DuplicateStartFtpRefresh", "Ошибка обновления FTP при повторном startCommand") {
+                    startOrRefreshUpdateServer()
+                }
+                updateNotification(getNotificationStateText())
+                return START_STICKY
+            }
+
+            stopInternalKeepService()
+            restartController.cancel()
+
+            lastCfg = cfg
+            targetHost = requestedTargetHost
+            targetPort = requestedTargetPort
+            startInProgress = true
+        }
+
+        startDetachedWorker("StartupWorker") {
+            try {
+                val networkPrep = networkPreparationCoordinator.prepare(cfg)
+                if (networkPrep.rootRequired) {
+                    mainHandler.post {
+                        if (!serviceRunning) return@post
+                        startInProgress = false
+                        serviceAlerts.notifyRootRequiredOnce()
+                    }
+                    return@startDetachedWorker
+                }
+                if (forceRestart) {
+                    updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_FIRST)
+                } else {
+                    startOrRefreshUpdateServer()
+                }
+                updateCoordinator.scheduleInternalUpdatePoll()
+                if (!networkPrep.ifacePresent) {
+                    handleMissingInterface(scheduleRestart = false)
+                    return@startDetachedWorker
+                }
+
+                mainHandler.post {
+                    if (!serviceRunning || lastCfg != cfg || !startInProgress) {
+                        return@post
+                    }
+                    activeRootIface = networkPrep.ifaceName
+                    startPipelineAsync(
+                        cfg = cfg,
+                        targetHostValue = requestedTargetHost,
+                        bindIp = networkPrep.bindIp,
+                        launchComponent = cfg.launchComponent,
+                        restartLog = false,
+                    )
+                }
+            } catch (t: Throwable) {
+                mainHandler.post {
+                    if (!serviceRunning) return@post
+                    startInProgress = false
+                    Timber.tag(TAG).e(t, "Ошибка подготовки сети")
+                    restartController.schedule("network_prep", t)
+                }
+            }
+        }
+        return START_STICKY
+    }
+
+    private fun launchUpdateRefreshWorker(name: String, errorMessage: String, action: () -> Unit) {
+        startDetachedWorker(name) {
+            runCatching { action() }
+                .onFailure { t -> Timber.tag(TAG).e(t, errorMessage) }
+        }
+    }
+
+    private fun stopStreamForSleep() {
+        synchronized(serviceLock) {
+            if (streamActive) {
+                streamStoppedForSleep = true
+                stopInternalKeepService()
+                PersistentVirtualDisplay.releaseAll()
+                Timber.tag(TAG).i("Экран выключен — стрим и VirtualDisplay освобождены для экономии заряда")
+                updateNotification(getString(R.string.service_notification_sleep_stopped))
+            }
+        }
+    }
+
+    private fun resumeStreamAfterSleep() {
+        synchronized(serviceLock) {
+            streamStoppedForSleep = false
+            if (!streamActive && !startInProgress) {
+                attemptRestart("wake_recovery")
+            } else {
+                updateNotification(getString(R.string.service_notification_wake_started))
+            }
+        }
+    }
+
+    private fun handleMissingInterface(scheduleRestart: Boolean) {
+        startInProgress = false
+        val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
+        if (!RootNetUtil.wasSelectedIfaceEverPresent) {
+            val logMessage = if (scheduleRestart) {
+                "$ifaceName отсутствует на устройстве; повторный запуск отменён — интерфейс никогда не поднимался"
+            } else {
+                "$ifaceName отсутствует; запуск стрима отменён — интерфейс никогда не поднимался"
+            }
+            Timber.tag(TAG).i(logMessage)
+            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
+            return
+        }
+
+        val retryDelaySeconds = if (scheduleRestart) {
+            val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
+            Timber.tag(TAG).w("$ifaceName отсутствует на устройстве; повторю позже. backoff=${backoffMs}ms")
+            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, backoffMs / 1000))
+            restartController.schedule(RuntimeConfig.Root.MISSING_REASON, null)
+            backoffMs / 1000
+        } else {
+            Timber.tag(TAG).w("$ifaceName отсутствует; запуск отложен до появления интерфейса")
+            serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
+            0L
+        }
+    }
+
     companion object {
         const val EXTRA_CONFIG: String = "config"
 
-        @Volatile private var sServiceRunning: Boolean = false
-        @Volatile private var sStreamActive: Boolean = false
+        @Volatile private var serviceRunning: Boolean = false
+        @Volatile private var streamActiveState: Boolean = false
 
-        fun isServiceRunning(): Boolean = sServiceRunning
-        fun isStreamActive(): Boolean = sStreamActive
+        fun isServiceRunning(): Boolean = serviceRunning
+        fun isStreamActive(): Boolean = streamActiveState
 
         fun createStartIntent(context: Context): Intent {
             return Intent(context, UdpStreamService::class.java).apply {
@@ -1158,6 +1205,5 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         private val DEF_USB_GATEWAY: String
             get() = RuntimeConfig.Network.GATEWAY
-
     }
 }

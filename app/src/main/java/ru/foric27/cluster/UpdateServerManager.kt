@@ -62,68 +62,46 @@ internal object UpdateServerManager {
         context: Context,
         searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
     ): Result {
-        var serverToStop: EmbeddedFtpServerFactory.RunningServer? = null
-        val result = synchronized(lock) {
+        val outcome = synchronized(lock) {
             val applicationContext = context.applicationContext
             appContext = applicationContext
             lastSearchPolicy = searchPolicy
             val previousState = currentState.get()
-            setState(State(Status.PREPARING, buildPreparingMessage(searchPolicy), detectedLocation = lastDetectedLocation, sourceFilePath = lastDetectedFilePath))
-
-            if (!StorageAccessManager.isAllFilesAccessGranted()) {
-                Timber.tag(TAG).w("Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен")
-                serverToStop = stopServerLocked(clearPrepared = true)
-                return@synchronized buildFailResult(
-                    message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
+            setState(
+                State(
+                    status = Status.PREPARING,
+                    message = buildPreparingMessage(searchPolicy),
                     detectedLocation = lastDetectedLocation,
                     sourceFilePath = lastDetectedFilePath,
-                )
-            }
-
-            try {
-                val searchResult = locateFirstValidPair(applicationContext, searchPolicy)
-                lastDetectedLocation = searchResult.detectedLocation
-                lastDetectedFilePath = searchResult.sourceFilePath
-                val validatedPair = searchResult.validatedPair ?: run {
-                    serverToStop = stopServerLocked(clearPrepared = true)
-                    return@synchronized buildFailResult(
-                        buildNoValidPairMessage(searchResult.rejectionMessages),
-                        detectedLocation = searchResult.detectedLocation,
-                        sourceFilePath = searchResult.sourceFilePath,
-                    )
-                }
-
-                if (isSamePreparedUpdateLocked(validatedPair)) {
-                    if (previousState.status == Status.RUNNING) {
+                ),
+            )
+            resolveAndStartLocked(
+                context = applicationContext,
+                searchPolicy = searchPolicy,
+                accessDeniedLogMessage = "Нет MANAGE_EXTERNAL_STORAGE, запуск FTP обновления отложен",
+                failureLogMessage = "Ошибка запуска FTP-сервера обновления",
+                samePreparedHandler = { validatedPair ->
+                    if (previousState.status == Status.RUNNING && isSamePreparedUpdateLocked(validatedPair)) {
                         Timber.tag(TAG).i("Повторный запуск FTP не требуется: уже активен тот же пакет обновления")
                         setState(previousState)
-                        return@synchronized resultFromState(previousState)
+                        ResolveStartOutcome(resultFromState(previousState))
+                    } else {
+                        null
                     }
-                }
-
-                if (runningServer != null && previousState.status == Status.RUNNING) {
-                    Timber.tag(TAG).i("FTP уже активен; откладываю переключение источника обновления, чтобы не сбить рабочий listener",
-                    )
-                    setState(previousState)
-                    return@synchronized resultFromState(previousState)
-                }
-
-                serverToStop = stopServerLocked(clearPrepared = true)
-                startValidatedPairLocked(context, searchPolicy, validatedPair)
-            } catch (t: Throwable) {
-                Timber.tag(TAG).e(t, "Ошибка запуска FTP-сервера обновления")
-                val retrySuggested = isTransientFtpStartError(t)
-                serverToStop = stopServerLocked(clearPrepared = true)
-                buildFailResult(
-                    message = buildStartFailureMessage(t, retrySuggested),
-                    retrySuggested = retrySuggested,
-                    detectedLocation = lastDetectedLocation,
-                    sourceFilePath = lastDetectedFilePath,
-                )
-            }
+                },
+                runningServerHandler = {
+                    if (runningServer != null && previousState.status == Status.RUNNING) {
+                        Timber.tag(TAG).i("FTP уже активен; откладываю переключение источника обновления, чтобы не сбить рабочий listener")
+                        setState(previousState)
+                        ResolveStartOutcome(resultFromState(previousState))
+                    } else {
+                        null
+                    }
+                },
+            )
         }
-        serverToStop?.let { performStop(it) }
-        return result
+        outcome.serverToStop?.let(::performStop)
+        return outcome.result
     }
 
     fun stopServer() {
@@ -178,66 +156,38 @@ internal object UpdateServerManager {
     }
 
     fun pollAvailableStorage(context: Context): Result {
-        var serverToStop: EmbeddedFtpServerFactory.RunningServer? = null
-        val result = synchronized(lock) {
+        val outcome = synchronized(lock) {
             val applicationContext = context.applicationContext
             appContext = applicationContext
-
             val searchPolicy = UpdateFileLocator.SearchPolicy.USB_FIRST
-
-            if (!StorageAccessManager.isAllFilesAccessGranted()) {
-                serverToStop = stopServerLocked(clearPrepared = true)
-                return@synchronized buildFailResult(
-                    message = StorageAccessManager.buildMissingAccessMessage(applicationContext),
-                    detectedLocation = lastDetectedLocation,
-                    sourceFilePath = lastDetectedFilePath,
-                )
-            }
-
-            try {
-                val searchResult = locateFirstValidPair(applicationContext, searchPolicy)
-                lastDetectedLocation = searchResult.detectedLocation
-                lastDetectedFilePath = searchResult.sourceFilePath
-                val validatedPair = searchResult.validatedPair
-                if (validatedPair == null) {
-                    serverToStop = stopServerLocked(clearPrepared = true)
-                    return@synchronized buildFailResult(
-                        buildNoValidPairMessage(searchResult.rejectionMessages),
-                        detectedLocation = searchResult.detectedLocation,
-                        sourceFilePath = searchResult.sourceFilePath,
-                    )
-                }
-
-                if (isSamePreparedUpdateLocked(validatedPair)) {
-                    return@synchronized resultFromState(currentState.get())
-                }
-
-                val current = currentState.get()
-                if (runningServer != null && current.status == Status.RUNNING) {
-                    Timber.tag(TAG).i("Опрос нашёл другой источник обновления, но FTP уже активен; сохраняю текущий listener",
-                    )
-                    setState(current)
-                    return@synchronized resultFromState(current)
-                }
-
-                Timber.tag(TAG).i(str(R.string.update_server_poll_new_update_fmt, validatedPair.pair.directoryLabel),
-                )
-                serverToStop = stopServerLocked(clearPrepared = true)
-                startValidatedPairLocked(applicationContext, searchPolicy, validatedPair)
-            } catch (t: Throwable) {
-                Timber.tag(TAG).e(t, "Ошибка периодического опроса обновления во внутренней памяти")
-                val retrySuggested = isTransientFtpStartError(t)
-                serverToStop = stopServerLocked(clearPrepared = true)
-                buildFailResult(
-                    message = buildStartFailureMessage(t, retrySuggested),
-                    retrySuggested = retrySuggested,
-                    detectedLocation = lastDetectedLocation,
-                    sourceFilePath = lastDetectedFilePath,
-                )
-            }
+            resolveAndStartLocked(
+                context = applicationContext,
+                searchPolicy = searchPolicy,
+                failureLogMessage = "Ошибка периодического опроса обновления во внутренней памяти",
+                samePreparedHandler = { validatedPair ->
+                    if (isSamePreparedUpdateLocked(validatedPair)) {
+                        ResolveStartOutcome(resultFromState(currentState.get()))
+                    } else {
+                        null
+                    }
+                },
+                runningServerHandler = {
+                    val current = currentState.get()
+                    if (runningServer != null && current.status == Status.RUNNING) {
+                        Timber.tag(TAG).i("Опрос нашёл другой источник обновления, но FTP уже активен; сохраняю текущий listener")
+                        setState(current)
+                        ResolveStartOutcome(resultFromState(current))
+                    } else {
+                        null
+                    }
+                },
+                beforeStart = { validatedPair ->
+                    Timber.tag(TAG).i(str(R.string.update_server_poll_new_update_fmt, validatedPair.pair.directoryLabel))
+                },
+            )
         }
-        serverToStop?.let { performStop(it) }
-        return result
+        outcome.serverToStop?.let(::performStop)
+        return outcome.result
     }
 
     fun getServerState(): State = currentState.get()
@@ -385,6 +335,11 @@ internal object UpdateServerManager {
         val sourceFilePath: String?,
     )
 
+    private data class ResolveStartOutcome(
+        val result: Result,
+        val serverToStop: EmbeddedFtpServerFactory.RunningServer? = null,
+    )
+
     private fun buildRejectionMessage(
         candidate: UpdateFileLocator.LocatedUpdatePair,
         verification: Sha256Verifier.VerificationResult,
@@ -408,6 +363,69 @@ internal object UpdateServerManager {
                 append('\n')
                 append(rejectionMessage)
             }
+        }
+    }
+
+    private fun resolveAndStartLocked(
+        context: Context,
+        searchPolicy: UpdateFileLocator.SearchPolicy,
+        accessDeniedLogMessage: String? = null,
+        failureLogMessage: String,
+        samePreparedHandler: (ValidatedPair) -> ResolveStartOutcome?,
+        runningServerHandler: () -> ResolveStartOutcome?,
+        beforeStart: (ValidatedPair) -> Unit = {},
+    ): ResolveStartOutcome {
+        if (!StorageAccessManager.isAllFilesAccessGranted()) {
+            accessDeniedLogMessage?.let { Timber.tag(TAG).w(it) }
+            val serverToStop = stopServerLocked(clearPrepared = true)
+            return ResolveStartOutcome(
+                result = failState(
+                    message = StorageAccessManager.buildMissingAccessMessage(context),
+                    detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
+                ),
+                serverToStop = serverToStop,
+            )
+        }
+
+        return {
+            val searchResult = locateFirstValidPair(context, searchPolicy)
+            lastDetectedLocation = searchResult.detectedLocation
+            lastDetectedFilePath = searchResult.sourceFilePath
+            val validatedPair = searchResult.validatedPair
+
+            if (validatedPair == null) {
+                ResolveStartOutcome(
+                    result = failState(
+                        message = buildNoValidPairMessage(searchResult.rejectionMessages),
+                        detectedLocation = searchResult.detectedLocation,
+                        sourceFilePath = searchResult.sourceFilePath,
+                    ),
+                    serverToStop = stopServerLocked(clearPrepared = true),
+                )
+            } else {
+                samePreparedHandler(validatedPair)
+                    ?: runningServerHandler()
+                    ?: run {
+                        beforeStart(validatedPair)
+                        val serverToStop = stopServerLocked(clearPrepared = true)
+                        ResolveStartOutcome(
+                            result = startValidatedPairLocked(context, searchPolicy, validatedPair),
+                            serverToStop = serverToStop,
+                        )
+                    }
+            }
+        }.runCatchingTimber(TAG, failureLogMessage).getOrElse { error ->
+            val retrySuggested = isTransientFtpStartError(error)
+            ResolveStartOutcome(
+                result = failState(
+                    message = buildStartFailureMessage(error, retrySuggested),
+                    retrySuggested = retrySuggested,
+                    detectedLocation = lastDetectedLocation,
+                    sourceFilePath = lastDetectedFilePath,
+                ),
+                serverToStop = stopServerLocked(clearPrepared = true),
+            )
         }
     }
 
@@ -444,25 +462,12 @@ internal object UpdateServerManager {
         }
     }
 
-    private fun buildFailResult(
-        message: String,
-        retrySuggested: Boolean = false,
-        detectedLocation: String? = null,
-        sourceFilePath: String? = null,
-    ): Result {
-        return failState(
-            message = message,
-            retrySuggested = retrySuggested,
-            detectedLocation = detectedLocation,
-            sourceFilePath = sourceFilePath,
-        )
-    }
-
     private fun buildPreparingMessage(searchPolicy: UpdateFileLocator.SearchPolicy): String {
-        return when (searchPolicy) {
-            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY -> str(R.string.update_server_preparing_internal)
-            UpdateFileLocator.SearchPolicy.USB_FIRST -> str(R.string.update_server_preparing_usb_first)
+        val preparingResId = when (searchPolicy) {
+            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY -> R.string.update_server_preparing_internal
+            UpdateFileLocator.SearchPolicy.USB_FIRST -> R.string.update_server_preparing_usb_first
         }
+        return str(preparingResId)
     }
 
     private fun failState(
@@ -491,14 +496,14 @@ internal object UpdateServerManager {
     }
 
     private fun setState(state: State) {
-        currentState.set(state)
-        appContext?.let { context ->
-            runCatching {
-                context.sendBroadcast(
-                    Intent(ACTION_UPDATE_SERVER_STATE_CHANGED).setPackage(context.packageName),
-                )
-            }.onFailure { error ->
-                Timber.tag(TAG).w(error, "Не удалось отправить состояние FTP в UI")
+        currentState.also { reference ->
+            reference.set(state)
+            appContext?.let { context ->
+                {
+                    context.sendBroadcast(
+                        Intent(ACTION_UPDATE_SERVER_STATE_CHANGED).setPackage(context.packageName),
+                    )
+                }.runCatchingTimber(TAG, "Не удалось отправить состояние FTP в UI")
             }
         }
     }
@@ -539,25 +544,28 @@ internal object UpdateServerManager {
     }
 
     private fun isTransientFtpStartError(error: Throwable): Boolean {
-        var current: Throwable? = error
-        while (current != null) {
+        return generateSequence(error) { it.cause }.any { current ->
             when (current) {
                 is java.net.BindException,
                 is java.net.SocketException,
-                is org.apache.ftpserver.ftplet.FtpException -> return true
+                is org.apache.ftpserver.ftplet.FtpException -> return@any true
             }
             val message = current.message?.lowercase().orEmpty()
-            if (message.contains("не найден ipv4") ||
+            message.contains("не найден ipv4") ||
                 message.contains("cannot assign requested address") ||
                 message.contains("failed to bind") ||
                 message.contains("bind") ||
                 message.contains("address already in use")
-            ) {
-                return true
-            }
-            current = current.cause
         }
-        return false
+    }
+
+    private inline fun <T> (() -> T).runCatchingTimber(
+        tag: String,
+        failureMessage: String,
+    ): kotlin.Result<T> {
+        return runCatching(this).onFailure { error ->
+            Timber.tag(tag).e(error, failureMessage)
+        }
     }
 
     const val ACTION_UPDATE_SERVER_STATE_CHANGED = "ru.foric27.cluster.action.UPDATE_SERVER_STATE_CHANGED"
