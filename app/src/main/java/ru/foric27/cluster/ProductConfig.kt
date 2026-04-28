@@ -56,7 +56,7 @@ object ProductConfig {
         val SIZE_SHORT: String = "${WIDTH}x${HEIGHT}"
 
         /** Верхняя граница FPS видеопотока. */
-        const val FPS_LIMIT: Int = 8
+        const val FPS_LIMIT: Int = 30
 
         /** Использовать динамический FPS по обновлениям UI. */
         const val DYNAMIC_FPS: Boolean = false
