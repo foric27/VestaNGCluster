@@ -138,7 +138,7 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 
 ## BUILD / CI NOTES
 
-- AGP `9.1.0`, Gradle wrapper `9.4.1`, compile/target SDK `37`, min SDK `26`.
+- AGP `9.1.1`, Gradle wrapper `9.4.1`, compile/target SDK `37`, min SDK `26`.
 - `gradle.properties`: `org.gradle.daemon=false`, `android.builtInKotlin=true`, `android.suppressUnsupportedCompileSdk=37.0`.
 - Release uses shrink/minify + `app/proguard-rules.pro`; manifest entry points and Apache MINA NIO processor are kept explicitly.
 - Signing reads env vars first, then `keystore.properties`; BOM-prefixed `storeFile` key is normalized.

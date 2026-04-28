@@ -22,34 +22,34 @@ if (releaseStoreFile != null) {
 def releaseSigningReady = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it != null && !it.toString().trim().isEmpty() }
 
 android {
-    namespace 'ru.foric27.cluster'
-    compileSdk 37
+    namespace = 'ru.foric27.cluster'
+    compileSdk = 37
 
     defaultConfig {
-        applicationId 'ru.foric27.cluster'
-        minSdk 26
-        targetSdk 37
-        versionCode 3
-        versionName '1.0.2'
+        applicationId = 'ru.foric27.cluster'
+        minSdk = 26
+        targetSdk = 37
+        versionCode = 3
+        versionName = '1.0.2'
     }
 
     signingConfigs {
         if (releaseSigningReady) {
             release {
-                storeFile file(releaseStoreFile)
-                storePassword releaseStorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
             if (releaseSigningReady) {
-                signingConfig signingConfigs.release
+                signingConfig = signingConfigs.release
             }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -61,8 +61,8 @@ android {
     }
 
     buildFeatures {
-        buildConfig true
-        viewBinding true
+        buildConfig = true
+        viewBinding = true
     }
 
     packaging {
