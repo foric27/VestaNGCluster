@@ -213,4 +213,6 @@
     <string name="update_alert_message_fmt">Обнаружено новое обновление: %1$s\n\nОбновить сейчас?</string>
     <string name="update_alert_update">Обновить</string>
     <string name="update_alert_cancel">Отмена</string>
+
+    <string name="media_cover_desc">Обложка альбома</string>
 </resources>

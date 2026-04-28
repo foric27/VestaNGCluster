@@ -26,8 +26,12 @@ class ClusterLaunchProxyActivity : Activity() {
     }
 
     private fun launchTargetAndFinish() {
-        val targetIntent = YandexLaunchTarget.buildTargetIntentFromProxyIntent(intent)
         val targetComponent = YandexLaunchTarget.describeTargetComponentFromProxyIntent(intent)
+        val action = intent?.getStringExtra(YandexLaunchTarget.EXTRA_TARGET_ACTION)?.trim().orEmpty()
+        val category = intent?.getStringExtra(YandexLaunchTarget.EXTRA_TARGET_CATEGORY)?.trim().orEmpty()
+        Timber.tag(TAG).i("Proxy: extras: component=$targetComponent, action=$action, category=$category")
+
+        val targetIntent = YandexLaunchTarget.buildTargetIntentFromProxyIntent(intent)
         if (targetIntent == null) {
             Timber.tag(TAG).e("Proxy: не удалось собрать target intent для cluster-activity")
             AppWarningCenter.publish(getString(R.string.msg_output_app_launch_failed_fmt, targetComponent))
@@ -37,7 +41,10 @@ class ClusterLaunchProxyActivity : Activity() {
 
         try {
             val displayId = resolveCurrentDisplayId()
-            val options = if (displayId >= 0) {
+            val isOwnComponent = targetIntent.component?.packageName == packageName
+            val options = if (displayId >= 0 && !isOwnComponent) {
+                // Для сторонних приложений указываем display явно;
+                // для собственных activity запускаем на текущем display без options
                 ActivityOptions.makeBasic()
                     .setLaunchDisplayId(displayId)
                     .toBundle()
@@ -45,7 +52,7 @@ class ClusterLaunchProxyActivity : Activity() {
                 null
             }
             startActivity(targetIntent, options)
-            Timber.tag(TAG).i("Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottomMask=encoder, display=$displayId",
+            Timber.tag(TAG).i("Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottomMask=encoder, display=$displayId, own=$isOwnComponent",
             )
         } catch (e: ActivityNotFoundException) {
             val msg = getString(R.string.msg_target_app_not_found_fmt, targetComponent)

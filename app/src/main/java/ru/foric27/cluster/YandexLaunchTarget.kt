@@ -29,9 +29,9 @@ internal object YandexLaunchTarget {
     private const val CLUSTER_ACTIVITY_STATE_KEY: String = "android.car.cluster.ClusterActivityState"
     private const val CLUSTER_UNOBSCURED_RECT: String = "android.car:InstrumentClusterService.unobscured.rect"
 
-    private const val EXTRA_TARGET_COMPONENT: String = "ru.foric27.cluster.extra.TARGET_COMPONENT"
-    private const val EXTRA_TARGET_ACTION: String = "ru.foric27.cluster.extra.TARGET_ACTION"
-    private const val EXTRA_TARGET_CATEGORY: String = "ru.foric27.cluster.extra.TARGET_CATEGORY"
+    internal const val EXTRA_TARGET_COMPONENT: String = "ru.foric27.cluster.extra.TARGET_COMPONENT"
+    internal const val EXTRA_TARGET_ACTION: String = "ru.foric27.cluster.extra.TARGET_ACTION"
+    internal const val EXTRA_TARGET_CATEGORY: String = "ru.foric27.cluster.extra.TARGET_CATEGORY"
 
     val CLUSTER_VISIBLE_AREA: Rect
         get() = RuntimeConfig.VisibleArea.rect()
@@ -76,6 +76,20 @@ internal object YandexLaunchTarget {
         ).joinToString(separator = " ")
     }
 
+    /**
+     * Прямая root-команда `am start --display` для запуска любого компонента
+     * без proxy-activity. Используется для собственных activity (MediaCoverActivity),
+     * т.к. proxy-activity не имеет прав на запуск на secondary display.
+     */
+    fun buildDirectAmStartCommand(displayId: Int, component: String): String {
+        return listOf(
+            "am start",
+            "--display $displayId",
+            "-n $component",
+            "-f 0x14000000",
+        ).joinToString(separator = " ")
+    }
+
     fun buildProxyIntent(command: LaunchCommand): Intent {
         return Intent().apply {
             setComponent(ComponentName(BuildConfig.APPLICATION_ID, ClusterLaunchProxyActivity::class.java.name))
@@ -96,15 +110,17 @@ internal object YandexLaunchTarget {
 
     fun buildTargetIntentFromProxyIntent(proxyIntent: Intent?): Intent? {
         val rawComponent = proxyIntent?.getStringExtra(EXTRA_TARGET_COMPONENT)?.trim().orEmpty()
-        val action = proxyIntent?.getStringExtra(EXTRA_TARGET_ACTION)?.trim().orEmpty()
-        val category = proxyIntent?.getStringExtra(EXTRA_TARGET_CATEGORY)?.trim().orEmpty()
-        if (rawComponent.isEmpty() || action.isEmpty() || category.isEmpty()) {
+        if (rawComponent.isEmpty()) {
             return null
         }
 
         val componentName = parseComponent(rawComponent) ?: return null
-        return Intent(action).apply {
-            addCategory(category)
+        val action = proxyIntent?.getStringExtra(EXTRA_TARGET_ACTION)?.trim().orEmpty()
+        val category = proxyIntent?.getStringExtra(EXTRA_TARGET_CATEGORY)?.trim().orEmpty()
+
+        return Intent().apply {
+            if (action.isNotEmpty()) setAction(action)
+            if (category.isNotEmpty()) addCategory(category)
             setComponent(componentName)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)

@@ -172,7 +172,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         } else {
             @Suppress("DEPRECATION")
             intent.getSerializableExtra(EXTRA_CONFIG) as? StreamConfig
-        } ?: StreamConfig.fixedConfig(this)
+        } ?: StreamConfig.fixedConfig(this, getCurrentStreamMode())
     }
 
     private fun initCollaborators() {
@@ -401,7 +401,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 requiresFullRecovery = false,
             )
         }
-        val cfg = lastCfg ?: StreamConfig.fixedConfig(applicationContext)
+        val cfg = lastCfg ?: StreamConfig.fixedConfig(applicationContext, getCurrentStreamMode())
         val currentSender = sender
         val senderSnapshot = currentSender?.snapshot()
         val recentVideoTraffic = senderSnapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
@@ -555,7 +555,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         startDetachedWorker("RestartWorker") {
             try {
-                val cfg = lastCfg ?: StreamConfig.fixedConfig(this@UdpStreamService)
+                val cfg = lastCfg ?: StreamConfig.fixedConfig(this@UdpStreamService, getCurrentStreamMode())
                 val requestedTargetHost = targetHost ?: cfg.ip
                 val networkPrep = networkPreparationCoordinator.prepare(cfg)
 
@@ -720,6 +720,15 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось определить cluster mode, оставляю видеотрансляцию включённой")
             true
+        }
+    }
+
+    private fun getCurrentStreamMode(): AppSettings.UiStreamMode {
+        return try {
+            AppSettings.getSelectedMode(applicationContext)
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "Не удалось определить stream mode, использую NAV")
+            AppSettings.UiStreamMode.NAV
         }
     }
 
@@ -1100,8 +1109,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         fun isStreamActive(): Boolean = streamActiveState
 
         fun createStartIntent(context: Context): Intent {
+            val mode = try {
+                AppSettings.getSelectedMode(context)
+            } catch (t: Throwable) {
+                AppSettings.UiStreamMode.NAV
+            }
             return Intent(context, UdpStreamService::class.java).apply {
-                putExtra(EXTRA_CONFIG, StreamConfig.fixedConfig(context))
+                putExtra(EXTRA_CONFIG, StreamConfig.fixedConfig(context, mode))
             }
         }
 

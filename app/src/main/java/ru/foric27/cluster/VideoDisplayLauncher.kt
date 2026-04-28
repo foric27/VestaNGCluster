@@ -2,12 +2,14 @@ package ru.foric27.cluster
 
 import timber.log.Timber
 
+// Импорт BuildConfig для проверки принадлежности компонента к пакету приложения
+
 /**
  * Запуск целевой cluster-activity на VirtualDisplay через root-команду `am start --display`.
  *
- * Единственный метод запуска — root fallback через `am start`, что обеспечивает
- * совместимость на устройствах, где прямой `Context.startActivity` с `setLaunchDisplayId`
- * не работает из-за ограничений системы.
+ * Все запуски выполняются через root `am start`, что обеспечивает совместимость
+ * на устройствах, где прямой `Context.startActivity` с `setLaunchDisplayId`
+ * не работает из-за ограничений системы (Permission Denial).
  */
 internal class VideoDisplayLauncher(
     private val preferredLaunchComponent: String?,
@@ -24,6 +26,21 @@ internal class VideoDisplayLauncher(
     )
 
     fun launchOnDisplay(displayId: Int) {
+        val component = preferredLaunchComponent
+        val isOwnComponent = component != null && component.startsWith(BuildConfig.APPLICATION_ID)
+
+        if (isOwnComponent) {
+            // Для собственных activity используем прямой root am start --display
+            val directCommand = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component)
+            val root = rootActivityStarter.start(directCommand)
+            if (root.success) {
+                Timber.tag(TAG).i("Root-запуск собственной activity на display=$displayId: $component")
+                return
+            }
+            Timber.tag(TAG).w("Не удалось запустить собственную activity на display=$displayId. RootError=${root.errorMessage ?: "null"}")
+            return
+        }
+
         val commands = YandexLaunchTarget.buildPreferredCommands(preferredLaunchComponent)
         var lastRootError: String? = null
 

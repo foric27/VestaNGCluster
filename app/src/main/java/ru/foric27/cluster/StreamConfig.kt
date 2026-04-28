@@ -23,12 +23,16 @@ internal data class StreamConfig(
 ) : Serializable {
 
     companion object {
-        fun fixedConfig(context: Context? = null): StreamConfig {
+        fun fixedConfig(context: Context? = null, mode: AppSettings.UiStreamMode = AppSettings.UiStreamMode.NAV): StreamConfig {
             val dpiValue = RuntimeConfig.Video.DPI
+            val component = when (mode) {
+                AppSettings.UiStreamMode.MED -> BuildConfig.APPLICATION_ID + "/." + MediaCoverActivity::class.java.simpleName
+                else -> RuntimeConfig.TargetApp.CLUSTER_COMPONENT
+            }
             return StreamConfig(
                 ip = RuntimeConfig.Network.TARGET_IP,
                 port = RuntimeConfig.Network.VIDEO_PORT,
-                launchComponent = RuntimeConfig.TargetApp.CLUSTER_COMPONENT,
+                launchComponent = component,
                 localCidr = RuntimeConfig.Network.LOCAL_CIDR,
                 gateway = RuntimeConfig.Network.GATEWAY,
                 bindIp = RuntimeConfig.Network.BIND_IP,

@@ -213,4 +213,6 @@
     <string name="update_alert_message_fmt">New update detected: %1$s\n\nUpdate now?</string>
     <string name="update_alert_update">Update</string>
     <string name="update_alert_cancel">Cancel</string>
+
+    <string name="media_cover_desc">Album cover</string>
 </resources>
