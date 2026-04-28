@@ -559,7 +559,7 @@ internal object UpdateServerManager {
         }
     }
 
-    private inline fun <T> (() -> T).runCatchingTimber(
+    private fun <T> (() -> T).runCatchingTimber(
         tag: String,
         failureMessage: String,
     ): kotlin.Result<T> {
