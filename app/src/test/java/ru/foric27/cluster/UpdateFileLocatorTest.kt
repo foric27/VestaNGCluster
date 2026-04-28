@@ -146,7 +146,7 @@ class UpdateFileLocatorTest {
         val method = companionClass.getDeclaredMethod("parseRootDescriptor", String::class.java).apply {
             isAccessible = true
         }
-        val raw = method.invoke(companionInstance, treeDocumentId)
+        val raw = requireNotNull(method.invoke(companionInstance, treeDocumentId))
         val rawClass = raw.javaClass
         return ReflectedRootDescriptor(
             raw = raw,
