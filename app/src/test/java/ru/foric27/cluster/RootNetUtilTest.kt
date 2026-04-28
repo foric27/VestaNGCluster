@@ -39,7 +39,7 @@ class RootNetUtilTest {
     fun `interface batch starts with cleanup before setup`() {
         val commands = RootNetUtil.buildInterfaceSetupBatch(
             iface = "eth0",
-            cidr = RootNetUtil.Ipv4Cidr(ip = "192.168.40.1", prefix = 24, network = "192.168.40.0"),
+            cidr = Ipv4Cidr(ip = "192.168.40.1", prefix = 24, network = "192.168.40.0"),
         )
 
         assertEquals("ip addr del 192.168.40.1/24 dev eth0", commands.first())
@@ -51,7 +51,7 @@ class RootNetUtilTest {
     fun `routing batch contains cleanup and priorities 50 51 52`() {
         val commands = RootNetUtil.buildRoutingBatch(
             iface = "eth0",
-            cidr = RootNetUtil.Ipv4Cidr(ip = "192.168.40.1", prefix = 24, network = "192.168.40.0"),
+            cidr = Ipv4Cidr(ip = "192.168.40.1", prefix = 24, network = "192.168.40.0"),
             gatewayIp = "192.168.40.2",
             includeFwmarkRule = true,
         )

@@ -444,39 +444,11 @@ internal object RootNetUtil {
     }
 
     private fun parseIpv4Cidr(value: String): Ipv4Cidr? {
-        val raw = value.trim()
-        if (raw.isEmpty()) return null
-        val ip = raw.substringBefore('/').trim()
-        if (!isValidIpv4(ip)) return null
-        val prefix = raw.substringAfter('/', "24").trim().toIntOrNull() ?: return null
-        if (prefix !in 0..32) return null
-        return Ipv4Cidr(ip = ip, prefix = prefix, network = calculateNetworkAddress(ip, prefix))
+        return RootNetworkAddressing.parseIpv4Cidr(value)
     }
 
     private fun isValidIpv4(value: String): Boolean {
-        val parts = value.split('.')
-        if (parts.size != 4) return false
-        return parts.all { part ->
-            val number = part.toIntOrNull() ?: return@all false
-            number in 0..255
-        }
-    }
-
-    private fun calculateNetworkAddress(ip: String, prefix: Int): String {
-        val bytes = ip.split('.').map { it.toInt() }
-        val address =
-            (bytes[0] shl 24) or
-                (bytes[1] shl 16) or
-                (bytes[2] shl 8) or
-                bytes[3]
-        val mask = if (prefix == 0) 0 else (-1 shl (Constants.IPV4_BITS - prefix))
-        val network = address and mask
-        return listOf(
-            (network ushr 24) and 0xFF,
-            (network ushr 16) and 0xFF,
-            (network ushr 8) and 0xFF,
-            network and 0xFF,
-        ).joinToString(".")
+        return RootNetworkAddressing.isValidIpv4(value)
     }
 
     private fun updateRouteCache(
@@ -735,12 +707,6 @@ internal object RootNetUtil {
         val normalized = iface?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         return normalized.takeIf { IFACE_NAME_REGEX.matches(it) }
     }
-
-    internal data class Ipv4Cidr(
-        val ip: String,
-        val prefix: Int,
-        val network: String,
-    )
 
     private data class NetworkScriptResult(
         val ok: Boolean,
