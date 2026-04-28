@@ -29,8 +29,12 @@ VestaNGClusterFlowStudio/
 │       └── test/java/ru/foric27/cluster/ # JVM JUnit 4 tests only
 ├── .github/workflows/                    # release + opencode workflows
 ├── docs/                                 # app icon sources
+├── oem/                                  # decompiled OEM references; read-only comparison material
 ├── scripts/                              # signing-secret helper
-└── gradle/                               # wrapper
+├── gradle/                               # wrapper
+├── build.gradle                          # root AGP declaration
+├── settings.gradle                       # single :app module
+└── lint.xml                              # Android lint configuration
 ```
 
 ---
@@ -39,13 +43,16 @@ VestaNGClusterFlowStudio/
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Service lifecycle | `UdpStreamService.kt` | Foreground-service facade; `startForeground()` on every path |
-| Root network | `RootNetUtil.kt`, `UdpNetworkPreparationCoordinator.kt` | `su`, `eth0`, policy routing, iptables marks |
+| App bootstrap / crash recovery | `ClusterApp.kt`, `ProcessRecoveryManager.kt`, `AppRecoveryReceiver.kt` | Timber/runtime init + process crash-loop guard |
+| Service lifecycle | `UdpStreamService.kt`, `UdpStartupFlowCoordinator.kt`, `UdpPipelineStartCoordinator.kt`, `UdpStartupProbeCoordinator.kt` | Foreground-service facade; `startForeground()` on every path |
+| Root network | `RootNetUtil.kt`, `RootNetworkAddressing.kt`, `UdpNetworkPreparationCoordinator.kt` | `su`, `eth0`, policy routing, iptables marks, pure IPv4/CIDR parsing |
 | Video capture/encode | `VideoEncoder.kt`, `GlFrameComposer.kt`, `PersistentVirtualDisplay.kt` | shutdown order is product-critical |
 | Navigator launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt` | root-only `am start --display` via proxy-activity |
 | FTP/OTA | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt` | non-recursive `ICUpdate.zip` + `.sig` discovery |
-| Runtime overrides | `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt` | Developer screen edits config live |
+| Runtime overrides | `ProductConfig.kt`, `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigPreferenceDataStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt` | Developer screen edits config live |
+| UI mode persistence | `AppSettings.kt`, `SyncHandler.kt` | DataStore + optional Settings.Global sync |
 | App recovery | `UdpServiceRestartController.kt`, `UdpServiceRecoveryScheduler.kt`, `UdpWakeRecoveryController.kt`, `ProcessRecoveryManager.kt` | backoff, alarm recovery, crash-loop guard |
+| Update confirmation UI | `UpdateAlertActivity.kt` | transient UI for discovered OTA package |
 | UI/resources | `app/src/main/res/AGENTS.md` | layout qualifiers and ru/en strings |
 | Unit tests | `app/src/test/java/ru/foric27/cluster/AGENTS.md` | JVM-only tests and reflection patterns |
 
@@ -58,8 +65,11 @@ VestaNGClusterFlowStudio/
 | `UdpStreamService` | `Service` | owns coordinators, workers, notification, recovery wiring |
 | `VideoEncoder` | class | VirtualDisplay + MediaCodec + GL lifecycle |
 | `RootNetUtil` | object | privileged route/IP/iptables command formatting and execution |
+| `RootNetworkAddressing` | object | pure IPv4/CIDR parsing and network address calculation |
 | `UpdateServerManager` | object | validates update pair, prepares FTP root, owns Apache FtpServer |
 | `RuntimeConfig` / `ProductConfig` | objects | runtime overrides over immutable product defaults |
+| `AppSettings` | object | selected cluster mode persistence through DataStore / Settings.Global |
+| `ClusterApp` | `Application` | runtime bootstrap, Timber and process recovery initialization |
 | `MainActivity` | activity | permission preflight, status UI, service start |
 | `BootReceiver` | receiver | boot/package/USB events |
 | `ClusterLaunchProxyActivity` | activity | transparent Yandex cluster-focus proxy |
@@ -75,6 +85,8 @@ LSP is unavailable in this environment (`kotlin-lsp` missing); use AST/direct re
 - `*Manager` = singleton `object` utility/state owner.
 - `*Controller` = state machine/control logic.
 - Product defaults live in `ProductConfig`; user overrides go through `RuntimeConfig`/`RuntimeConfigStore`.
+- User-facing cluster mode state lives in `AppSettings`; do not merge it into `RuntimeConfig` unless it becomes a product default override.
+- Root/network pure helpers may be split into standalone files (for example `RootNetworkAddressing.kt`) inside the flat package; do not create subpackages casually.
 - UI language set is exactly `ru` + `en`; add/update both string files.
 - OTA lookup is non-recursive: only storage root of internal/USB.
 
@@ -131,6 +143,8 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 - Release uses shrink/minify + `app/proguard-rules.pro`; manifest entry points and Apache MINA NIO processor are kept explicitly.
 - Signing reads env vars first, then `keystore.properties`; BOM-prefixed `storeFile` key is normalized.
 - CI workflow publishes rolling prerelease tag `main-latest`; if secrets are missing, APK may be unsigned.
+- `.github/workflows/android-release.yml` runs `assembleRelease` and publishes the rolling `main-latest` release.
+- `.github/workflows/opencode.yml` is comment-triggered automation for `/oc` and `/opencode` comments.
 
 ## SIGNING
 

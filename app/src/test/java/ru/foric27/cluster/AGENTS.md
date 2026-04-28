@@ -18,11 +18,13 @@ Tests cover pure logic and Android-adjacent code through fakes/reflection where 
 |----------|-------|
 | Runtime config parsing | `RuntimeConfigTest.kt` |
 | Sync payload/mode policy | `SyncHandlerTest.kt`, `SyncHandlerPayloadPolicyTest.kt` |
-| Network/root command formatting | `RootNetUtilTest.kt`, `NetworkRootShellTest.kt`, `NetworkInterfaceSelectorTest.kt`, `ConnectivityHealthTest.kt` |
+| Network/root command formatting | `RootNetUtilTest.kt`, `RootNetworkAddressingTest.kt`, `NetworkRootShellTest.kt`, `NetworkInterfaceSelectorTest.kt`, `ConnectivityHealthTest.kt` |
 | OTA discovery | `UpdateFileLocatorTest.kt` |
-| Video codec/timing | `VideoCodecOutputProcessorTest.kt`, `VideoFrameTimingControllerTest.kt` |
+| OTA verification | `Sha256VerifierTest.kt` |
+| Video codec/timing | `H264AnnexBUtilTest.kt`, `VideoCodecOutputProcessorTest.kt`, `VideoFrameTimingControllerTest.kt` |
 | Navigator launch/proxy shell command | `VideoDisplayLauncherTest.kt`, `YandexLaunchTargetTest.kt` |
 | Cluster mode | `ClusterModeTest.kt` |
+| Warning queue | `AppWarningCenterTest.kt` |
 
 ---
 
@@ -33,6 +35,7 @@ Tests cover pure logic and Android-adjacent code through fakes/reflection where 
 - Reflection is acceptable for private helpers when the tested contract is product-critical (`UpdateFileLocator` root parsing, launch internals).
 - Use `TemporaryFolder` for file-root OTA tests; assert non-recursive behavior explicitly.
 - Keep expected shell/root commands exact enough to catch quoting and policy-routing regressions.
+- Keep pure helper tests (`RootNetworkAddressingTest`, `H264AnnexBUtilTest`, `Sha256VerifierTest`) Android-free where possible.
 - When adding FTP/OTA tests, cover both valid pair and rejection path with debug paths.
 
 ---

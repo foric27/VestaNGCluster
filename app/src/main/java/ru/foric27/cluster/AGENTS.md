@@ -8,7 +8,7 @@
 
 ## OVERVIEW
 
-This package owns the whole runtime: launcher UI, foreground stream service, root network setup, video encoder, UDP/status transport, FTP OTA, recovery, and config overrides.
+This package owns the whole runtime: `Application` bootstrap, launcher UI, foreground stream service, root network setup, video encoder, UDP/status transport, FTP OTA, recovery, UI mode persistence, and config overrides.
 
 ---
 
@@ -16,15 +16,16 @@ This package owns the whole runtime: launcher UI, foreground stream service, roo
 
 | Task | Files |
 |------|-------|
-| App launch / permissions | `MainActivity.kt`, `MainAccessPreflight.kt`, `StorageAccessManager.kt`, `BatteryOptimizationManager.kt` |
-| Service orchestration | `UdpStreamService.kt`, `Udp*Coordinator.kt`, `Udp*Controller.kt` |
-| Root networking | `RootNetUtil.kt`, `NetworkRootShell.kt`, `RootCommandRunner.kt`, `NetworkInterfaceSelector.kt` |
+| App bootstrap / permissions | `ClusterApp.kt`, `MainActivity.kt`, `MainAccessPreflight.kt`, `StorageAccessManager.kt`, `BatteryOptimizationManager.kt` |
+| Service orchestration | `UdpStreamService.kt`, `UdpStartupFlowCoordinator.kt`, `UdpPipelineStartCoordinator.kt`, `UdpStartupProbeCoordinator.kt`, `UdpConnectivityWatchdogCoordinator.kt`, `UdpTransportStatsCoordinator.kt`, `UdpStatusSyncCoordinator.kt`, `Udp*Controller.kt` |
+| Root networking | `RootNetUtil.kt`, `RootNetworkAddressing.kt`, `NetworkRootShell.kt`, `RootCommandRunner.kt`, `NetworkInterfaceSelector.kt` |
 | Video pipeline | `VideoEncoder.kt`, `GlFrameComposer.kt`, `VideoCodecOutputProcessor.kt`, `VideoFrameTimingController.kt`, `PersistentVirtualDisplay.kt` |
 | Yandex cluster launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt`, `ClusterFocusRequestReceiver.kt` |
-| FTP update | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt`, `PreparedUpdateRepository.kt`, `EmbeddedFtpServerFactory.kt`, `FtpServerConfig.kt`, `Sha256Verifier.kt` |
-| Runtime config | `ProductConfig.kt`, `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt` |
-| Recovery | `ProcessRecoveryManager.kt`, `AppRecoveryReceiver.kt`, `UdpServiceRecoveryScheduler.kt`, `UdpWakeRecoveryController.kt`, `UdpServiceRestartController.kt` |
-| Warnings/status UI | `AppWarningCenter.kt`, `MainNoticeLog.kt`, `VdspState.kt`, `UdpServiceAlerts.kt` |
+| FTP update | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt`, `PreparedUpdateRepository.kt`, `EmbeddedFtpServerFactory.kt`, `FtpServerConfig.kt`, `Sha256Verifier.kt`, `UsbStoragePathMatcher.kt`, `UpdateAlertActivity.kt` |
+| Runtime config | `ProductConfig.kt`, `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigPreferenceDataStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt` |
+| UI mode / sync | `AppSettings.kt`, `SyncHandler.kt`, `SyncPayloadBuilder.kt` |
+| Recovery | `ClusterApp.kt`, `ProcessRecoveryManager.kt`, `AppRecoveryReceiver.kt`, `UdpServiceRecoveryScheduler.kt`, `UdpWakeRecoveryController.kt`, `UdpServiceRestartController.kt` |
+| Warnings/status UI | `AppWarningCenter.kt`, `MainNoticeLog.kt`, `VdspState.kt`, `UdpServiceAlerts.kt`, `ConnectivityHealth.kt` |
 
 ---
 
@@ -32,11 +33,11 @@ This package owns the whole runtime: launcher UI, foreground stream service, roo
 
 | File | Risk |
 |------|------|
-| `UdpStreamService.kt` (~1000 lines) | façade only; keep new behavior in coordinators/managers |
-| `VideoEncoder.kt` (~780 lines) | MediaCodec/GL/VirtualDisplay ordering; codec thread assumptions |
-| `RootNetUtil.kt` (~580 lines) | root command formatting and policy routing priorities |
-| `UpdateServerManager.kt` (~470 lines) | lock/state/server lifecycle; never block with FTP stop under lock |
-| `UpdateFileLocator.kt` (~360 lines) | non-recursive direct file roots + SAF fallback |
+| `UdpStreamService.kt` (~1200 lines) | façade only; keep new behavior in coordinators/managers |
+| `RootNetUtil.kt` (~730 lines) | root command formatting and policy routing priorities; keep pure helpers in separate files when safe |
+| `VideoEncoder.kt` (~620 lines) | MediaCodec/GL/VirtualDisplay ordering; codec thread assumptions |
+| `UpdateServerManager.kt` (~570 lines) | lock/state/server lifecycle; never block with FTP stop under lock |
+| `UpdateFileLocator.kt` (~400 lines) | non-recursive direct file roots + SAF fallback |
 | `MainActivity.kt` / `DeveloperActivity.kt` | UI state and runtime override side effects |
 
 ---
@@ -47,6 +48,9 @@ This package owns the whole runtime: launcher UI, foreground stream service, roo
 - Worker threads created for long-running loops must be daemon or managed through service helpers.
 - Cross-thread service state is mostly `@Volatile`, `Atomic*`, or callback-mediated.
 - `RuntimeConfig` mirrors `ProductConfig`; add new defaults to both config specs and UI strings.
+- `AppSettings` owns user-selected cluster mode; keep this separate from `RuntimeConfig` product overrides.
+- `ClusterApp` owns process-level bootstrap; do not scatter global initialization across activities/services.
+- Pure parsing/formatting helpers may be extracted into focused flat-package files such as `RootNetworkAddressing.kt`; keep filenames responsibility-based.
 - `AppWarningCenter` messages are de-duplicated and can outlive an Activity; clear stale domain warnings explicitly on success.
 - `UpdateServerManager` state changes broadcast `ACTION_UPDATE_SERVER_STATE_CHANGED`; UI should observe state, not infer from sockets.
 - `RootCommandRunner` is the generic one-shot libsu runner; `NetworkRootShell` is the persistent libsu wrapper restricted to network commands.
@@ -70,6 +74,10 @@ Keep `VideoEncoder` release order:
 ### Foreground service
 - Every `onStartCommand` path must call `startForeground()` before returning or doing lengthy work.
 
+### Startup flow
+- Keep startup staged: foreground notification first → network preparation → UDP probe → video pipeline start → status/watchdog attachment.
+- `UdpStreamService` should remain a façade; substantial startup/recovery changes belong in the matching coordinator/controller.
+
 ---
 
 ## ANTI-PATTERNS
@@ -79,3 +87,4 @@ Keep `VideoEncoder` release order:
 - Do not put network startup logic back into `UdpStreamService` if a coordinator already owns it.
 - Do not call Apache FTP `stop()` while holding `UpdateServerManager.lock`.
 - Do not silence root/security failures; publish actionable warnings.
+- Do not move pure root parsing helpers back into `RootNetUtil` once they have dedicated tests.

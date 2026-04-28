@@ -17,9 +17,11 @@ Resources define the operator UI, adaptive layouts for phones/tablets/TV-like sc
 ```
 res/
 ├── layout*/          # activity_main + activity_developer per screen class/orientation
-├── values*/          # strings, colors, dimens, styles and screen-size overrides
+├── values*/          # strings, colors, dimens, themes and screen-size overrides
 ├── drawable/         # vector icons + panel/background drawables
-└── mipmap-anydpi/    # launcher icon XML
+├── mipmap-anydpi/    # launcher icon XML
+├── mipmap-*/         # density launcher icons
+└── xml/              # Android XML config resources
 ```
 
 ---
@@ -47,8 +49,9 @@ When changing `activity_main.xml` or `activity_developer.xml`, check all qualifi
 |------|-------|
 | Main status/FTP UI | `layout*/activity_main.xml`, `values*/strings.xml`, `values*/dimens.xml` |
 | Developer settings UI | `layout*/activity_developer.xml`, runtime strings in `values*/strings.xml` |
-| Theme/widgets | `values/styles.xml`, `values/colors.xml` |
-| Adaptive spacing/text | `values/dimens.xml`, `values-sw600dp/`, `values-sw720dp/`, `values-sw800dp/` |
+| Theme/widgets | `values/themes.xml`, `values/colors.xml` |
+| Adaptive spacing/text | `values/dimens.xml`, `values-land/`, `values-sw600dp/`, `values-sw720dp/`, `values-sw800dp/`, `values-xxxhdpi/` |
+| Launcher icons | `mipmap-anydpi/`, `mipmap-*/` |
 | Icons/backgrounds | `drawable/`, `mipmap-anydpi/` |
 
 ---
@@ -56,6 +59,7 @@ When changing `activity_main.xml` or `activity_developer.xml`, check all qualifi
 ## CONVENTIONS
 
 - Add every user-visible string to both `values/strings.xml` and `values-en/strings.xml`.
+- `values-en/` is for English strings; do not add a third locale without product approval.
 - Keep ViewBinding IDs identical across every `layout*` variant.
 - Reuse `@dimen/screen_*` tokens instead of hardcoded spacing except tiny local offsets.
 - Existing layouts use card-like `LinearLayout` sections inside `NestedScrollView`; preserve this pattern unless redesigning all variants.
@@ -68,5 +72,5 @@ When changing `activity_main.xml` or `activity_developer.xml`, check all qualifi
 
 - Do not introduce Compose resources or Compose-only assumptions.
 - Do not add a third locale without product approval.
-- Do not remove `ftpStatusText`, `noticePanel`, mode radio IDs, or version/developer IDs from any layout variant.
+- Do not remove binding-critical IDs from any layout variant: `ftpStatusText`, `noticePanel`, `statusHeadline`, `statusSubline`, `restartStreamBtn`, `noticeTitle`, `noticeClearBtn`, `noticeText`, mode radio IDs, version/developer IDs, and developer-screen IDs (`backButton`, `settingsContainer`, `resetAllBtn`, `developerStatusText`).
 - Do not use generic resource names like `icon`, `background`, `text`; keep project prefixes (`bg_`, `ic_`, `screen_`).
