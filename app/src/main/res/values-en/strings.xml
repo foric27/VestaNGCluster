@@ -20,7 +20,7 @@
     <string name="stream_mode_apply_ok_fmt">Mode %1$s saved</string>
     <string name="stream_mode_apply_fail_fmt">Failed to apply mode %1$s directly. Saved locally.</string>
     <string name="msg_vdsp_ready">VDSP ready</string>
-    <string name="msg_root_required">Root access via su is required for this operation</string>
+    <string name="msg_root_required">Waiting for root privileges</string>
     <string name="msg_root_missing_toast">Root permissions not granted. Some features are unavailable.</string>
     <string name="msg_privileged_access_required">Privileged/root access via su is required</string>
     <string name="msg_output_app_not_found_fmt">Output application not found: %1$s</string>
@@ -152,6 +152,7 @@
     <string name="runtime_field_service_task_removed_recovery_delay_ms">Task removed recovery delay, ms</string>
     <string name="runtime_field_service_recovery_request_code">Recovery request code</string>
     <string name="runtime_field_service_restart_request_debounce_ms">Restart debounce, ms</string>
+    <string name="runtime_field_service_codec_error_restart_debounce_ms">Codec error restart delay, ms</string>
     <string name="runtime_field_service_route_wait_timeout_ms">Route wait timeout, ms</string>
     <string name="runtime_field_service_route_wait_step_ms">Route wait step, ms</string>
     <string name="runtime_field_service_no_route_restart_backoff_min_ms">No route delay, ms</string>

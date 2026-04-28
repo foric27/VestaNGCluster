@@ -90,6 +90,7 @@ object RuntimeConfig {
         const val SERVICE_TASK_REMOVED_RECOVERY_DELAY_MS = "service_task_removed_recovery_delay_ms"
         const val SERVICE_RECOVERY_REQUEST_CODE = "service_recovery_request_code"
         const val SERVICE_RESTART_REQUEST_DEBOUNCE_MS = "service_restart_request_debounce_ms"
+        const val SERVICE_CODEC_ERROR_RESTART_DEBOUNCE_MS = "service_codec_error_restart_debounce_ms"
         const val SERVICE_ROUTE_WAIT_TIMEOUT_MS = "service_route_wait_timeout_ms"
         const val SERVICE_ROUTE_WAIT_STEP_MS = "service_route_wait_step_ms"
         const val SERVICE_NO_ROUTE_RESTART_BACKOFF_MIN_MS = "service_no_route_restart_backoff_min_ms"
@@ -274,6 +275,7 @@ object RuntimeConfig {
         val TASK_REMOVED_RECOVERY_DELAY_MS: Long get() = long(Keys.SERVICE_TASK_REMOVED_RECOVERY_DELAY_MS, ProductConfig.Service.TASK_REMOVED_RECOVERY_DELAY_MS)
         val SERVICE_RECOVERY_REQUEST_CODE: Int get() = int(Keys.SERVICE_RECOVERY_REQUEST_CODE, ProductConfig.Service.SERVICE_RECOVERY_REQUEST_CODE)
         val RESTART_REQUEST_DEBOUNCE_MS: Long get() = long(Keys.SERVICE_RESTART_REQUEST_DEBOUNCE_MS, ProductConfig.Service.RESTART_REQUEST_DEBOUNCE_MS)
+        val CODEC_ERROR_RESTART_DEBOUNCE_MS: Long get() = long(Keys.SERVICE_CODEC_ERROR_RESTART_DEBOUNCE_MS, ProductConfig.Service.CODEC_ERROR_RESTART_DEBOUNCE_MS)
         val ROUTE_WAIT_TIMEOUT_MS: Long get() = long(Keys.SERVICE_ROUTE_WAIT_TIMEOUT_MS, ProductConfig.Service.ROUTE_WAIT_TIMEOUT_MS)
         val ROUTE_WAIT_STEP_MS: Long get() = long(Keys.SERVICE_ROUTE_WAIT_STEP_MS, ProductConfig.Service.ROUTE_WAIT_STEP_MS)
         val NO_ROUTE_RESTART_BACKOFF_MIN_MS: Long get() = long(Keys.SERVICE_NO_ROUTE_RESTART_BACKOFF_MIN_MS, ProductConfig.Service.NO_ROUTE_RESTART_BACKOFF_MIN_MS)

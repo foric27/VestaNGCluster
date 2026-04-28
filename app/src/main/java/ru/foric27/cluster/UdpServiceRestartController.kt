@@ -21,6 +21,7 @@ internal class UdpServiceRestartController(
 
     @Volatile private var restartBackoffMs = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
     @Volatile private var lastRestartRequestMs = 0L
+    @Volatile private var lastCodecErrorRestartMs = 0L
     @Volatile private var pendingRestartReason: String? = null
 
     fun resetBackoff() {
@@ -48,10 +49,17 @@ internal class UdpServiceRestartController(
 
     fun schedule(reason: String, cause: Throwable?) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastRestartRequestMs < RuntimeConfig.Service.RESTART_REQUEST_DEBOUNCE_MS) {
-            return
+        if (reason == "udp_error") {
+            if (now - lastCodecErrorRestartMs < RuntimeConfig.Service.CODEC_ERROR_RESTART_DEBOUNCE_MS) {
+                return
+            }
+            lastCodecErrorRestartMs = now
+        } else {
+            if (now - lastRestartRequestMs < RuntimeConfig.Service.RESTART_REQUEST_DEBOUNCE_MS) {
+                return
+            }
+            lastRestartRequestMs = now
         }
-        lastRestartRequestMs = now
 
         if (!restartScheduled.compareAndSet(false, true)) {
             return

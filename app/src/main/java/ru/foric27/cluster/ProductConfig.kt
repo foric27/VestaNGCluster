@@ -196,6 +196,9 @@ object ProductConfig {
         /** Минимальный интервал между одинаковыми запросами на рестарт. */
         const val RESTART_REQUEST_DEBOUNCE_MS: Long = 250L
 
+        /** Минимальный интервал между рестартами при кодек-ошибках (чтобы не уйти в бесконечный loop). */
+        const val CODEC_ERROR_RESTART_DEBOUNCE_MS: Long = 3_000L
+
         /** Максимальное время ожидания появления корректного маршрута. */
         const val ROUTE_WAIT_TIMEOUT_MS: Long = 3_000L
 

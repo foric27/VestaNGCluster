@@ -34,3 +34,4 @@ device_screenshot*.png
 device_*.png
 crash_log.txt
 full_log.txt
+/oem/

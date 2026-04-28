@@ -20,7 +20,7 @@
     <string name="stream_mode_apply_ok_fmt">Режим %1$s сохранён</string>
     <string name="stream_mode_apply_fail_fmt">Не удалось применить режим %1$s напрямую. Локальное сохранение выполнено.</string>
     <string name="msg_vdsp_ready">VDSP готов</string>
-    <string name="msg_root_required">Для этой операции нужен root через su</string>
+    <string name="msg_root_required">Ожидание root-прав</string>
     <string name="msg_root_missing_toast">Root-права не выданы. Некоторые функции недоступны.</string>
     <string name="msg_privileged_access_required">Нужен privileged/root-доступ через su</string>
     <string name="msg_output_app_not_found_fmt">Приложение для вывода не найдено: %1$s</string>
@@ -152,6 +152,7 @@
     <string name="runtime_field_service_task_removed_recovery_delay_ms">Восстановление после удаления задачи, мс</string>
     <string name="runtime_field_service_recovery_request_code">Код восстановления</string>
     <string name="runtime_field_service_restart_request_debounce_ms">Защита от повторного рестарта, мс</string>
+    <string name="runtime_field_service_codec_error_restart_debounce_ms">Задержка при ошибке кодека, мс</string>
     <string name="runtime_field_service_route_wait_timeout_ms">Ожидание маршрута, мс</string>
     <string name="runtime_field_service_route_wait_step_ms">Шаг ожидания маршрута, мс</string>
     <string name="runtime_field_service_no_route_restart_backoff_min_ms">Задержка без маршрута, мс</string>
