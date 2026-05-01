@@ -4,4 +4,7 @@
         <ignore path="**/org/apache/mina/filter/ssl/KeyStoreFactory.class" />
         <ignore path="**/org/apache/mina/filter/ssl/SslContextFactory.class" />
     </issue>
+    <issue id="ProtectedPermissions">
+        <ignore path="AndroidManifest.xml" />
+    </issue>
 </lint>

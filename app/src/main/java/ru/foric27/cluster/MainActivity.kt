@@ -92,7 +92,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val currentDisplayId = try { display?.displayId } catch (_: Throwable) { null } ?: 0
+        val currentDisplayId = try {
+            if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId else windowManager.defaultDisplay.displayId
+        } catch (_: Throwable) { null } ?: 0
         if (currentDisplayId != android.view.Display.DEFAULT_DISPLAY) {
             Timber.tag(TAG).i("MainActivity запущена на display=$currentDisplayId — перенаправляю на MediaCoverActivity")
             val intent = Intent(this, MediaCoverActivity::class.java)
