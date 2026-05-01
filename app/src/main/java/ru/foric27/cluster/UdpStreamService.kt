@@ -672,6 +672,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             sender = null
 
             notifyMediaCoverFinish()
+            PersistentVirtualDisplay.releaseAll()
+            Timber.tag(TAG).i("VirtualDisplay освобождён для перезапуска pipeline")
         }
     }
 
