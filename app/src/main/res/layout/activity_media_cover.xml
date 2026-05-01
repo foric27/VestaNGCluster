@@ -46,13 +46,17 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:scrollbars="none"
-            android:overScrollMode="never">
+            android:overScrollMode="never"
+            android:fadingEdge="horizontal"
+            android:requiresFadingEdge="horizontal"
+            android:fadingEdgeLength="20dp">
 
             <TextView
                 android:id="@+id/track_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:ellipsize="none"
+                android:gravity="center"
                 android:singleLine="true"
                 android:textColor="#F7F7F7"
                 android:textSize="20sp"
@@ -67,13 +71,17 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:scrollbars="none"
-            android:overScrollMode="never">
+            android:overScrollMode="never"
+            android:fadingEdge="horizontal"
+            android:requiresFadingEdge="horizontal"
+            android:fadingEdgeLength="20dp">
 
             <TextView
                 android:id="@+id/track_artist"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:ellipsize="none"
+                android:gravity="center"
                 android:singleLine="true"
                 android:textColor="#D8D8D8"
                 android:textSize="13sp"

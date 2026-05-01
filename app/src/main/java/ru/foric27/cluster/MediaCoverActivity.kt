@@ -140,20 +140,22 @@ internal class MediaCoverActivity : Activity() {
             }
 
             if (textWidth <= viewWidth) {
-                // Текст влезает — сбрасываем прокрутку
-                scrollView.scrollTo(0, 0)
+                // Текст влезает — центрируем
+                val offset = (viewWidth - textWidth) / 2
+                scrollView.scrollTo(-offset.coerceAtLeast(0), 0)
                 return@post
             }
 
-            // Запускаем бегущую строку по кругу
+            // Запускаем бегущую строку по кругу (карусель)
             val maxScroll = textWidth - viewWidth + 32
-            val scrollDuration = (maxScroll * 20).toLong() // ~50px/sec
+            val scrollDuration = (maxScroll * 25).toLong() // ~40px/sec
 
             fun runCycle() {
                 scrollView.scrollTo(0, 0)
                 val animator = ValueAnimator.ofInt(0, maxScroll)
                 animator.apply {
                     duration = scrollDuration
+                    interpolator = android.view.animation.LinearInterpolator()
                     addUpdateListener { animation ->
                         scrollView.scrollTo(animation.animatedValue as Int, 0)
                     }
