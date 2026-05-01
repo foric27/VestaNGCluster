@@ -99,8 +99,8 @@ object ProductConfig {
         /** Локальный IP, к которому привязывается UDP-сокет. */
         const val BIND_IP: String = "192.168.40.1"
 
-        /** Максимальный размер полезной нагрузки одного UDP-пакета. */
-        const val UDP_MAX_PAYLOAD_BYTES: Int = 61_440
+        /** Максимальный размер полезной нагрузки одного UDP-пакета без IP-фрагментации на Ethernet MTU 1500. */
+        const val UDP_MAX_PAYLOAD_BYTES: Int = 1_400
 
         /** Верхнее ограничение скорости отправки UDP в битах в секунду. */
         const val UDP_PACING_MAX_BPS: Int = 16_000_000
