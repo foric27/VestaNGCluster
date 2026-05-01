@@ -105,6 +105,12 @@ internal class MediaCoverActivity : Activity() {
         trackArtist.isSelected = true
     }
 
+    override fun onPause() {
+        super.onPause()
+        Timber.tag(TAG).i("MediaCoverActivity onPause — завершаю")
+        finish()
+    }
+
     private fun updateUI(track: MediaCoverState.TrackInfo?) {
         Timber.tag(TAG).i("updateUI: track=%s, hasContent=%b", track?.title, track?.hasContent)
         if (track == null || !track.hasContent) {

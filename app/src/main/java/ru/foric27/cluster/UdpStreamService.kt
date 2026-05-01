@@ -583,6 +583,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                 mainHandler.post {
                     if (!serviceRunning) return@post
+                    lastBindIp = networkPrep.bindIp
                     startPipelineAsync(
                         cfg = cfg,
                         targetHostValue = requestedTargetHost,
@@ -631,6 +632,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun stopInternalKeepService() {
         synchronized(serviceLock) {
+            streamActive = false
+            streamActiveState = false
+            startInProgress = false
             connectivityWatchdogCoordinator.stop()
             transportStatsCoordinator.stop()
             statusSyncCoordinator.stop()
@@ -643,10 +647,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
             encoder = null
 
-            streamActive = false
-            streamActiveState = false
-            startInProgress = false
-
             runCatching { sender?.close() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
@@ -657,23 +657,20 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun stopInternalKeepPipelineOnly() {
         synchronized(serviceLock) {
+            streamActive = false
+            streamActiveState = false
+            startInProgress = false
             updateStreamWakeLock(held = false)
 
             runCatching { encoder?.stop() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
             encoder = null
 
-            streamActive = false
-            streamActiveState = false
-            startInProgress = false
-
             runCatching { sender?.close() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
 
             notifyMediaCoverFinish()
-            PersistentVirtualDisplay.releaseAll()
-            Timber.tag(TAG).i("VirtualDisplay освобождён для перезапуска pipeline")
         }
     }
 
