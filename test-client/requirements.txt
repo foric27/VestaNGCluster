@@ -1,0 +1,5 @@
+# Зависимости Python-тестовых утилит
+# Установка:  python -m pip install -r requirements.txt
+
+opencv-python
+Pillow
