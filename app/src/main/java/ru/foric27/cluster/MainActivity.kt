@@ -93,7 +93,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         val currentDisplayId = try {
-            if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId else windowManager.defaultDisplay.displayId
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                display?.displayId
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.displayId
+            }
         } catch (_: Throwable) { null } ?: 0
         if (currentDisplayId != android.view.Display.DEFAULT_DISPLAY) {
             Timber.tag(TAG).i("MainActivity запущена на display=$currentDisplayId — перенаправляю на MediaCoverActivity")

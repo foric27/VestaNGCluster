@@ -54,7 +54,12 @@ internal class MediaCoverActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         val currentDisplayId = try {
-            if (Build.VERSION.SDK_INT >= 30) display?.displayId else windowManager.defaultDisplay.displayId
+            if (Build.VERSION.SDK_INT >= 30) {
+                display?.displayId
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.displayId
+            }
         } catch (_: Throwable) { null } ?: 0
         if (currentDisplayId == android.view.Display.DEFAULT_DISPLAY) {
             Timber.tag(TAG).w("MediaCoverActivity запущена на основном дисплее (display=%d) — завершаю", currentDisplayId)
@@ -95,7 +100,12 @@ internal class MediaCoverActivity : Activity() {
     override fun onResume() {
         super.onResume()
         val currentDisplayId = try {
-            if (Build.VERSION.SDK_INT >= 30) display?.displayId else windowManager.defaultDisplay.displayId
+            if (Build.VERSION.SDK_INT >= 30) {
+                display?.displayId
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.displayId
+            }
         } catch (_: Throwable) { null } ?: 0
         if (currentDisplayId == android.view.Display.DEFAULT_DISPLAY) {
             Timber.tag(TAG).w("MediaCoverActivity возобновлена на основном дисплее (display=%d) — завершаю", currentDisplayId)
