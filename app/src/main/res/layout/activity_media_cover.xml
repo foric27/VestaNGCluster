@@ -40,34 +40,46 @@
             android:scaleType="centerCrop"
             tools:src="@android:drawable/ic_media_play" />
 
-        <TextView
-            android:id="@+id/track_title"
+        <HorizontalScrollView
+            android:id="@+id/title_scroll"
             android:layout_width="240dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:ellipsize="marquee"
-            android:gravity="center"
-            android:marqueeRepeatLimit="marquee_forever"
-            android:maxLines="1"
-            android:scrollHorizontally="true"
-            android:textColor="#F7F7F7"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            tools:text="Gimme a Bloody M" />
+            android:scrollbars="none"
+            android:overScrollMode="never">
 
-        <TextView
-            android:id="@+id/track_artist"
+            <TextView
+                android:id="@+id/track_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="none"
+                android:singleLine="true"
+                android:textColor="#F7F7F7"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                tools:text="Gimme a Bloody M" />
+
+        </HorizontalScrollView>
+
+        <HorizontalScrollView
+            android:id="@+id/artist_scroll"
             android:layout_width="240dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:ellipsize="marquee"
-            android:gravity="center"
-            android:marqueeRepeatLimit="marquee_forever"
-            android:maxLines="1"
-            android:scrollHorizontally="true"
-            android:textColor="#D8D8D8"
-            android:textSize="13sp"
-            tools:text="Block &amp; Crown, Lissat" />
+            android:scrollbars="none"
+            android:overScrollMode="never">
+
+            <TextView
+                android:id="@+id/track_artist"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="none"
+                android:singleLine="true"
+                android:textColor="#D8D8D8"
+                android:textSize="13sp"
+                tools:text="Block &amp; Crown, Lissat" />
+
+        </HorizontalScrollView>
 
         <LinearLayout
             android:layout_width="240dp"

@@ -1,8 +1,10 @@
 package ru.foric27.cluster
 
+import android.animation.ValueAnimator
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.View
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -29,9 +31,14 @@ internal class MediaCoverActivity : Activity() {
     private lateinit var sourceLabel: TextView
     private lateinit var trackTitle: TextView
     private lateinit var trackArtist: TextView
+    private lateinit var titleScroll: HorizontalScrollView
+    private lateinit var artistScroll: HorizontalScrollView
     private lateinit var playbackPosition: TextView
     private lateinit var playbackDuration: TextView
     private lateinit var playbackProgress: ProgressBar
+
+    private var titleAnimator: ValueAnimator? = null
+    private var artistAnimator: ValueAnimator? = null
 
     private var lastProgressTrackKey: String? = null
     private var lastProgressPositionMs: Long? = null
@@ -40,12 +47,24 @@ internal class MediaCoverActivity : Activity() {
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val currentDisplayId = try {
+            if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId else windowManager.defaultDisplay.displayId
+        } catch (_: Throwable) { null } ?: 0
+        if (currentDisplayId == android.view.Display.DEFAULT_DISPLAY) {
+            Timber.tag(TAG).w("MediaCoverActivity запущена на основном дисплее (display=%d) — завершаю", currentDisplayId)
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_media_cover)
 
         coverImage = findViewById(R.id.cover_image)
         sourceLabel = findViewById(R.id.media_source_label)
         trackTitle = findViewById(R.id.track_title)
         trackArtist = findViewById(R.id.track_artist)
+        titleScroll = findViewById(R.id.title_scroll)
+        artistScroll = findViewById(R.id.artist_scroll)
         playbackPosition = findViewById(R.id.playback_position)
         playbackDuration = findViewById(R.id.playback_duration)
         playbackProgress = findViewById(R.id.playback_progress)
@@ -64,7 +83,19 @@ internal class MediaCoverActivity : Activity() {
             }
         }
 
-        Timber.tag(TAG).i("MediaCoverActivity создан")
+        Timber.tag(TAG).i("MediaCoverActivity создан на display=%d", currentDisplayId)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val currentDisplayId = try {
+            if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId else windowManager.defaultDisplay.displayId
+        } catch (_: Throwable) { null } ?: 0
+        if (currentDisplayId == android.view.Display.DEFAULT_DISPLAY) {
+            Timber.tag(TAG).w("MediaCoverActivity возобновлена на основном дисплее (display=%d) — завершаю", currentDisplayId)
+            finish()
+            return
+        }
     }
 
     private fun updateUI(track: MediaCoverState.TrackInfo?) {
@@ -74,8 +105,8 @@ internal class MediaCoverActivity : Activity() {
             sourceLabel.text = getString(R.string.stream_mode_med)
             trackTitle.text = getString(R.string.media_cover_no_media_title)
             trackArtist.text = getString(R.string.media_cover_no_media_subtitle)
-            trackTitle.isSelected = true
-            trackArtist.isSelected = true
+            startMarquee(titleScroll, getString(R.string.media_cover_no_media_title))
+            startMarquee(artistScroll, getString(R.string.media_cover_no_media_subtitle))
             updateProgress(null, null, null)
             return
         }
@@ -91,12 +122,57 @@ internal class MediaCoverActivity : Activity() {
         sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
         trackTitle.text = track.title ?: ""
         trackArtist.text = track.artist ?: ""
-        // Включаем marquee-прокрутку для длинного текста
-        trackTitle.isSelected = true
-        trackTitle.setHorizontallyScrolling(true)
-        trackArtist.isSelected = true
-        trackArtist.setHorizontallyScrolling(true)
+        startMarquee(titleScroll, track.title ?: "")
+        startMarquee(artistScroll, track.artist ?: "")
         updateProgress(track.progressKey(), track.positionMs, track.durationMs)
+    }
+
+    private fun startMarquee(scrollView: HorizontalScrollView, text: String) {
+        scrollView.post {
+            val child = scrollView.getChildAt(0) as? TextView ?: return@post
+            val textWidth = child.paint.measureText(text).toInt()
+            val viewWidth = scrollView.width
+
+            // Отменяем предыдущий аниматор
+            when (scrollView.id) {
+                R.id.title_scroll -> titleAnimator?.cancel()
+                R.id.artist_scroll -> artistAnimator?.cancel()
+            }
+
+            if (textWidth <= viewWidth) {
+                // Текст влезает — сбрасываем прокрутку
+                scrollView.scrollTo(0, 0)
+                return@post
+            }
+
+            // Запускаем бегущую строку по кругу
+            val maxScroll = textWidth - viewWidth + 32
+            val scrollDuration = (maxScroll * 20).toLong() // ~50px/sec
+
+            fun runCycle() {
+                scrollView.scrollTo(0, 0)
+                val animator = ValueAnimator.ofInt(0, maxScroll)
+                animator.apply {
+                    duration = scrollDuration
+                    addUpdateListener { animation ->
+                        scrollView.scrollTo(animation.animatedValue as Int, 0)
+                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // Пауза 1.5с перед следующим циклом
+                            scrollView.postDelayed({ runCycle() }, 1500)
+                        }
+                    })
+                    start()
+                }
+                when (scrollView.id) {
+                    R.id.title_scroll -> titleAnimator = animator
+                    R.id.artist_scroll -> artistAnimator = animator
+                }
+            }
+
+            runCycle()
+        }
     }
 
     private fun updateProgress(trackKey: String?, positionMs: Long?, durationMs: Long?) {
@@ -141,6 +217,14 @@ internal class MediaCoverActivity : Activity() {
         val newWidth = (width * ratio).toInt()
         val newHeight = (height * ratio).toInt()
         return Bitmap.createScaledBitmap(source, newWidth, newHeight, true)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        titleAnimator?.cancel()
+        artistAnimator?.cancel()
+        titleScroll.removeCallbacks(null)
+        artistScroll.removeCallbacks(null)
     }
 
     companion object {

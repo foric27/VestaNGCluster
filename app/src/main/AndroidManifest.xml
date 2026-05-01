@@ -66,9 +66,8 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:finishOnTaskLaunch="true"
-            android:launchMode="singleInstance"
-            android:noHistory="true"
-            android:taskAffinity="ru.foric27.cluster.cluster"
+            android:launchMode="singleTask"
+            android:taskAffinity="ru.foric27.cluster.med"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
 
         <activity
@@ -76,7 +75,6 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:finishOnTaskLaunch="true"
-            android:launchMode="singleInstance"
             android:noHistory="true"
             android:taskAffinity="ru.foric27.cluster.cluster"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />

@@ -365,6 +365,7 @@ internal class VideoEncoder(
             Timber.tag(TAG).i("Создан VirtualDisplay display=$displayId")
         }
 
+        Timber.tag(TAG).i("Запускаю displayLauncher.launchOnDisplay($displayId), component=$preferredLaunchComponent")
         displayLauncher.launchOnDisplay(displayId)
     }
 
