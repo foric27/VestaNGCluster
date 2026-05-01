@@ -57,6 +57,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private var targetHost: String? = null
     private var targetPort: Int = 0
     private var lastCfg: StreamConfig? = null
+    private var lastBindIp: String? = null
     private lateinit var updateCoordinator: UdpUpdateServerCoordinator
     private lateinit var wakeRecoveryController: UdpWakeRecoveryController
     private lateinit var serviceAlerts: UdpServiceAlerts
@@ -109,6 +110,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 ACTION_REFRESH_FTP_NOW -> return handleRefreshFtpAction()
                 ACTION_REFRESH_USB_FTP_NOW -> return handleRefreshUsbFtpAction()
                 ACTION_REFRESH_USB_REMOVED_FTP_NOW -> return handleRefreshUsbRemovedFtpAction()
+                ACTION_RESTART_PIPELINE_NOW -> {
+                    val cfg = intent?.let { readConfig(it) } ?: lastCfg ?: StreamConfig.fixedConfig(this, getCurrentStreamMode())
+                    return handleRestartPipelineAction(cfg)
+                }
             }
 
             return handleStartupCommand(
@@ -648,6 +653,24 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
+    private fun stopInternalKeepPipelineOnly() {
+        synchronized(serviceLock) {
+            updateStreamWakeLock(held = false)
+
+            runCatching { encoder?.stop() }
+                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
+            encoder = null
+
+            streamActive = false
+            streamActiveState = false
+            startInProgress = false
+
+            runCatching { sender?.close() }
+                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
+            sender = null
+        }
+    }
+
     private fun stopInternalFull() {
         restartController.cancel()
         stopInternalKeepService()
@@ -941,6 +964,36 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         return START_STICKY
     }
 
+    private fun handleRestartPipelineAction(cfg: StreamConfig): Int {
+        synchronized(serviceLock) {
+            val bindIp = lastBindIp
+            val host = targetHost ?: cfg.ip
+            val port = targetPort.takeIf { it in 1..65535 } ?: cfg.port
+            if (bindIp == null || host.isNullOrEmpty()) {
+                Timber.tag(TAG).w("Невозможен pipeline-restart: bindIp=$bindIp, host=$host — выполняю полный рестарт")
+                attemptRestart("mode_change_fallback")
+                return START_STICKY
+            }
+            stopInternalKeepPipelineOnly()
+            lastCfg = cfg
+            targetHost = host
+            targetPort = port
+            startInProgress = true
+            mainHandler.post {
+                if (!serviceRunning || !startInProgress) return@post
+                startPipelineAsync(
+                    cfg = cfg,
+                    targetHostValue = host,
+                    bindIp = bindIp,
+                    launchComponent = cfg.launchComponent,
+                    restartLog = false,
+                )
+            }
+            Timber.tag(TAG).i("Перезапущен только pipeline (режим изменён) без сетевой подготовки")
+        }
+        return START_STICKY
+    }
+
     private fun handleRefreshFtpAction(): Int {
         launchUpdateRefreshWorker("RefreshFtpNow", "Ошибка немедленного обновления FTP") {
             startOrRefreshUpdateServer()
@@ -1022,6 +1075,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         return@post
                     }
                     activeRootIface = networkPrep.ifaceName
+                    lastBindIp = networkPrep.bindIp
                     startPipelineAsync(
                         cfg = cfg,
                         targetHostValue = requestedTargetHost,
@@ -1131,6 +1185,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             context.startForegroundService(intent)
         }
 
+        fun restartPipelineCompat(context: Context) {
+            val intent = createStartIntent(context).apply {
+                action = ACTION_RESTART_PIPELINE_NOW
+            }
+            context.startForegroundService(intent)
+        }
+
         fun refreshFtpCompat(context: Context) {
             val intent = Intent(context, UdpStreamService::class.java).apply {
                 action = ACTION_REFRESH_FTP_NOW
@@ -1153,6 +1214,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
 
         private const val ACTION_RESTART_SERVICE_NOW = "ru.foric27.cluster.action.RESTART_SERVICE_NOW"
+        private const val ACTION_RESTART_PIPELINE_NOW = "ru.foric27.cluster.action.RESTART_PIPELINE_NOW"
         private const val ACTION_REFRESH_FTP_NOW = "ru.foric27.cluster.action.REFRESH_FTP_NOW"
         private const val ACTION_REFRESH_USB_FTP_NOW = "ru.foric27.cluster.action.REFRESH_USB_FTP_NOW"
         private const val ACTION_REFRESH_USB_REMOVED_FTP_NOW = "ru.foric27.cluster.action.REFRESH_USB_REMOVED_FTP_NOW"

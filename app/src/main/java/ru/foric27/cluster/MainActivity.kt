@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity() {
             val mode = radioIdToMode(checkedId) ?: return@setOnCheckedChangeListener
             val result = AppSettings.applySelectedMode(this, mode)
             if (result.ok || result.savedLocally) {
-                UdpStreamService.restartServiceCompat(this)
+                UdpStreamService.restartPipelineCompat(this)
             }
             refreshScreenState(refreshFtp = false)
 
