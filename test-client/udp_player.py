@@ -69,6 +69,51 @@ def get_now() -> str:
     return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 
+def _format_sync_time(raw: str) -> str:
+    """Преобразует время из формата приложения (например, 143022+0300) в читаемый вид.
+
+    Поддерживаемые входные форматы:
+      - 143022+0300   →  14:30:22 +03:00
+      - 143022-0500   →  14:30:22 -05:00
+      - 143022        →  14:30:22
+      - любое другое  →  возвращается без изменений
+    """
+    if not raw or raw == "—":
+        return raw
+
+    raw = raw.strip()
+
+    # Формат HHMMSS±HHMM (14 символов) или HHMMSS±HH (11 символов)
+    import re
+    m = re.fullmatch(r"(\d{6})([+-]\d{2,4})", raw)
+    if m:
+        time_part = m.group(1)
+        offset_raw = m.group(2)
+        hh = time_part[0:2]
+        mm = time_part[2:4]
+        ss = time_part[4:6]
+        # Форматируем offset
+        sign = offset_raw[0]
+        offset_digits = offset_raw[1:]
+        if len(offset_digits) == 4:
+            off_hh = offset_digits[0:2]
+            off_mm = offset_digits[2:4]
+        elif len(offset_digits) == 2:
+            off_hh = offset_digits
+            off_mm = "00"
+        else:
+            off_hh = offset_digits
+            off_mm = "00"
+        return f"{hh}:{mm}:{ss} {sign}{off_hh}:{off_mm}"
+
+    # Формат HHMMSS (6 цифр)
+    if re.fullmatch(r"\d{6}", raw):
+        return f"{raw[0:2]}:{raw[2:4]}:{raw[4:6]}"
+
+    # Неизвестный формат — оставляем как есть
+    return raw
+
+
 # ---------------------------------------------------------------------------
 # Отрисовка текста через Pillow (поддержка кириллицы)
 # ---------------------------------------------------------------------------
@@ -101,18 +146,17 @@ def draw_text_pil(
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
-def draw_overlay_pil(frame: np.ndarray, overlay_lines: list[str]) -> np.ndarray:
-    """Рисует overlay на переданном фрагменте кадра за одну конвертацию."""
+def draw_overlay_pil(frame, overlay_items):
+    """Рисует overlay на переданном фрагменте кадра за одну конвертацию.
+
+    overlay_items: список кортежей (текст, цвет_RGB)
+    """
     img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(img)
     font = _get_font(18)
 
-    for i, line in enumerate(overlay_lines):
+    for i, (line, color) in enumerate(overlay_items):
         y = 28 + i * 26
-        if any(tag in line for tag in ("ПОТЕРЯ", "НИЗКИЙ", "ПРОПУЩЕНО", "ЗАВИС")):
-            color = (255, 0, 0)          # красный — ошибки
-        else:
-            color = (0, 255, 0)          # зелёный — норма
         draw.text((15, y), line, font=font, fill=color)
 
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
@@ -132,6 +176,8 @@ class Player:
 
         # Статус синхронизации (UDP 5001)
         self.status = {"vid": "—", "time": "—", "lang": "—"}
+        self.status_received_at = 0.0
+        self.status_fresh_until = 0.0
 
         # Видео-метрики
         self.fps = 0.0
@@ -176,12 +222,22 @@ class Player:
                 continue
 
             with self.lock:
-                self.status = {
-                    "vid": obj.get("vid", "—"),
-                    "time": obj.get("time", "—"),
-                    "lang": obj.get("lang", "—"),
-                }
-            print(f"[{get_now()}] [СТАТУС] vid={self.status['vid']} time={self.status['time']} lang={self.status['lang']}")
+                # Обновляем поле только если оно присутствует и непустое;
+                # иначе сохраняем предыдущее значение до следующего валидного пакета.
+                if obj.get("vid"):
+                    self.status["vid"] = obj["vid"]
+                if obj.get("time"):
+                    self.status["time"] = obj["time"]
+                if obj.get("lang"):
+                    self.status["lang"] = obj["lang"]
+                self.status_received_at = time.time()
+                self.status_fresh_until = time.time() + 1.0
+            print(
+                f"[{get_now()}] [СТАТУС] "
+                f"vid={self.status['vid']} "
+                f"time={_format_sync_time(self.status['time'])} "
+                f"lang={self.status['lang']}"
+            )
 
         sock.close()
         print(f"[{get_now()}] [СТАТУС] Поток остановлен")
@@ -424,6 +480,8 @@ class Player:
                     res = self.resolution
                     freeze_ms = self.freeze_ms
                     consecutive = self.consecutive_lost
+                    status_received_at = self.status_received_at
+                    status_fresh_until = self.status_fresh_until
 
                 # Оцениваем битрейт на основе размера декодированного кадра
                 estimated_bitrate = 0.0
@@ -434,13 +492,15 @@ class Player:
                 if self.headless:
                     stats_elapsed = now - last_stats_time
                     if stats_elapsed >= 1.0:
+                        status_age = now - status_received_at
                         print(
                             f"[{get_now()}] СТАТ: {res} | "
                             f"FPS={fps:.1f} | "
                             f"Битрейт={estimated_bitrate:.2f} Мбит/с | "
                             f"Режим={status['vid']} | "
-                            f"Время={status['time']} | "
-                            f"Язык={status['lang']}"
+                            f"Время={_format_sync_time(status['time'])} | "
+                            f"Язык={status['lang']} | "
+                            f"Возраст_статуса={status_age:.1f}с"
                         )
                         last_stats_time = now
                         headless_decode_errors = 0
@@ -454,25 +514,44 @@ class Player:
                     if consecutive > 0:
                         errors.append(f"ПРОПУЩЕНО КАДРОВ: {consecutive}")
 
+                    # Цветовая индикация свежести статуса (синхронизация и язык)
+                    status_age = now - status_received_at
+                    if now < status_fresh_until:
+                        sync_color = (255, 255, 255)  # белый — мигание при обновлении
+                        lang_color = (255, 255, 255)
+                    elif status_age < 1.0:
+                        sync_color = (0, 255, 0)      # зелёный — свежий
+                        lang_color = (0, 255, 0)
+                    elif status_age < 3.0:
+                        sync_color = (0, 255, 255)    # жёлтый — устаревает
+                        lang_color = (0, 255, 255)
+                    else:
+                        sync_color = (255, 0, 0)      # красный — давно не обновлялся
+                        lang_color = (255, 0, 0)
+
                     # Формируем overlay
-                    overlay_lines = [
-                        f"Разрешение   : {res}",
-                        f"Кадр/с       : {fps:.1f}",
-                        f"Битрейт      : {estimated_bitrate:.2f} Мбит/с"
-                        if estimated_bitrate > 0
-                        else "Битрейт      : —",
-                        f"Режим        : {status['vid']}",
-                        f"Синхронизация: {status['time']}",
-                        f"Язык         : {status['lang']}",
+                    overlay_items = [
+                        (f"Разрешение   : {res}", (0, 255, 0)),
+                        (f"Кадр/с       : {fps:.1f}", (0, 255, 0)),
+                        (
+                            f"Битрейт      : {estimated_bitrate:.2f} Мбит/с"
+                            if estimated_bitrate > 0
+                            else "Битрейт      : —",
+                            (0, 255, 0),
+                        ),
+                        (f"Режим        : {status['vid']}", (0, 255, 0)),
+                        (f"Синхронизация: {_format_sync_time(status['time'])}", sync_color),
+                        (f"Язык         : {status['lang']}", lang_color),
                     ]
 
                     if errors:
-                        overlay_lines.append("")
-                        overlay_lines.extend(errors)
+                        overlay_items.append(("", (0, 255, 0)))
+                        for err in errors:
+                            overlay_items.append((err, (255, 0, 0)))
 
                     # Рисуем полупрозрачную чёрную подложку
                     # Ограничиваем размеры overlay размерами кадра, чтобы не выйти за границы
-                    overlay_h = min(len(overlay_lines) * 26 + 20, h)
+                    overlay_h = min(len(overlay_items) * 26 + 20, h)
                     max_w = min(640, w)
                     sub_img = frame[0:overlay_h, 0:max_w]
                     rect = sub_img.copy()
@@ -482,7 +561,7 @@ class Player:
 
                     # Выводим текст только на маленьком ROI overlay: это не гоняет
                     # полный видеокадр через Pillow и снижает риск зависаний.
-                    frame[0:overlay_h, 0:max_w] = draw_overlay_pil(sub_img, overlay_lines)
+                    frame[0:overlay_h, 0:max_w] = draw_overlay_pil(sub_img, overlay_items)
 
                     cv2.imshow(WINDOW_TITLE, frame)
 
