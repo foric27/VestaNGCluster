@@ -31,6 +31,7 @@ internal class MainAccessPreflight(
         if (readStoragePermissionPending) return
         if (ensureNotificationsPermission()) return
         if (ensureReadStorageAccess()) return
+        if (ensureNotificationListenerAccess()) return
         if (ensureAllFilesAccess()) return
         if (ensureBatteryOptimizationBypass()) return
         if (ensureExactAlarmPermission()) return
@@ -175,6 +176,28 @@ internal class MainAccessPreflight(
         ) { error ->
             Timber.tag(TAG).w(error, "Не удалось открыть настройки энергосбережения")
             showNotice(activity.getString(R.string.main_open_battery_settings_failed), true)
+        }
+    }
+
+    private fun ensureNotificationListenerAccess(): Boolean {
+        if (hasNotificationListenerAccess()) return false
+        showNotice(activity.getString(R.string.main_notification_listener_missing), true)
+        openNotificationListenerSettings()
+        return true
+    }
+
+    private fun hasNotificationListenerAccess(): Boolean {
+        val flat = Settings.Secure.getString(activity.contentResolver, "enabled_notification_listeners") ?: return false
+        return flat.contains(activity.packageName)
+    }
+
+    private fun openNotificationListenerSettings() {
+        launchSettingsIntent(
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+            null,
+        ) { error ->
+            Timber.tag(TAG).w(error, "Не удалось открыть настройки доступа к уведомлениям")
+            showNotice(activity.getString(R.string.main_open_notification_listener_settings_failed), true)
         }
     }
 

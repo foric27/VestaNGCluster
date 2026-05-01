@@ -92,6 +92,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val currentDisplayId = try { display?.displayId } catch (_: Throwable) { null } ?: 0
+        if (currentDisplayId != android.view.Display.DEFAULT_DISPLAY) {
+            Timber.tag(TAG).i("MainActivity запущена на display=$currentDisplayId — перенаправляю на MediaCoverActivity")
+            val intent = Intent(this, MediaCoverActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            finish()
+            return
+        }
+
         RuntimeConfig.init(applicationContext)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
