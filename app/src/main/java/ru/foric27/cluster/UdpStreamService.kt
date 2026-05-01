@@ -650,6 +650,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             runCatching { sender?.close() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
+
+            notifyMediaCoverFinish()
         }
     }
 
@@ -668,6 +670,18 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             runCatching { sender?.close() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
+
+            notifyMediaCoverFinish()
+        }
+    }
+
+    private fun notifyMediaCoverFinish() {
+        try {
+            sendBroadcast(
+                Intent(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER).setPackage(packageName)
+            )
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "Не удалось отправить broadcast завершения MediaCoverActivity")
         }
     }
 

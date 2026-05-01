@@ -40,54 +40,36 @@
             android:scaleType="centerCrop"
             tools:src="@android:drawable/ic_media_play" />
 
-        <HorizontalScrollView
-            android:id="@+id/title_scroll"
+        <TextView
+            android:id="@+id/track_title"
             android:layout_width="240dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:scrollbars="none"
-            android:overScrollMode="never"
-            android:fadingEdge="horizontal"
-            android:requiresFadingEdge="horizontal"
-            android:fadingEdgeLength="20dp">
+            android:ellipsize="marquee"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:singleLine="true"
+            android:textColor="#F7F7F7"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            tools:text="Gimme a Bloody M" />
 
-            <TextView
-                android:id="@+id/track_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="none"
-                android:gravity="center"
-                android:singleLine="true"
-                android:textColor="#F7F7F7"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                tools:text="Gimme a Bloody M" />
-
-        </HorizontalScrollView>
-
-        <HorizontalScrollView
-            android:id="@+id/artist_scroll"
+        <TextView
+            android:id="@+id/track_artist"
             android:layout_width="240dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:scrollbars="none"
-            android:overScrollMode="never"
-            android:fadingEdge="horizontal"
-            android:requiresFadingEdge="horizontal"
-            android:fadingEdgeLength="20dp">
-
-            <TextView
-                android:id="@+id/track_artist"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="none"
-                android:gravity="center"
-                android:singleLine="true"
-                android:textColor="#D8D8D8"
-                android:textSize="13sp"
-                tools:text="Block &amp; Crown, Lissat" />
-
-        </HorizontalScrollView>
+            android:ellipsize="marquee"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:singleLine="true"
+            android:textColor="#D8D8D8"
+            android:textSize="13sp"
+            tools:text="Block &amp; Crown, Lissat" />
 
         <LinearLayout
             android:layout_width="240dp"
