@@ -74,6 +74,8 @@ internal class MediaCoverActivity : Activity() {
             sourceLabel.text = getString(R.string.stream_mode_med)
             trackTitle.text = getString(R.string.media_cover_no_media_title)
             trackArtist.text = getString(R.string.media_cover_no_media_subtitle)
+            trackTitle.isSelected = true
+            trackArtist.isSelected = true
             updateProgress(null, null, null)
             return
         }
@@ -89,6 +91,11 @@ internal class MediaCoverActivity : Activity() {
         sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
         trackTitle.text = track.title ?: ""
         trackArtist.text = track.artist ?: ""
+        // Включаем marquee-прокрутку для длинного текста
+        trackTitle.isSelected = true
+        trackTitle.setHorizontallyScrolling(true)
+        trackArtist.isSelected = true
+        trackArtist.setHorizontallyScrolling(true)
         updateProgress(track.progressKey(), track.positionMs, track.durationMs)
     }
 
