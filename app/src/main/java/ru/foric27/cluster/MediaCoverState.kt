@@ -14,10 +14,13 @@ import kotlinx.coroutines.flow.asStateFlow
 internal object MediaCoverState {
 
     data class TrackInfo(
+        val sourceLabel: String?,
         val title: String?,
         val artist: String?,
         val album: String?,
         val coverBitmap: Bitmap?,
+        val positionMs: Long?,
+        val durationMs: Long?,
         val timestamp: Long = System.currentTimeMillis(),
     ) {
         val hasContent: Boolean
@@ -27,8 +30,16 @@ internal object MediaCoverState {
     private val _trackFlow = MutableStateFlow<TrackInfo?>(null)
     val trackFlow: StateFlow<TrackInfo?> = _trackFlow.asStateFlow()
 
-    fun update(title: String?, artist: String?, album: String?, coverBitmap: Bitmap?) {
-        _trackFlow.value = TrackInfo(title, artist, album, coverBitmap)
+    fun update(
+        sourceLabel: String?,
+        title: String?,
+        artist: String?,
+        album: String?,
+        coverBitmap: Bitmap?,
+        positionMs: Long?,
+        durationMs: Long?,
+    ) {
+        _trackFlow.value = TrackInfo(sourceLabel, title, artist, album, coverBitmap, positionMs, durationMs)
     }
 
     fun clear() {

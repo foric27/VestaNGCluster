@@ -78,6 +78,8 @@
     <string name="main_restart_stream_button">Restart stream and network</string>
     <string name="main_restart_stream_requested">Stream and network restart requested</string>
     <string name="main_exact_alarm_missing">Exact alarm permission is required for stable wake recovery</string>
+    <string name="main_notification_listener_missing">Notification access is required to show media cover on cluster</string>
+    <string name="main_open_notification_listener_settings_failed">Failed to open notification access settings</string>
 
     <string name="app_settings_source_shared_prefs">DataStore</string>
     <string name="app_settings_source_memory">App memory</string>
@@ -215,4 +217,8 @@
     <string name="update_alert_cancel">Cancel</string>
 
     <string name="media_cover_desc">Album cover</string>
+    <string name="media_cover_no_media_title">No media stream</string>
+    <string name="media_cover_no_media_subtitle">Start music playback</string>
+    <string name="stream_placeholder_title">Stream unavailable</string>
+    <string name="stream_placeholder_subtitle">Waiting for navigation or multimedia</string>
 </resources>

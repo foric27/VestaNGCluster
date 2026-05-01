@@ -78,6 +78,8 @@
     <string name="main_restart_stream_button">Перезапустить трансляцию и сеть</string>
     <string name="main_restart_stream_requested">Перезапуск трансляции и сети запрошен</string>
     <string name="main_exact_alarm_missing">Нужно разрешить точные alarm для стабильного восстановления после выхода из сна</string>
+    <string name="main_notification_listener_missing">Нужно разрешить доступ к уведомлениям для показа обложки медиа на cluster</string>
+    <string name="main_open_notification_listener_settings_failed">Не удалось открыть настройки доступа к уведомлениям</string>
 
     <string name="app_settings_source_shared_prefs">DataStore</string>
     <string name="app_settings_source_memory">Память приложения</string>
@@ -215,4 +217,8 @@
     <string name="update_alert_cancel">Отмена</string>
 
     <string name="media_cover_desc">Обложка альбома</string>
+    <string name="media_cover_no_media_title">Нет медиапотока</string>
+    <string name="media_cover_no_media_subtitle">Запустите воспроизведение музыки</string>
+    <string name="stream_placeholder_title">Поток недоступен</string>
+    <string name="stream_placeholder_subtitle">Ожидаю навигацию или мультимедиа</string>
 </resources>
