@@ -31,6 +31,7 @@ VestaNGClusterFlowStudio/
 ├── docs/                                 # app icon sources
 ├── oem/                                  # decompiled OEM references; read-only comparison material
 ├── scripts/                              # signing-secret helper
+├── test-client/                          # Python-утилиты для приёма UDP-стрима и диагностики
 ├── gradle/                               # wrapper
 ├── build.gradle                          # root AGP declaration
 ├── settings.gradle                       # single :app module
@@ -55,6 +56,7 @@ VestaNGClusterFlowStudio/
 | Update confirmation UI | `UpdateAlertActivity.kt` | transient UI for discovered OTA package |
 | UI/resources | `app/src/main/res/AGENTS.md` | layout qualifiers and ru/en strings |
 | Unit tests | `app/src/test/java/ru/foric27/cluster/AGENTS.md` | JVM-only tests and reflection patterns |
+| UDP-тестовый клиент | `test-client/AGENTS.md` | Python-утилиты для приёма стрима и диагностики |
 
 ---
 
@@ -190,3 +192,4 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 - `app/src/main/java/ru/foric27/cluster/AGENTS.md` — Kotlin package architecture.
 - `app/src/main/res/AGENTS.md` — XML layouts, dimensions, localization.
 - `app/src/test/java/ru/foric27/cluster/AGENTS.md` — JVM unit-test conventions.
+- `test-client/AGENTS.md` — Python-утилиты для приёма UDP-стрима и диагностики.

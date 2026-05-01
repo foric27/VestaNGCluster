@@ -35,3 +35,5 @@ device_*.png
 crash_log.txt
 full_log.txt
 /oem/
+__pycache__/
+*.pyc
