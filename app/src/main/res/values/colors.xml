@@ -12,4 +12,11 @@
     <color name="text_primary">#F5F8FF</color>
     <color name="text_secondary">#9DB0D0</color>
     <color name="warning">#FFBE63</color>
+    <!-- OEM cluster player colors -->
+    <color name="oem_cluster_bg">#050505</color>
+    <color name="oem_cluster_title">#ffffff</color>
+    <color name="oem_cluster_subtitle">#858b95</color>
+    <color name="oem_cluster_accent">#1682ff</color>
+    <color name="oem_cluster_seekbar_bg">#333333</color>
+    <color name="oem_cluster_album_placeholder">#1e1d1d</color>
 </resources>
