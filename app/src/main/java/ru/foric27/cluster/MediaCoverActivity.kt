@@ -1,5 +1,6 @@
 package ru.foric27.cluster
 
+import android.animation.ValueAnimator
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,8 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.animation.LinearInterpolator
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -33,11 +36,13 @@ internal class MediaCoverActivity : Activity() {
     private lateinit var coverImage: ImageView
     private lateinit var sourceLabel: TextView
     private lateinit var trackTitle: TextView
+    private lateinit var titleScroll: HorizontalScrollView
     private lateinit var trackArtist: TextView
     private lateinit var playbackPosition: TextView
     private lateinit var playbackDuration: TextView
     private lateinit var playbackProgress: ProgressBar
 
+    private var titleAnimator: ValueAnimator? = null
     private var finishReceiver: BroadcastReceiver? = null
 
     private var lastProgressTrackKey: String? = null
@@ -62,14 +67,11 @@ internal class MediaCoverActivity : Activity() {
         coverImage = findViewById(R.id.cover_image)
         sourceLabel = findViewById(R.id.media_source_label)
         trackTitle = findViewById(R.id.track_title)
+        titleScroll = findViewById(R.id.title_scroll)
         trackArtist = findViewById(R.id.track_artist)
         playbackPosition = findViewById(R.id.playback_position)
         playbackDuration = findViewById(R.id.playback_duration)
         playbackProgress = findViewById(R.id.playback_progress)
-
-        // Включаем marquee-прокрутку
-        trackTitle.isSelected = true
-        trackArtist.isSelected = true
 
         // Учитываем черную маску снизу экрана (настройка video_black_bottom_px)
         val blackBottomPx = RuntimeConfig.Video.BLACK_BOTTOM_PX
@@ -100,9 +102,6 @@ internal class MediaCoverActivity : Activity() {
             finish()
             return
         }
-        // Перезапускаем marquee после возврата
-        trackTitle.isSelected = true
-        trackArtist.isSelected = true
     }
 
     override fun onPause() {
@@ -117,6 +116,7 @@ internal class MediaCoverActivity : Activity() {
             coverImage.setImageResource(android.R.drawable.ic_media_play)
             sourceLabel.text = getString(R.string.stream_mode_med)
             trackTitle.text = getString(R.string.media_cover_no_media_title)
+            setupCarousel(getString(R.string.media_cover_no_media_title))
             trackArtist.text = getString(R.string.media_cover_no_media_subtitle)
             updateProgress(null, null, null)
             return
@@ -132,8 +132,61 @@ internal class MediaCoverActivity : Activity() {
 
         sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
         trackTitle.text = track.title ?: ""
+        setupCarousel(track.title ?: "")
         trackArtist.text = track.artist ?: ""
         updateProgress(track.progressKey(), track.positionMs, track.durationMs)
+    }
+
+    /**
+     * Настраивает карусельную прокрутку заголовка.
+     * Для длинного текста дублирует содержимое ("title     title") и прокручивает
+     * на ширину одной копии, затем мгновенно сбрасывает в начало — создаёт эффект
+     * бесконечной петли с плавным затуханием по краям (fadingEdge).
+     */
+    private fun setupCarousel(text: String) {
+        titleAnimator?.cancel()
+        titleScroll.scrollTo(0, 0)
+
+        titleScroll.post {
+            val viewWidth = titleScroll.width
+            if (viewWidth <= 0) return@post
+
+            // Измеряем ширину одной копии текста
+            val textWidth = trackTitle.paint.measureText(text).toInt()
+
+            if (textWidth <= viewWidth) {
+                // Текст влезает — центрируем через padding
+                trackTitle.text = text
+                val padding = (viewWidth - textWidth) / 2
+                titleScroll.setPadding(padding, 0, padding, 0)
+                return@post
+            }
+
+            // Текст не влезает — дублируем для карусели
+            val gap = "     " // 5 пробелов
+            val carouselText = text + gap + text + gap
+            trackTitle.text = carouselText
+            titleScroll.setPadding(0, 0, 0, 0)
+
+            val scrollDistance = textWidth + trackTitle.paint.measureText(gap).toInt()
+            val duration = (scrollDistance * 30).toLong().coerceAtLeast(2000L) // px * ms/px
+
+            titleAnimator = ValueAnimator.ofInt(0, scrollDistance).apply {
+                this.duration = duration
+                interpolator = LinearInterpolator()
+                addUpdateListener { animation ->
+                    titleScroll.scrollTo(animation.animatedValue as Int, 0)
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        // Мгновенный сброс в начало и повтор
+                        titleScroll.scrollTo(0, 0)
+                        titleAnimator?.start()
+                    }
+                })
+                start()
+            }
+        }
     }
 
     private fun updateProgress(trackKey: String?, positionMs: Long?, durationMs: Long?) {
@@ -199,6 +252,7 @@ internal class MediaCoverActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        titleAnimator?.cancel()
         finishReceiver?.let {
             try {
                 unregisterReceiver(it)
