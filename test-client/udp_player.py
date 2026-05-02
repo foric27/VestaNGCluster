@@ -299,6 +299,7 @@ class Player:
 
         if not self.headless:
             cv2.namedWindow(WINDOW_TITLE, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(WINDOW_TITLE, 1920, 640)
 
         cap = None
         frame = None
