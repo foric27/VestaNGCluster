@@ -201,9 +201,13 @@ internal class MediaCoverActivity : Activity() {
     }
 
     private fun applySeekbarColor(color: Int) {
-        val drawable = playbackProgress.progressDrawable.mutate()
-        DrawableCompat.setTint(drawable, color)
-        playbackProgress.progressDrawable = drawable
+        val layerDrawable = playbackProgress.progressDrawable.mutate() as android.graphics.drawable.LayerDrawable
+        val progressDrawable = layerDrawable.findDrawableByLayerId(android.R.id.progress)
+        progressDrawable?.let {
+            val mutated = it.mutate()
+            DrawableCompat.setTint(mutated, color)
+        }
+        playbackProgress.progressDrawable = layerDrawable
     }
 
     private fun registerFinishReceiver() {
