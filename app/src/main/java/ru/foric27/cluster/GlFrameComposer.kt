@@ -16,8 +16,8 @@ internal class GlFrameComposer(
     private val height: Int,
     private val blackMaskHeightPx: Int,
 ) {
-    private val vertexBuffer: FloatBuffer = createFloatBuffer(FULL_RECT_VERTICES)
-    private val texCoordBuffer: FloatBuffer = createFloatBuffer(FULL_RECT_TEX_COORDS)
+    private val vertexBuffer: FloatBuffer = createFloatBuffer(computeVertices())
+    private val texCoordBuffer: FloatBuffer = createFloatBuffer(computeTexCoords())
     private val transformMatrix = FloatArray(16)
 
     private var eglDisplay = EGL14.EGL_NO_DISPLAY
@@ -87,6 +87,38 @@ internal class GlFrameComposer(
         }
     }
 
+    /**
+     * Возвращает вершинные координаты с учётом подъёма изображения на
+     * [blackMaskHeightPx] пикселей. Смещает нижнюю границу квадрата вверх
+     * в clip-space, чтобы контент занимал верхнюю часть кадра.
+     */
+    private fun computeVertices(): FloatArray {
+        if (blackMaskHeightPx <= 0) return FULL_RECT_VERTICES
+        val yOffset = 2.0f * blackMaskHeightPx / height
+        return floatArrayOf(
+            -1f, -1f + yOffset,
+            1f, -1f + yOffset,
+            -1f, 1f,
+            1f, 1f,
+        )
+    }
+
+    /**
+     * Возвращает текстурные координаты с обрезкой нижней части текстуры
+     * пропорционально [blackMaskHeightPx]. Сохраняет исходное соотношение
+     * сторон и не растягивает изображение.
+     */
+    private fun computeTexCoords(): FloatArray {
+        if (blackMaskHeightPx <= 0) return FULL_RECT_TEX_COORDS
+        val vOffset = blackMaskHeightPx.toFloat() / height
+        return floatArrayOf(
+            0f, vOffset,
+            1f, vOffset,
+            0f, 1f,
+            1f, 1f,
+        )
+    }
+
     fun drawSurfaceFrame(surfaceTexture: SurfaceTexture, presentationTimestampNs: Long? = null) {
         makeCurrent()
         surfaceTexture.updateTexImage()
@@ -106,7 +138,9 @@ internal class GlFrameComposer(
     private fun drawPreparedFrame(timestampNs: Long) {
         GLES20.glViewport(0, 0, width, height)
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
-        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        // Фон оставляем прозрачным (чёрным для H.264), контент поднимается за счёт
+        // смещения вершин и обрезки текстурных координат в computeVertices/TexCoords.
+        GLES20.glClearColor(0f, 0f, 0f, 0f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         GLES20.glUseProgram(program)
@@ -123,14 +157,6 @@ internal class GlFrameComposer(
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
         GLES20.glDisableVertexAttribArray(positionLoc)
         GLES20.glDisableVertexAttribArray(texCoordLoc)
-
-        if (blackMaskHeightPx > 0) {
-            GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
-            GLES20.glScissor(0, 0, width, blackMaskHeightPx)
-            GLES20.glClearColor(0f, 0f, 0f, 1f)
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
-        }
 
         EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, timestampNs)
         EGL14.eglSwapBuffers(eglDisplay, eglSurface)
