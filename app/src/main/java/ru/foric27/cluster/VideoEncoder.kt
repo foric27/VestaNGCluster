@@ -78,6 +78,8 @@ internal class VideoEncoder(
         if (running) return
         stopping = false
         running = true
+        configAnnexB = null
+        outputProcessor.clearStoredConfig()
         resetFrameTrackingState()
 
         try {
@@ -213,8 +215,12 @@ internal class VideoEncoder(
         override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
             val csd0 = format.getByteBuffer("csd-0")
             val csd1 = format.getByteBuffer("csd-1")
-            configAnnexB = H264AnnexBUtil.buildConfigAnnexB(csd0, csd1)
-            Timber.tag(TAG).i("Формат энкодера изменён, CSD обновлён")
+            val built = H264AnnexBUtil.buildConfigAnnexB(csd0, csd1)
+            configAnnexB = built
+            Timber.tag(TAG).w("onOutputFormatChanged: csd0=%s, csd1=%s, configAnnexB=%s",
+                csd0?.remaining()?.toString() ?: "null",
+                csd1?.remaining()?.toString() ?: "null",
+                built?.size?.toString() ?: "null")
         }
     }
 
@@ -252,6 +258,7 @@ internal class VideoEncoder(
         releaseSurfaceResources()
         releaseMediaCodec()
 
+        outputProcessor.clearStoredConfig()
         resetFrameTrackingState()
         notifyDisplayRemoved()
     }
