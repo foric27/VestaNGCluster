@@ -1,5 +1,6 @@
 package ru.foric27.cluster
 
+import android.animation.ValueAnimator
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,8 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.animation.LinearInterpolator
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.TextView
 import android.app.Activity
@@ -46,6 +49,9 @@ internal class MediaCoverActivity : Activity() {
     private var lastProgressPositionMs: Long? = null
     private var lastProgressDurationMs: Long? = null
 
+    private var titleAnimator: ValueAnimator? = null
+    private lateinit var titleScroll: HorizontalScrollView
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,7 +80,9 @@ internal class MediaCoverActivity : Activity() {
         playbackDuration = findViewById(R.id.playback_duration)
         playbackProgress = findViewById(R.id.playback_progress)
 
+        titleScroll = findViewById(R.id.title_scroll)
         trackTitle.isSelected = true
+        trackArtist.isSelected = true
 
         // Учитываем черную маску снизу экрана (настройка video_black_bottom_px)
         val blackBottomPx = RuntimeConfig.Video.BLACK_BOTTOM_PX
@@ -142,9 +150,39 @@ internal class MediaCoverActivity : Activity() {
         }
 
         sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
-        trackTitle.text = track.title ?: ""
+        setupCarousel(track.title ?: "")
         trackArtist.text = track.artist ?: ""
         updateProgress(track.progressKey(), track.positionMs, track.durationMs)
+    }
+
+    private fun setupCarousel(text: String) {
+        titleAnimator?.cancel()
+        trackTitle.text = text
+
+        titleScroll.post {
+            val child = titleScroll.getChildAt(0)
+            val scrollWidth = child?.width ?: 0
+            val viewWidth = titleScroll.width
+
+            if (scrollWidth > viewWidth && viewWidth > 0) {
+                val scrollDistance = scrollWidth - viewWidth
+                val durationPerPx = 30L
+                val duration = (scrollDistance * durationPerPx).coerceIn(2000L, 20000L)
+
+                titleAnimator = ValueAnimator.ofInt(0, scrollDistance).apply {
+                    this.duration = duration
+                    interpolator = LinearInterpolator()
+                    repeatCount = ValueAnimator.INFINITE
+                    repeatMode = ValueAnimator.REVERSE
+                    addUpdateListener { animator ->
+                        titleScroll.scrollTo(animator.animatedValue as Int, 0)
+                    }
+                    start()
+                }
+            } else {
+                titleScroll.scrollTo(0, 0)
+            }
+        }
     }
 
     private fun updateProgress(trackKey: String?, positionMs: Long?, durationMs: Long?) {
@@ -229,6 +267,7 @@ internal class MediaCoverActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        titleAnimator?.cancel()
         finishReceiver?.let {
             try {
                 unregisterReceiver(it)
