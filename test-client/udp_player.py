@@ -21,6 +21,7 @@ import argparse
 import ctypes
 import io
 import os
+import re
 import sys
 
 # Эти параметры должны быть установлены ДО импорта cv2: OpenCV читает их
@@ -62,6 +63,10 @@ MAX_DECODE_STALL_MS = 1500
 VIDEO_PROBE_TIMEOUT_MS = 100
 
 WINDOW_TITLE = "VestaNGClusterFlowStudio Stream"
+WARMUP_FRAMES = 30
+H264_COMPRESSION_RATIO = 100
+WAITING_FRAME_H = 640
+WAITING_FRAME_W = 1920
 
 
 def get_now() -> str:
@@ -84,7 +89,6 @@ def _format_sync_time(raw: str) -> str:
     raw = raw.strip()
 
     # Формат HHMMSS±HHMM (14 символов) или HHMMSS±HH (11 символов)
-    import re
     m = re.fullmatch(r"(\d{6})([+-]\d{2,4})", raw)
     if m:
         time_part = m.group(1)
@@ -117,33 +121,17 @@ def _format_sync_time(raw: str) -> str:
 # ---------------------------------------------------------------------------
 # Отрисовка текста через Pillow (поддержка кириллицы)
 # ---------------------------------------------------------------------------
-_pil_font = None
+_pil_fonts = {}  # size -> font
 
 
 def _get_font(size: int = 20):
-    """Ленивая загрузка шрифта Pillow."""
-    global _pil_font
-    if _pil_font is None:
+    """Ленивая загрузка шрифта Pillow, кешируется по размеру."""
+    if size not in _pil_fonts:
         try:
-            _pil_font = ImageFont.truetype("arial.ttf", size)
+            _pil_fonts[size] = ImageFont.truetype("arial.ttf", size)
         except OSError:
-            _pil_font = ImageFont.load_default()
-    return _pil_font
-
-
-def draw_text_pil(
-    frame: np.ndarray,
-    text: str,
-    pos: tuple,
-    color: tuple = (0, 255, 0),
-    size: int = 20,
-) -> np.ndarray:
-    """Рисует одну строку на кадре OpenCV через Pillow."""
-    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(img)
-    font = _get_font(size)
-    draw.text(pos, text, font=font, fill=color)
-    return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+            _pil_fonts[size] = ImageFont.load_default()
+    return _pil_fonts[size]
 
 
 def draw_overlay_pil(frame, overlay_items):
@@ -184,8 +172,6 @@ class Player:
         self.resolution = "—"
 
         # Метрики ошибок потока
-        self.frames_ok = 0
-        self.frames_lost_total = 0
         self.consecutive_lost = 0
         self.last_frame_time = time.time()
         self.freeze_ms = 0.0
@@ -308,7 +294,7 @@ class Player:
         last_decode_attempt = time.time()
         last_stats_time = time.time()
         waiting = True
-        warmup_frames = 30  # Пропускаем первые кадры для стабилизации декодера
+        warmup_frames = WARMUP_FRAMES  # Пропускаем первые кадры для стабилизации декодера
         headless_decode_errors = 0
         last_error_log = time.time()
 
@@ -410,7 +396,6 @@ class Player:
                     continue
 
                 with self.lock:
-                    self.frames_ok += 1
                     self.consecutive_lost = 0
                     self.last_frame_time = time.time()
                     self.freeze_ms = decode_elapsed_ms if decode_elapsed_ms > MAX_DECODE_STALL_MS else 0.0
@@ -419,7 +404,6 @@ class Player:
                 # Кадр не получен — возможно, ошибка декодирования или потеря пакета
                 with self.lock:
                     self.consecutive_lost += 1
-                    self.frames_lost_total += 1
                     self.freeze_ms = (time.time() - self.last_frame_time) * 1000.0
 
                 # В headless-режиме считаем ошибки декодирования
@@ -487,7 +471,7 @@ class Player:
                 # Оцениваем битрейт на основе размера декодированного кадра
                 estimated_bitrate = 0.0
                 if fps > 0:
-                    estimated_bitrate = frame.nbytes * fps * 8 / 100 / 1_000_000.0
+                    estimated_bitrate = frame.nbytes * fps * 8 / H264_COMPRESSION_RATIO / 1_000_000.0
 
                 # В headless-режиме выводим статистику в консоль раз в секунду
                 if self.headless:
@@ -587,11 +571,22 @@ class Player:
     # Вспомогательный метод: кадр-заглушка при ожидании
     # -----------------------------------------------------------------------
     def _make_waiting_frame(self, message: str) -> np.ndarray:
-        """Создаёт серый кадр с текстом ожидания (широкий, как нативное разрешение)."""
-        img = np.zeros((640, 1280, 3), dtype=np.uint8)
+        """Создаёт серый кадр с текстом ожидания (1920x640), текст центрирован."""
+        img = np.zeros((WAITING_FRAME_H, WAITING_FRAME_W, 3), dtype=np.uint8)
         img[:] = (40, 40, 40)
-        img = draw_text_pil(img, message, (440, 280), color=(0, 255, 255), size=36)
-        return img
+        pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(pil_img)
+        try:
+            font = ImageFont.truetype("arial.ttf", 36)
+        except OSError:
+            font = ImageFont.load_default()
+        bbox = draw.textbbox((0, 0), message, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        x = (WAITING_FRAME_W - text_w) // 2
+        y = (WAITING_FRAME_H - text_h) // 2
+        draw.text((x, y), message, font=font, fill=(0, 255, 255))
+        return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
 
 # ---------------------------------------------------------------------------
