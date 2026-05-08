@@ -1,4 +1,7 @@
+# Line endings: use system default (autocrlf=true on Windows)
 * text=auto
+
+# Force LF for these files (important for cross-platform)
 *.kt text eol=lf
 *.java text eol=lf
 *.gradle text eol=lf

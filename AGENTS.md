@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-27  
-**Commit:** `4f9c2b7`  
+**Generated:** 2026-05-08  
+**Commit:** `0b5795b`  
 **Branch:** `main`  
 **Language:** Russian default, English only in `values-en/`  
 **Stack:** single-module Android app, Kotlin + XML/ViewBinding, no Compose
@@ -99,22 +99,6 @@ LSP is unavailable in this environment (`kotlin-lsp` missing); use AST/direct re
 - При `ACTION_SCREEN_OFF` стрим останавливается и `PersistentVirtualDisplay` полностью освобождается (`releaseAll()`).
 - При `ACTION_SCREEN_ON` / `ACTION_USER_PRESENT` стрим перезапускается через `attemptRestart()`.
 - Это экономит заряд: на сне не держим VirtualDisplay, Surface, MediaCodec и wake-lock.
-
-## ANTI-PATTERNS (THIS PROJECT)
-
-| Forbidden | Why |
-|-----------|-----|
-| Shizuku/Sui or non-root network fallback | Product requires `su` privileged path only |
-| Root ping / ICMP reachability | Removed; use UDP probe/route checks |
-| Moving startup logic back into service body | Coordinators own orchestration |
-| Missing `startForeground()` path | Causes foreground-service crash/ANR |
-| Changing encoder shutdown order | GPU crashes; stop → join → release |
-| FTP stop while holding manager lock | Can block main/service paths |
-| Recursive update ZIP scanning | Product contract: root-only internal/USB |
-| Building with system Java 26 | Breaks Android tooling; use local JDK 21 |
-| Direct intent launch for navigator | Removed; root-only `am start` for device compatibility |
-| Recreating VirtualDisplay on stream restart | Use `PersistentVirtualDisplay.acquire()` / `detachSurface()` / `releaseAll()` |
-| Hardcoding navigator or target app names | Use `RuntimeConfig.TargetApp` and generic string resources |
 
 ---
 

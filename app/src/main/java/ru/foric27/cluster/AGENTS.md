@@ -77,14 +77,3 @@ Keep `VideoEncoder` release order:
 ### Startup flow
 - Keep startup staged: foreground notification first → network preparation → UDP probe → video pipeline start → status/watchdog attachment.
 - `UdpStreamService` should remain a façade; substantial startup/recovery changes belong in the matching coordinator/controller.
-
----
-
-## ANTI-PATTERNS
-
-- Do not add Shizuku/Sui, rootless routing, or `ping` reachability.
-- Do not scan OTA files recursively or rename `ICUpdate.zip` / `ICUpdate.zip.sig` contract casually.
-- Do not put network startup logic back into `UdpStreamService` if a coordinator already owns it.
-- Do not call Apache FTP `stop()` while holding `UpdateServerManager.lock`.
-- Do not silence root/security failures; publish actionable warnings.
-- Do not move pure root parsing helpers back into `RootNetUtil` once they have dedicated tests.
