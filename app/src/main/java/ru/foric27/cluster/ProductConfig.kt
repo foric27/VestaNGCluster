@@ -168,6 +168,11 @@ object ProductConfig {
         const val EXPECTED_SIGNATURE_SHA256: String = "322fc02918d1cd7729dc6fac7c77b962f09a7afa41760264b44c7baac1e63227"
     }
 
+    object Logging {
+        /** Разрешает подробные release-логи только для временной диагностики. */
+        const val VERBOSE_ENABLED: Boolean = false
+    }
+
     object Service {
         /** Идентификатор foreground-уведомления сервиса. */
         const val NOTIFICATION_ID: Int = 1201

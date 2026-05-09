@@ -1,5 +1,6 @@
 package ru.foric27.cluster
 
+import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.InputType
@@ -9,6 +10,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.CompoundButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.checkbox.MaterialCheckBox
@@ -32,6 +34,7 @@ class DeveloperActivity : AppCompatActivity() {
     private enum class ApplyTarget {
         STREAM,
         FTP,
+        LOCAL,
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +45,7 @@ class DeveloperActivity : AppCompatActivity() {
 
         binding.backButton.setOnClickListener { finish() }
         binding.resetAllBtn.setOnClickListener { resetAllSettings() }
+        binding.exportLogcatBtn.setOnClickListener { exportLogcat() }
 
         renderVersionInfo()
         buildDynamicSettingsEditor()
@@ -296,6 +300,10 @@ class DeveloperActivity : AppCompatActivity() {
                 binding.developerStatusText.text = getString(R.string.developer_applied_ftp_fmt, title)
             }
 
+            ApplyTarget.LOCAL -> {
+                binding.developerStatusText.text = getString(R.string.developer_applied_local_fmt, title)
+            }
+
             ApplyTarget.STREAM -> {
                 RootNetUtil.clearCaches()
                 UdpStreamService.restartServiceCompat(this)
@@ -305,6 +313,9 @@ class DeveloperActivity : AppCompatActivity() {
     }
 
     private fun applyTargetFor(spec: RuntimeConfig.FieldSpec): ApplyTarget {
+        if (spec.key == RuntimeConfig.Keys.LOGGING_VERBOSE_ENABLED) {
+            return ApplyTarget.LOCAL
+        }
         return if (RuntimeConfig.isFtpOnlyField(spec)) {
             ApplyTarget.FTP
         } else {
@@ -341,6 +352,35 @@ class DeveloperActivity : AppCompatActivity() {
         renderAllValues()
         restartRuntimeDrivenServices()
         binding.developerStatusText.text = getString(R.string.developer_reset_success)
+    }
+
+    private fun exportLogcat() {
+        binding.exportLogcatBtn.isEnabled = false
+        binding.developerStatusText.text = getString(R.string.developer_logcat_export_in_progress)
+        Thread {
+            val result = runCatching { LogcatExporter.export(this) }
+            runOnUiThread {
+                binding.exportLogcatBtn.isEnabled = true
+                result.onSuccess { exported ->
+                    binding.developerStatusText.text = getString(R.string.developer_logcat_export_ok_fmt, exported.file.name)
+                    shareLogcat(exported)
+                }.onFailure { error ->
+                    val message = error.message ?: error.javaClass.simpleName
+                    binding.developerStatusText.text = getString(R.string.developer_logcat_export_error_fmt, message)
+                    Toast.makeText(this, R.string.developer_logcat_export_error_short, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun shareLogcat(exported: LogcatExporter.Result) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, exported.uri)
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.developer_logcat_share_subject))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, getString(R.string.developer_logcat_share_title)))
     }
 
     /**

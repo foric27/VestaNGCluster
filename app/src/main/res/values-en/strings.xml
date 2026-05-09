@@ -49,7 +49,15 @@
     <string name="developer_bool_hint">Allowed: true or false.</string>
     <string name="developer_applied_stream_fmt">%1$s saved. Restarting stream.</string>
     <string name="developer_applied_ftp_fmt">%1$s saved. Restarting FTP.</string>
+    <string name="developer_applied_local_fmt">%1$s saved.</string>
     <string name="developer_reset_all">Reset to defaults</string>
+    <string name="developer_export_logcat">Export logcat</string>
+    <string name="developer_logcat_export_in_progress">Saving logcat…</string>
+    <string name="developer_logcat_export_ok_fmt">Logcat saved: %1$s</string>
+    <string name="developer_logcat_export_error_fmt">Failed to save logcat: %1$s</string>
+    <string name="developer_logcat_export_error_short">Failed to save logcat</string>
+    <string name="developer_logcat_share_subject">Vesta NG Cluster diagnostics</string>
+    <string name="developer_logcat_share_title">Send logcat</string>
     <string name="developer_reset_success">Developer settings reset. Stream restarting.</string>
     <string name="main_open_developer_failed">Failed to open developer screen</string>
     <string name="main_open_telegram_failed">Failed to open developer Telegram link</string>
@@ -105,6 +113,7 @@
     <string name="runtime_section_network">Network</string>
     <string name="runtime_section_root">Root and interface</string>
     <string name="runtime_section_ftp_update">FTP update</string>
+    <string name="runtime_section_logging">Logging</string>
     <string name="runtime_section_service">Service</string>
 
     <string name="runtime_field_target_action_main">Launch action</string>
@@ -145,6 +154,7 @@
     <string name="runtime_field_ftp_root_dir_name">FTP root name</string>
     <string name="runtime_field_ftp_internal_poll_period_ms">Internal memory poll, ms</string>
     <string name="runtime_field_ftp_retry_delay_ms">FTP retry delay, ms</string>
+    <string name="runtime_field_logging_verbose_enabled">Verbose release logs</string>
     <string name="runtime_field_service_notification_id">Notification ID</string>
     <string name="runtime_field_service_notification_channel_id">Notification channel ID</string>
     <string name="runtime_field_service_notification_channel_name">Notification channel name</string>

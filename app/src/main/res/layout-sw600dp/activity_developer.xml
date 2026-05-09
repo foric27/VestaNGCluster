@@ -73,6 +73,15 @@
                 android:layout_marginTop="@dimen/screen_section_spacing"
                 android:text="@string/developer_reset_all" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/exportLogcatBtn"
+                style="@style/Widget.Foric27Cluster.Button.Dismiss"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="8dp"
+                android:text="@string/developer_export_logcat" />
+
             <TextView
                 android:id="@+id/developerStatusText"
                 android:layout_width="match_parent"

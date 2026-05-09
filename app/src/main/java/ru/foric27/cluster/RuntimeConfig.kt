@@ -81,6 +81,8 @@ object RuntimeConfig {
         const val FTP_INTERNAL_POLL_PERIOD_MS = "ftp_internal_poll_period_ms"
         const val FTP_RETRY_DELAY_MS = "ftp_retry_delay_ms"
 
+        const val LOGGING_VERBOSE_ENABLED = "logging_verbose_enabled"
+
         const val SERVICE_NOTIFICATION_ID = "service_notification_id"
         const val SERVICE_NOTIFICATION_CHANNEL_ID = "service_notification_channel_id"
         const val SERVICE_NOTIFICATION_CHANNEL_NAME = "service_notification_channel_name"
@@ -263,6 +265,10 @@ object RuntimeConfig {
         val ROOT_DIR_NAME: String get() = string(Keys.FTP_ROOT_DIR_NAME, ProductConfig.UpdateFtp.ROOT_DIR_NAME)
         val INTERNAL_POLL_PERIOD_MS: Long get() = long(Keys.FTP_INTERNAL_POLL_PERIOD_MS, ProductConfig.UpdateFtp.INTERNAL_POLL_PERIOD_MS)
         val RETRY_DELAY_MS: Long get() = long(Keys.FTP_RETRY_DELAY_MS, ProductConfig.UpdateFtp.RETRY_DELAY_MS)
+    }
+
+    object Logging {
+        val VERBOSE_ENABLED: Boolean get() = boolean(Keys.LOGGING_VERBOSE_ENABLED, ProductConfig.Logging.VERBOSE_ENABLED)
     }
 
     object Service {

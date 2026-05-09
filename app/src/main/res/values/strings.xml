@@ -49,7 +49,15 @@
     <string name="developer_bool_hint">Допустимо: true или false.</string>
     <string name="developer_applied_stream_fmt">%1$s сохранено. Перезапускаю трансляцию.</string>
     <string name="developer_applied_ftp_fmt">%1$s сохранено. Перезапускаю FTP.</string>
+    <string name="developer_applied_local_fmt">%1$s сохранено.</string>
     <string name="developer_reset_all">Сбросить по умолчанию</string>
+    <string name="developer_export_logcat">Экспорт logcat</string>
+    <string name="developer_logcat_export_in_progress">Сохраняю logcat…</string>
+    <string name="developer_logcat_export_ok_fmt">Logcat сохранён: %1$s</string>
+    <string name="developer_logcat_export_error_fmt">Не удалось сохранить logcat: %1$s</string>
+    <string name="developer_logcat_export_error_short">Не удалось сохранить logcat</string>
+    <string name="developer_logcat_share_subject">Диагностика Vesta NG Cluster</string>
+    <string name="developer_logcat_share_title">Отправить logcat</string>
     <string name="developer_reset_success">Настройки разработчика сброшены. Поток перезапускается.</string>
     <string name="main_open_developer_failed">Не удалось открыть экран разработчика</string>
     <string name="main_open_telegram_failed">Не удалось открыть ссылку Telegram разработчика</string>
@@ -105,6 +113,7 @@
     <string name="runtime_section_network">Сеть</string>
     <string name="runtime_section_root">Root и интерфейс</string>
     <string name="runtime_section_ftp_update">FTP обновление</string>
+    <string name="runtime_section_logging">Логирование</string>
     <string name="runtime_section_service">Сервис</string>
 
     <string name="runtime_field_target_action_main">Действие запуска</string>
@@ -145,6 +154,7 @@
     <string name="runtime_field_ftp_root_dir_name">Имя FTP root</string>
     <string name="runtime_field_ftp_internal_poll_period_ms">Опрос внутренней памяти, мс</string>
     <string name="runtime_field_ftp_retry_delay_ms">Повторный запуск FTP, мс</string>
+    <string name="runtime_field_logging_verbose_enabled">Подробные release-логи</string>
     <string name="runtime_field_service_notification_id">Идентификатор уведомления</string>
     <string name="runtime_field_service_notification_channel_id">Идентификатор канала уведомлений</string>
     <string name="runtime_field_service_notification_channel_name">Имя канала уведомлений</string>

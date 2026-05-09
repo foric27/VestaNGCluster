@@ -22,6 +22,7 @@ internal object RootNetworkAddressing {
         val parts = value.split('.')
         if (parts.size != IPV4_OCTETS) return false
         return parts.all { part ->
+            if (part.length > 1 && part.startsWith('0')) return@all false
             val number = part.toIntOrNull() ?: return@all false
             number in IPV4_OCTET_RANGE
         }

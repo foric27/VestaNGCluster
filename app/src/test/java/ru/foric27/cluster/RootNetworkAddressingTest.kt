@@ -34,5 +34,6 @@ class RootNetworkAddressingTest {
         assertTrue(RootNetworkAddressing.isValidIpv4("0.1.254.255"))
         assertFalse(RootNetworkAddressing.isValidIpv4("0.1.254.256"))
         assertFalse(RootNetworkAddressing.isValidIpv4("0.1.254"))
+        assertFalse(RootNetworkAddressing.isValidIpv4("192.168.040.1"))
     }
 }

@@ -277,7 +277,7 @@ internal class VideoEncoder(
             return
         }
 
-        if (handler == null) {
+        if (handler == null || handler.looper.thread == Thread.currentThread()) {
             releaseSafely("") {
                 composer.release()
             }
@@ -300,6 +300,12 @@ internal class VideoEncoder(
 
     private fun terminateCodecThread() {
         codecThread?.let { thread ->
+            if (thread == Thread.currentThread()) {
+                thread.quitSafely()
+                codecThread = null
+                codecHandler = null
+                return
+            }
             releaseSafely("Не удалось корректно завершить поток кодека") {
                 thread.quitSafely()
                 thread.join(CODEC_THREAD_JOIN_TIMEOUT_MS)

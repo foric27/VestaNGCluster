@@ -9,8 +9,8 @@ class ClusterApp : Application() {
     override fun onCreate() {
         super.onCreate()
         appContext = applicationContext
-        Timber.plant(Timber.DebugTree())
         RuntimeConfig.init(applicationContext)
+        Timber.plant(AppTimberTree())
         ProcessRecoveryManager.install(applicationContext)
     }
 
