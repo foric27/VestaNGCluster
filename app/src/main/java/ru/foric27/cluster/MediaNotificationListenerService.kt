@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -361,7 +362,20 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        cleanupListenerState()
+        Timber.tag(TAG).i("NotificationListener отключён")
+    }
+
+    override fun onDestroy() {
+        cleanupListenerState()
+        serviceScope.cancel()
+        Timber.tag(TAG).i("NotificationListener уничтожен")
+        super.onDestroy()
+    }
+
+    private fun cleanupListenerState() {
         notificationScanJob?.cancel()
+        notificationScanJob = null
         controllers.values.forEach { it.unregister() }
         controllers.clear()
         activePackage = null
@@ -370,9 +384,10 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         MediaCoverState.clear()
         try {
             mediaSessionManager?.removeOnActiveSessionsChangedListener(activeSessionsChangedListener)
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            Timber.tag(TAG).w(e, "Не удалось удалить слушатель активных MediaSession")
         }
-        Timber.tag(TAG).i("NotificationListener отключён")
+        mediaSessionManager = null
     }
 
     private data class TrackSnapshot(
