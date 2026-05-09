@@ -52,14 +52,24 @@ internal object RootNetUtil {
     @Volatile private var cachedRouteExpectedSrcIp: String? = null
     @Volatile private var cachedRouteOk: Boolean? = null
     @Volatile private var cachedRouteCheckAtMs: Long = 0L
-    @Volatile private var networkRootShell: NetworkRootShell? = null
+    @Volatile private var networkRootShell: NetworkRootCommandExecutor? = null
+    @Volatile private var routePlanner: RootRoutePlanner = DefaultRootRoutePlanner
 
     data class ApplyResult(
         val ok: Boolean,
         val iface: String,
         val details: String,
         val rootRequired: Boolean = false,
+        val failureReason: FailureReason? = null,
     )
+
+    enum class FailureReason {
+        ROOT_UNAVAILABLE,
+        IFACE_MISSING,
+        ROUTE_TIMEOUT,
+        ROUTE_NOT_APPLIED,
+        NETWORK_UNREACHABLE,
+    }
 
     data class ProbeState(
         val iface: String,
@@ -92,6 +102,16 @@ internal object RootNetUtil {
                 }
             }
         }
+
+        fun failureReason(): FailureReason? {
+            if (ok) return null
+            return when {
+                rootRequired -> FailureReason.ROOT_UNAVAILABLE
+                !routeCommandOk -> FailureReason.NETWORK_UNREACHABLE
+                !devOk || !srcOk -> FailureReason.ROUTE_NOT_APPLIED
+                else -> FailureReason.NETWORK_UNREACHABLE
+            }
+        }
     }
 
     private data class ApplyStaticContext(
@@ -117,8 +137,12 @@ internal object RootNetUtil {
         cachedRouteCheckAtMs = 0L
     }
 
-    fun attachNetworkRootShell(shell: NetworkRootShell) {
+    fun attachNetworkRootShell(shell: NetworkRootCommandExecutor) {
         networkRootShell = shell
+    }
+
+    fun attachRoutePlanner(planner: RootRoutePlanner) {
+        routePlanner = planner
     }
 
     @Synchronized
@@ -140,10 +164,11 @@ internal object RootNetUtil {
                         append(buildIfaceExistsLabel(context.iface)).append("=true\n")
                         append("local=").append(context.cidr.ip).append('/').append(context.cidr.prefix).append('\n')
                         append(interfaceResult.renderOutput())
-                    },
-                    rootRequired = interfaceResult.rootRequired,
-                )
-            }
+                     },
+                     rootRequired = interfaceResult.rootRequired,
+                    failureReason = interfaceResult.failureReason ?: FailureReason.ROUTE_NOT_APPLIED,
+                 )
+             }
 
             val routingState = applyRouting(context, interfaceResult)
             if (routingState is ApplyResult) {
@@ -178,8 +203,8 @@ internal object RootNetUtil {
         } catch (t: Throwable) {
             val iface = resolveSelection(force = true).name ?: RuntimeConfig.Root.IFACE
             Timber.tag(TAG).e(t, "Ошибка настройки $iface через root")
-            ApplyResult(false, iface, t.toString())
-        }
+             ApplyResult(false, iface, t.toString())
+         }
     }
 
     fun getIfaceProbeState(force: Boolean = false): ProbeState = probeIfaceState(force = force)
@@ -412,28 +437,13 @@ internal object RootNetUtil {
         gatewayIp: String,
         includeFwmarkRule: Boolean,
     ): List<String> {
-        return buildList {
-            add("ip route del $gatewayIp")
-            add("ip route del $gatewayIp/32")
-            add("ip rule del to $gatewayIp/${Constants.IPV4_BITS} lookup main priority ${Constants.RULE_DELETE_PRIORITY_BASE}")
-            add("ip rule del from ${cidr.ip}/${Constants.IPV4_BITS} lookup main priority ${Constants.RULE_DELETE_PRIORITY_BASE + 1}")
-            add("ip rule del to $gatewayIp/${Constants.IPV4_BITS} lookup main priority ${Constants.GATEWAY_TO_PRIORITY}")
-            add("ip rule del from ${cidr.ip}/${Constants.IPV4_BITS} lookup main priority ${Constants.GATEWAY_FROM_PRIORITY}")
-            if (includeFwmarkRule) {
-                add("ip rule del fwmark ${Constants.FWMARK_VALUE} lookup main priority ${Constants.FWMARK_PRIORITY}")
-            }
-            add("ip route replace ${cidr.network}/${cidr.prefix} dev $iface scope link src ${cidr.ip} table main")
-            add("ip route replace $gatewayIp/${Constants.IPV4_BITS} dev $iface scope link src ${cidr.ip} table main")
-            if (includeFwmarkRule) {
-                add("ip rule add fwmark ${Constants.FWMARK_VALUE} lookup main priority ${Constants.FWMARK_PRIORITY}")
-            }
-            add("ip rule add to $gatewayIp/${Constants.IPV4_BITS} lookup main priority ${Constants.GATEWAY_TO_PRIORITY}")
-            add("ip rule add from ${cidr.ip}/${Constants.IPV4_BITS} lookup main priority ${Constants.GATEWAY_FROM_PRIORITY}")
-            add("ip route flush cache")
-            add("ip route get $gatewayIp")
-            add("ip rule show")
-            add("ip route show dev $iface")
-        }
+        return routePlanner.plan(
+            iface = iface,
+            localCidr = "${cidr.ip}/${cidr.prefix}",
+            gatewayIp = gatewayIp,
+            routingTable = "main",
+            includeFwmarkRule = includeFwmarkRule,
+        ).getOrThrow().commands
     }
 
     internal fun buildIptablesBatch(gatewayIp: String): List<String> {
@@ -480,9 +490,10 @@ internal object RootNetUtil {
                 ok = false,
                 iface = probeState.iface,
                 details = probeState.details,
-                rootRequired = true,
-            )
-        }
+                 rootRequired = true,
+                failureReason = FailureReason.ROOT_UNAVAILABLE,
+             )
+         }
 
         if (!probeState.exists) {
             val probe = runNetworkScript(
@@ -497,18 +508,18 @@ internal object RootNetUtil {
                 append(buildIfaceExistsLabel(probeState.iface)).append("=false\n")
                 append(probe.renderOutput())
             }
-            Timber.tag(TAG).i("${probeState.iface} отсутствует — статическая настройка сети пропущена")
-            return ApplyResult(false, probeState.iface, details)
-        }
+             Timber.tag(TAG).i("${probeState.iface} отсутствует — статическая настройка сети пропущена")
+            return ApplyResult(false, probeState.iface, details, failureReason = FailureReason.IFACE_MISSING)
+         }
 
-        val cidr = parseIpv4Cidr(localCidr)
-            ?: return ApplyResult(false, probeState.iface, "Некорректный localCidr: $localCidr")
-        val iface = sanitizeIfaceName(probeState.iface)
-            ?: return ApplyResult(false, probeState.iface, "Некорректный iface: ${probeState.iface}")
-        val gatewayIp = gateway?.trim()?.takeIf { it.isNotEmpty() }
-        if (gatewayIp != null && !isValidIpv4(gatewayIp)) {
-            return ApplyResult(false, probeState.iface, "Некорректный gateway: $gatewayIp")
-        }
+         val cidr = parseIpv4Cidr(localCidr)
+            ?: return ApplyResult(false, probeState.iface, "Некорректный localCidr: $localCidr", failureReason = FailureReason.ROUTE_NOT_APPLIED)
+         val iface = sanitizeIfaceName(probeState.iface)
+            ?: return ApplyResult(false, probeState.iface, "Некорректный iface: ${probeState.iface}", failureReason = FailureReason.ROUTE_NOT_APPLIED)
+         val gatewayIp = gateway?.trim()?.takeIf { it.isNotEmpty() }
+         if (gatewayIp != null && !isValidIpv4(gatewayIp)) {
+            return ApplyResult(false, probeState.iface, "Некорректный gateway: $gatewayIp", failureReason = FailureReason.ROUTE_NOT_APPLIED)
+         }
 
         return ApplyStaticContext(
             cidr = cidr,
@@ -542,10 +553,11 @@ internal object RootNetUtil {
                     append(interfaceResult.renderOutput())
                     append('\n')
                     append(routingResult.renderOutput())
-                },
-                rootRequired = routingResult.rootRequired,
-            )
-        }
+                 },
+                 rootRequired = routingResult.rootRequired,
+                failureReason = routingResult.failureReason ?: FailureReason.ROUTE_NOT_APPLIED,
+             )
+         }
         return ApplyRoutingState(
             routingResult = routingResult,
             shouldApplyIptables = iptablesAvailable,
@@ -575,10 +587,11 @@ internal object RootNetUtil {
                     append(routingResult.renderOutput())
                     append('\n')
                     append(iptablesResult.renderOutput())
-                },
-                rootRequired = iptablesResult.rootRequired,
-            )
-        }
+                 },
+                 rootRequired = iptablesResult.rootRequired,
+                failureReason = iptablesResult.failureReason ?: FailureReason.ROUTE_NOT_APPLIED,
+             )
+         }
         return iptablesResult
     }
 
@@ -625,7 +638,12 @@ internal object RootNetUtil {
                 append(it.output)
             }
         }
-        return ApplyResult(ok = ok, iface = context.iface, details = details)
+        return ApplyResult(
+            ok = ok,
+            iface = context.iface,
+            details = details,
+            failureReason = if (ok) null else routeCheck?.failureReason() ?: FailureReason.ROUTE_NOT_APPLIED,
+        )
     }
 
     private fun checkRouteCache(
@@ -693,9 +711,14 @@ internal object RootNetUtil {
         val shell = networkRootShell ?: return NetworkScriptResult.failure(
             error = "NetworkRootShell не подключён",
             rootRequired = true,
+            failureReason = FailureReason.ROOT_UNAVAILABLE,
         )
         if (!shell.isAvailable()) {
-            return NetworkScriptResult.failure(error = ROOT_REQUIRED_MESSAGE, rootRequired = true)
+            return NetworkScriptResult.failure(
+                error = ROOT_REQUIRED_MESSAGE,
+                rootRequired = true,
+                failureReason = FailureReason.ROOT_UNAVAILABLE,
+            )
         }
         return shell.execScript(commands).fold(
             onSuccess = { NetworkScriptResult.success(it) },
@@ -713,6 +736,7 @@ internal object RootNetUtil {
         val output: String,
         val error: String,
         val rootRequired: Boolean = false,
+        val failureReason: FailureReason? = null,
     ) {
         fun combinedText(): String {
             return buildString {
@@ -734,8 +758,17 @@ internal object RootNetUtil {
             fun success(output: String): NetworkScriptResult =
                 NetworkScriptResult(ok = true, output = output, error = "")
 
-            fun failure(error: String, rootRequired: Boolean = false): NetworkScriptResult =
-                NetworkScriptResult(ok = false, output = "", error = error, rootRequired = rootRequired)
+            fun failure(
+                error: String,
+                rootRequired: Boolean = false,
+                failureReason: FailureReason? = null,
+            ): NetworkScriptResult = NetworkScriptResult(
+                ok = false,
+                output = "",
+                error = error,
+                rootRequired = rootRequired,
+                failureReason = failureReason,
+            )
         }
     }
 }

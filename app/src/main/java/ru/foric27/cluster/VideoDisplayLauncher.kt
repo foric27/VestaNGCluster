@@ -74,18 +74,23 @@ internal class VideoDisplayLauncher(
         }
     }
 
-    private companion object {
+    companion object {
         private const val TAG = "VideoDisplayLauncher"
 
-        private val RootCommandActivityStarter = RootActivityStarter { command ->
-            val result = RootCommandRunner.run(
+        private val RootCommandActivityStarter = rootCommandActivityStarter(RootCommandRunner)
+
+        internal fun rootCommandActivityStarter(executor: RootCommandExecutor): RootActivityStarter {
+            return RootActivityStarter { command ->
+                val result = executor.run(
                 cmds = listOf(command),
+                logOnFailure = true,
                 timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS,
-            )
-            RootLaunchAttempt(
-                success = result.ok(),
-                errorMessage = result.combinedText().trim().ifEmpty { "code=${result.code}, timedOut=${result.timedOut}" },
-            )
+                )
+                RootLaunchAttempt(
+                    success = result.ok(),
+                    errorMessage = result.combinedText().trim().ifEmpty { "code=${result.code}, timedOut=${result.timedOut}" },
+                )
+            }
         }
     }
 }

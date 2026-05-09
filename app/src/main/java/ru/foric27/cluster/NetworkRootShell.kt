@@ -11,9 +11,9 @@ import java.util.Locale
  * Все команды сериализуются через один lock, чтобы не смешивать изменения
  * policy-routing/iptables между разными потоками сервиса.
  */
-internal class NetworkRootShell {
+internal class NetworkRootShell : NetworkRootCommandExecutor {
 
-    fun execScript(commands: List<String>): Result<String> {
+    override fun execScript(commands: List<String>): Result<String> {
         val normalizedCommands = try {
             normalizeCommands(commands)
         } catch (t: Throwable) {
@@ -63,7 +63,7 @@ internal class NetworkRootShell {
         }
     }
 
-    fun isAvailable(): Boolean {
+    override fun isAvailable(): Boolean {
         synchronized(lock) {
             if (closed) return false
             return try {
@@ -81,7 +81,7 @@ internal class NetworkRootShell {
         }
     }
 
-    fun close() {
+    override fun close() {
         synchronized(lock) {
             closed = true
             discardShellLocked()

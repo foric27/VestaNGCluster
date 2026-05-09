@@ -69,6 +69,91 @@ class RootNetUtilTest {
     }
 
     @Test
+    fun `route planner builds commands without shell execution`() {
+        val plan = RootNetworkRoutePlanner.plan(
+            iface = " eth0 ",
+            localCidr = "192.168.40.1/24",
+            gatewayIp = "192.168.40.2",
+            routingTable = "100",
+            includeFwmarkRule = false,
+        ).getOrThrow()
+
+        assertEquals("eth0", plan.iface)
+        assertEquals("100", plan.routingTable)
+        assertEquals("ip route replace 192.168.40.0/24 dev eth0 scope link src 192.168.40.1 table 100", plan.commands[6])
+        assertFalse(plan.commands.any { it.contains("fwmark") })
+    }
+
+    @Test
+    fun `route planner rejects invalid local cidr and target ip`() {
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "eth0",
+                localCidr = "192.168.40.1/33",
+                gatewayIp = "192.168.40.2",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "eth0",
+                localCidr = "192.168.40.1/24",
+                gatewayIp = "192.168.040.2",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+    }
+
+    @Test
+    fun `route planner rejects gateway outside subnet and reserved broadcast addresses`() {
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "eth0",
+                localCidr = "192.168.40.1/24",
+                gatewayIp = "192.168.41.2",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "eth0",
+                localCidr = "192.168.40.1/24",
+                gatewayIp = "192.168.40.255",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "eth0",
+                localCidr = "192.168.40.1/24",
+                gatewayIp = "192.168.40.0",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+    }
+
+    @Test
+    fun `route planner rejects missing iface and invalid routing table`() {
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "   ",
+                localCidr = "192.168.40.1/24",
+                gatewayIp = "192.168.40.2",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+        assertTrue(
+            RootNetworkRoutePlanner.plan(
+                iface = "eth0",
+                localCidr = "192.168.40.1/24",
+                gatewayIp = "192.168.40.2",
+                routingTable = "0",
+                includeFwmarkRule = true,
+            ).isFailure,
+        )
+    }
+
+    @Test
     fun `iptables batch contains mark 0x1 cleanup then add`() {
         val commands = RootNetUtil.buildIptablesBatch("192.168.40.2")
 

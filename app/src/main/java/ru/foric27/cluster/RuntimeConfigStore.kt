@@ -15,9 +15,9 @@ private val Context.runtimeConfigDataStore by preferencesDataStore(
     },
 )
 
-internal object RuntimeConfigStore {
+internal object RuntimeConfigStore : RuntimeConfigRepository {
 
-    fun load(context: Context, specs: List<RuntimeConfig.FieldSpec>): Map<String, String> {
+    override fun load(context: Context, specs: List<RuntimeConfig.FieldSpec>): Map<String, String> {
         val appContext = context.applicationContext
         val preferences = runBlocking { appContext.runtimeConfigDataStore.data.first() }
         return buildMap {
@@ -30,7 +30,7 @@ internal object RuntimeConfigStore {
         }
     }
 
-    fun saveField(
+    override fun saveField(
         context: Context,
         spec: RuntimeConfig.FieldSpec,
         rawValue: String,
@@ -56,7 +56,7 @@ internal object RuntimeConfigStore {
         return RuntimeConfig.SaveResult(true, context.getString(R.string.runtime_save_setting_ok_fmt, title), spec.key, normalizedValue)
     }
 
-    fun resetToDefaults(context: Context): Boolean {
+    override fun resetToDefaults(context: Context): Boolean {
         return try {
             val appContext = context.applicationContext
             runBlocking {
@@ -70,7 +70,7 @@ internal object RuntimeConfigStore {
         }
     }
 
-    fun parseBooleanValue(rawValue: String?, default: Boolean): Boolean {
+    override fun parseBooleanValue(rawValue: String?, default: Boolean): Boolean {
         return when ((rawValue ?: default.toString()).trim().lowercase()) {
             "true", "1", "yes", "on" -> true
             "false", "0", "no", "off" -> false

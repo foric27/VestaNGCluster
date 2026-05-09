@@ -62,6 +62,7 @@ internal class VideoEncoder(
 
     @Volatile private var running: Boolean = false
     @Volatile private var stopping: Boolean = false
+    @Volatile private var lifecycleState: VideoCaptureLifecycleState = VideoCaptureLifecycleState.IDLE
     @Volatile private var configAnnexB: ByteArray? = null
 
     @Volatile private var fpsWindowStartedAtMs: Long = 0L
@@ -76,6 +77,10 @@ internal class VideoEncoder(
      */
     fun start() {
         if (running) return
+        if (!transitionLifecycle(VideoCaptureLifecycleEvent.START_REQUESTED)) {
+            Timber.tag(TAG).w("Пропускаю start(): недопустимый lifecycle state=$lifecycleState")
+            return
+        }
         stopping = false
         running = true
         configAnnexB = null
@@ -128,6 +133,7 @@ internal class VideoEncoder(
             )
 
             acquireVirtualDisplayOrThrow()
+            transitionLifecycle(VideoCaptureLifecycleEvent.START_COMPLETED)
             if (!streamConfig.dynamicFps) {
                 scheduleConstantFpsTick(initial = true)
             } else {
@@ -138,6 +144,7 @@ internal class VideoEncoder(
             safeStopInternal(releasePersistentDisplay = false)
             running = false
             stopping = false
+            transitionLifecycle(VideoCaptureLifecycleEvent.START_FAILED)
             throw t
         }
     }
@@ -147,10 +154,18 @@ internal class VideoEncoder(
      * persistent VirtualDisplay без явной необходимости.
      */
     fun stop() {
+        transitionLifecycle(VideoCaptureLifecycleEvent.STOP_REQUESTED)
         stopping = true
         running = false
         safeStopInternal(releasePersistentDisplay = false)
         stopping = false
+        transitionLifecycle(VideoCaptureLifecycleEvent.STOP_COMPLETED)
+    }
+
+    private fun transitionLifecycle(event: VideoCaptureLifecycleEvent): Boolean {
+        val next = VideoCaptureLifecycleStateMachine.transition(lifecycleState, event) ?: return false
+        lifecycleState = next
+        return true
     }
 
     /**

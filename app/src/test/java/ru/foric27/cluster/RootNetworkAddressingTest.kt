@@ -26,7 +26,15 @@ class RootNetworkAddressingTest {
     fun `parseIpv4Cidr rejects invalid input`() {
         assertNull(RootNetworkAddressing.parseIpv4Cidr("192.168.40.300/24"))
         assertNull(RootNetworkAddressing.parseIpv4Cidr("192.168.40.1/33"))
+        assertNull(RootNetworkAddressing.parseIpv4Cidr("192.168.40.1/-1"))
+        assertNull(RootNetworkAddressing.parseIpv4Cidr("192.168.40.-1/24"))
         assertNull(RootNetworkAddressing.parseIpv4Cidr("not-ip"))
+    }
+
+    @Test
+    fun `parseIpv4Cidr supports host and zero prefix edge cases`() {
+        assertEquals(Ipv4Cidr(ip = "192.168.40.1", prefix = 32, network = "192.168.40.1"), RootNetworkAddressing.parseIpv4Cidr("192.168.40.1/32"))
+        assertEquals(Ipv4Cidr(ip = "192.168.40.1", prefix = 0, network = "0.0.0.0"), RootNetworkAddressing.parseIpv4Cidr("192.168.40.1/0"))
     }
 
     @Test
@@ -35,5 +43,6 @@ class RootNetworkAddressingTest {
         assertFalse(RootNetworkAddressing.isValidIpv4("0.1.254.256"))
         assertFalse(RootNetworkAddressing.isValidIpv4("0.1.254"))
         assertFalse(RootNetworkAddressing.isValidIpv4("192.168.040.1"))
+        assertFalse(RootNetworkAddressing.isValidIpv4("192.168.-1.1"))
     }
 }

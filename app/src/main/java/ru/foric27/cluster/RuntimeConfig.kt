@@ -115,6 +115,9 @@ object RuntimeConfig {
     @Volatile
     private var rawValues: Map<String, String> = emptyMap()
 
+    @Volatile
+    private var repository: RuntimeConfigRepository = RuntimeConfigStore
+
     /**
      * Инициализирует кеш runtime-значений при старте процесса или экрана.
      */
@@ -126,7 +129,15 @@ object RuntimeConfig {
      * Полностью перечитывает пользовательские overrides из DataStore.
      */
     fun reload(context: Context) {
-        rawValues = RuntimeConfigStore.load(context, fieldSpecs)
+        rawValues = repository.load(context, fieldSpecs)
+    }
+
+    internal fun attachRepositoryForTests(store: RuntimeConfigRepository) {
+        repository = store
+    }
+
+    internal fun restoreDefaultRepositoryForTests() {
+        repository = RuntimeConfigStore
     }
 
     /**
@@ -168,7 +179,7 @@ object RuntimeConfig {
      */
     fun saveField(context: Context, spec: FieldSpec, rawValue: String): SaveResult {
         val fieldTitle = getFieldTitle(context, spec)
-        val result = RuntimeConfigStore.saveField(context, spec, rawValue, fieldTitle)
+        val result = repository.saveField(context, spec, rawValue, fieldTitle)
         if (!result.ok) return result
         reload(context)
         return result
@@ -178,7 +189,7 @@ object RuntimeConfig {
      * Сбрасывает все runtime-overrides и возвращает проект к ProductConfig.
      */
     fun resetToDefaults(context: Context): SaveResult {
-        if (!RuntimeConfigStore.resetToDefaults(context)) {
+        if (!repository.resetToDefaults(context)) {
             return SaveResult(false, context.getString(R.string.runtime_error_reset_defaults))
         }
         reload(context)
@@ -192,7 +203,7 @@ object RuntimeConfig {
     private fun long(key: String, default: Long): Long = rawValues[key]?.toLongOrNull() ?: default
 
     private fun boolean(key: String, default: Boolean): Boolean {
-        return RuntimeConfigStore.parseBooleanValue(rawValues[key], default)
+        return repository.parseBooleanValue(rawValues[key], default)
     }
 
     /**
@@ -200,7 +211,7 @@ object RuntimeConfig {
      * совместимость старых человекочитаемых boolean-значений.
      */
     internal fun parseBooleanValue(rawValue: String?, default: Boolean): Boolean {
-        return RuntimeConfigStore.parseBooleanValue(rawValue, default)
+        return repository.parseBooleanValue(rawValue, default)
     }
 
     object TargetApp {

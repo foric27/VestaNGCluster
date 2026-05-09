@@ -13,13 +13,13 @@ import android.view.animation.LinearInterpolator
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.TextView
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.palette.graphics.Palette
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -30,10 +30,10 @@ import timber.log.Timber
  * Получает данные из [MediaCoverState], который обновляется
  * [MediaNotificationListenerService] при активной медиа-сессии.
  *
- * Использует [Activity] вместо AppCompatActivity, т.к. VirtualDisplay
- * не требует AppCompat темы и lifecycleScope.
+ * Использует [ComponentActivity] вместо AppCompatActivity, т.к. VirtualDisplay
+ * не требует AppCompat темы, но поток состояния должен жить в lifecycleScope.
  */
-internal class MediaCoverActivity : Activity() {
+internal class MediaCoverActivity : ComponentActivity() {
 
     private lateinit var coverImage: ImageView
     private lateinit var sourceLabel: TextView
@@ -50,9 +50,9 @@ internal class MediaCoverActivity : Activity() {
     private var lastProgressDurationMs: Long? = null
 
     private var titleAnimator: ValueAnimator? = null
+    private var trackStateJob: Job? = null
     private lateinit var titleScroll: HorizontalScrollView
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -94,7 +94,7 @@ internal class MediaCoverActivity : Activity() {
 
         registerFinishReceiver()
 
-        GlobalScope.launch(Dispatchers.Main) {
+        trackStateJob = lifecycleScope.launch(Dispatchers.Main) {
             MediaCoverState.trackFlow.collect { track ->
                 updateUI(track)
             }
@@ -267,6 +267,8 @@ internal class MediaCoverActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        trackStateJob?.cancel()
+        trackStateJob = null
         titleAnimator?.cancel()
         finishReceiver?.let {
             try {

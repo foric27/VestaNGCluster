@@ -13,7 +13,7 @@ import java.util.concurrent.TimeoutException
  * Network mutations must keep using [NetworkRootShell], which validates and
  * serializes policy-routing/iptables commands separately.
  */
-internal object RootCommandRunner {
+internal object RootCommandRunner : RootCommandExecutor {
 
     private const val TAG = "RootCommandRunner"
 
@@ -46,11 +46,10 @@ internal object RootCommandRunner {
         }
     }
 
-    @JvmOverloads
-    fun run(
+    override fun run(
         cmds: List<String>,
-        logOnFailure: Boolean = true,
-        timeoutMs: Long = RuntimeConfig.Root.SU_TIMEOUT_MS,
+        logOnFailure: Boolean,
+        timeoutMs: Long,
     ): Result {
         if (cmds.isEmpty()) return Result(code = 0, out = "", err = "")
 
@@ -93,6 +92,14 @@ internal object RootCommandRunner {
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    fun run(cmds: List<String>): Result {
+        return run(cmds = cmds, logOnFailure = true, timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS)
+    }
+
+    fun run(cmds: List<String>, logOnFailure: Boolean): Result {
+        return run(cmds = cmds, logOnFailure = logOnFailure, timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS)
     }
 
     private fun runViaLibSu(cmds: List<String>): Result {
