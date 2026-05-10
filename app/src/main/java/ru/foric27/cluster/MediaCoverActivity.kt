@@ -8,8 +8,11 @@ import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.TextView
@@ -42,6 +45,7 @@ internal class MediaCoverActivity : ComponentActivity() {
     private lateinit var playbackPosition: TextView
     private lateinit var playbackDuration: TextView
     private lateinit var playbackProgress: AppCompatSeekBar
+    private lateinit var mediaLowerGroup: View
 
     private var finishReceiver: BroadcastReceiver? = null
 
@@ -50,8 +54,10 @@ internal class MediaCoverActivity : ComponentActivity() {
     private var lastProgressDurationMs: Long? = null
 
     private var titleAnimator: ValueAnimator? = null
+    private var artistAnimator: ValueAnimator? = null
     private var trackStateJob: Job? = null
     private lateinit var titleScroll: HorizontalScrollView
+    private lateinit var artistScroll: HorizontalScrollView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +78,8 @@ internal class MediaCoverActivity : ComponentActivity() {
 
         setContentView(R.layout.activity_media_cover)
 
+        configureMediaVisibleArea()
+
         coverImage = findViewById(R.id.cover_image)
         sourceLabel = findViewById(R.id.media_source_label)
         trackTitle = findViewById(R.id.track_title)
@@ -79,16 +87,17 @@ internal class MediaCoverActivity : ComponentActivity() {
         playbackPosition = findViewById(R.id.playback_position)
         playbackDuration = findViewById(R.id.playback_duration)
         playbackProgress = findViewById(R.id.playback_progress)
+        mediaLowerGroup = findViewById(R.id.media_lower_group)
 
         titleScroll = findViewById(R.id.title_scroll)
-        trackTitle.isSelected = true
-        trackArtist.isSelected = true
+        artistScroll = findViewById(R.id.artist_scroll)
 
         // Учитываем черную маску снизу экрана (настройка video_black_bottom_px)
         val blackBottomPx = RuntimeConfig.Video.BLACK_BOTTOM_PX
         if (blackBottomPx > 0) {
             val root = findViewById<android.widget.FrameLayout>(R.id.media_cover_root)
             root.setPadding(0, 0, 0, blackBottomPx)
+            mediaLowerGroup.translationY = -blackBottomPx.toFloat()
             Timber.tag(TAG).i("Установлен отступ снизу для черной маски: %d px", blackBottomPx)
         }
 
@@ -101,6 +110,19 @@ internal class MediaCoverActivity : ComponentActivity() {
         }
 
         Timber.tag(TAG).i("MediaCoverActivity создан на display=%d", currentDisplayId)
+    }
+
+    private fun configureMediaVisibleArea() {
+        val visibleArea = RuntimeConfig.VisibleArea.rect()
+        val mediaVisibleArea = findViewById<FrameLayout>(R.id.media_visible_area)
+        mediaVisibleArea.layoutParams = FrameLayout.LayoutParams(
+            visibleArea.width(),
+            visibleArea.height(),
+        ).apply {
+            leftMargin = visibleArea.left
+            topMargin = visibleArea.top
+        }
+        Timber.tag(TAG).i("MED UI вписан в visibleArea=%s", RuntimeConfig.VisibleArea.SHORT)
     }
 
     override fun onResume() {
@@ -131,8 +153,8 @@ internal class MediaCoverActivity : ComponentActivity() {
         if (track == null || !track.hasContent) {
             coverImage.setImageResource(android.R.drawable.ic_media_play)
             sourceLabel.text = getString(R.string.stream_mode_med)
-            trackTitle.text = getString(R.string.media_cover_no_media_title)
-            trackArtist.text = getString(R.string.media_cover_no_media_subtitle)
+            setupCarousel(getString(R.string.media_cover_no_media_title))
+            setupArtistScroll(getString(R.string.media_cover_no_media_subtitle))
             applySeekbarColor(getColor(R.color.oem_cluster_accent))
             updateProgress(null, null, null)
             return
@@ -151,37 +173,76 @@ internal class MediaCoverActivity : ComponentActivity() {
 
         sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
         setupCarousel(track.title ?: "")
-        trackArtist.text = track.artist ?: ""
+        setupArtistScroll(track.artist ?: "")
         updateProgress(track.progressKey(), track.positionMs, track.durationMs)
     }
 
     private fun setupCarousel(text: String) {
-        titleAnimator?.cancel()
-        trackTitle.text = text
+        setupCylindricalTextScroll(titleScroll, trackTitle, text, titleAnimator) { titleAnimator = it }
+    }
 
-        titleScroll.post {
-            val child = titleScroll.getChildAt(0)
-            val scrollWidth = child?.width ?: 0
-            val viewWidth = titleScroll.width
+    private fun setupArtistScroll(text: String) {
+        setupCylindricalTextScroll(artistScroll, trackArtist, text, artistAnimator) { artistAnimator = it }
+    }
 
-            if (scrollWidth > viewWidth && viewWidth > 0) {
-                val scrollDistance = scrollWidth - viewWidth
-                val durationPerPx = 30L
-                val duration = (scrollDistance * durationPerPx).coerceIn(2000L, 20000L)
+    private fun setupCylindricalTextScroll(
+        container: HorizontalScrollView,
+        textView: TextView,
+        text: String,
+        currentAnimator: ValueAnimator?,
+        assignAnimator: (ValueAnimator?) -> Unit,
+    ) {
+        currentAnimator?.cancel()
+        assignAnimator(null)
+        container.scrollTo(0, 0)
+        textView.translationX = 0f
+        textView.text = text
 
-                titleAnimator = ValueAnimator.ofInt(0, scrollDistance).apply {
-                    this.duration = duration
-                    interpolator = LinearInterpolator()
-                    repeatCount = ValueAnimator.INFINITE
-                    repeatMode = ValueAnimator.REVERSE
-                    addUpdateListener { animator ->
-                        titleScroll.scrollTo(animator.animatedValue as Int, 0)
-                    }
-                    start()
-                }
-            } else {
-                titleScroll.scrollTo(0, 0)
+        container.post {
+            if (textView.text.toString() != text) return@post
+            val viewWidth = container.width
+            if (viewWidth <= 0) return@post
+
+            textView.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            val textWidth = textView.measuredWidth
+            if (textWidth <= viewWidth) {
+                // Текст помещается — центрируем без скролла
+                textView.layoutParams = textView.layoutParams.apply { width = viewWidth }
+                textView.gravity = Gravity.CENTER
+                textView.translationX = 0f
+                textView.requestLayout()
+                return@post
             }
+
+            // Текст не помещается — WRAP_CONTENT и скроллим через scrollTo()
+            textView.layoutParams = textView.layoutParams.apply { width = ViewGroup.LayoutParams.WRAP_CONTENT }
+            textView.gravity = Gravity.CENTER
+            textView.requestLayout()
+            // Скроллим от textWidth (полностью справа) до 0 (полностью слева)
+            // Container.clipChildren=false и clipToPadding=false в родителе позволяют видеть
+            // текст на всём пути без обрезки
+            val scrollFrom = textWidth
+            val scrollTo = 0
+            val duration = ((textWidth + viewWidth) * TEXT_SCROLL_DURATION_PER_PX_MS).coerceIn(
+                TEXT_SCROLL_MIN_DURATION_MS,
+                TEXT_SCROLL_MAX_DURATION_MS,
+            )
+
+            container.scrollTo(scrollFrom, 0)
+            val animator = ValueAnimator.ofInt(scrollFrom, scrollTo).apply {
+                this.duration = duration
+                interpolator = LinearInterpolator()
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.RESTART
+                addUpdateListener { animator ->
+                    container.scrollTo(animator.animatedValue as Int, 0)
+                }
+            }
+            assignAnimator(animator)
+            animator.start()
         }
     }
 
@@ -270,6 +331,7 @@ internal class MediaCoverActivity : ComponentActivity() {
         trackStateJob?.cancel()
         trackStateJob = null
         titleAnimator?.cancel()
+        artistAnimator?.cancel()
         finishReceiver?.let {
             try {
                 unregisterReceiver(it)
@@ -281,6 +343,9 @@ internal class MediaCoverActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MediaCoverActivity"
+        private const val TEXT_SCROLL_DURATION_PER_PX_MS = 18L
+        private const val TEXT_SCROLL_MIN_DURATION_MS = 4_000L
+        private const val TEXT_SCROLL_MAX_DURATION_MS = 24_000L
         const val ACTION_FINISH_MEDIA_COVER = "ru.foric27.cluster.action.FINISH_MEDIA_COVER"
     }
 }

@@ -140,7 +140,7 @@
     <string name="runtime_field_network_bind_ip">Локальный bind IP</string>
     <string name="runtime_field_network_udp_max_payload_bytes">Максимальная нагрузка UDP</string>
     <string name="runtime_field_network_udp_pacing_max_bps">Ограничение pacing UDP, бит/с</string>
-    <string name="runtime_field_root_iface">Имя root-интерфейса</string>
+    <string name="runtime_field_root_iface">Root-интерфейс или auto</string>
     <string name="runtime_field_root_iface_cache_ttl_ms">Кеш интерфейса, мс</string>
     <string name="runtime_field_root_route_cache_ttl_ms">Кеш маршрута, мс</string>
     <string name="runtime_field_root_su_timeout_ms">Таймаут su, мс</string>

@@ -26,4 +26,5 @@
     <dimen name="developer_value_radius">16dp</dimen>
     <dimen name="developer_value_stroke">1dp</dimen>
     <dimen name="developer_value_top_margin">12dp</dimen>
+    <dimen name="media_playback_progress_top_margin">6dp</dimen>
 </resources>

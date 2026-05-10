@@ -140,7 +140,7 @@
     <string name="runtime_field_network_bind_ip">Local bind IP</string>
     <string name="runtime_field_network_udp_max_payload_bytes">Max UDP payload</string>
     <string name="runtime_field_network_udp_pacing_max_bps">UDP pacing limit, bits/s</string>
-    <string name="runtime_field_root_iface">Root interface name</string>
+    <string name="runtime_field_root_iface">Root interface or auto</string>
     <string name="runtime_field_root_iface_cache_ttl_ms">Interface cache, ms</string>
     <string name="runtime_field_root_route_cache_ttl_ms">Route cache, ms</string>
     <string name="runtime_field_root_su_timeout_ms">su timeout, ms</string>
