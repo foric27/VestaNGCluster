@@ -5,14 +5,18 @@ import java.net.NetworkInterface
 import java.util.TreeSet
 
 /**
- * Проверяет только явно заданный сетевой интерфейс из runtime-настроек.
+ * Выбирает USB/Ethernet-интерфейс для root-сети.
  *
- * Автоподбор интерфейса намеренно не используется: проект работает только
- * с тем именем, которое задано в конфиге разработчика.
+ * Значение `auto` включает поиск известных USB/RNDIS/CDC/NCM/ECM интерфейсов.
+ * Если вручную заданный интерфейс пропал, selector всё равно пробует найти
+ * подходящий USB-интерфейс, чтобы не зависеть от имени `eth0` на разных устройствах.
  */
 object NetworkInterfaceSelector {
 
     private const val TAG = "NetIfaceSelector"
+    private const val AUTO = "auto"
+    private val KNOWN_USB_EXACT_NAMES = listOf("usb0", "usb1", "rndis0", "rndis1", "eth0", "eth1")
+    private val KNOWN_USB_PREFIXES = listOf("usb", "rndis", "enx", "enp", "eth", "cdc", "ncm", "ecm")
 
     data class Selection(
         val name: String?,
@@ -42,18 +46,28 @@ object NetworkInterfaceSelector {
         }.toList()
 
         val preferred = preferredName.trim()
-        if (preferred.isEmpty()) {
+        if (preferred.isEmpty() || preferred.equals(AUTO, ignoreCase = true)) {
+            val auto = findKnownUsbInterface(available)
             return Selection(
-                name = null,
-                source = "missing_config",
+                name = auto,
+                source = if (auto == null) "auto_missing" else "auto_usb",
                 available = available,
             )
         }
 
-        return if (available.any { it.equals(preferred, ignoreCase = true) }) {
-            Selection(
+        if (available.any { it.equals(preferred, ignoreCase = true) }) {
+            return Selection(
                 name = available.first { it.equals(preferred, ignoreCase = true) },
                 source = "configured",
+                available = available,
+            )
+        }
+
+        val auto = findKnownUsbInterface(available)
+        return if (auto != null) {
+            Selection(
+                name = auto,
+                source = "configured_missing_auto_usb",
                 available = available,
             )
         } else {
@@ -62,6 +76,17 @@ object NetworkInterfaceSelector {
                 source = "configured_missing",
                 available = available,
             )
+        }
+    }
+
+    private fun findKnownUsbInterface(available: List<String>): String? {
+        KNOWN_USB_EXACT_NAMES.firstNotNullOfOrNull { candidate ->
+            available.firstOrNull { it.equals(candidate, ignoreCase = true) }
+        }?.let { return it }
+
+        return available.firstOrNull { name ->
+            val normalized = name.lowercase()
+            KNOWN_USB_PREFIXES.any { prefix -> normalized.startsWith(prefix) }
         }
     }
 

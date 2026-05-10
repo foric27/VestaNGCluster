@@ -107,8 +107,8 @@ object ProductConfig {
     }
 
     object Root {
-        /** Имя интерфейса для root-сети. По умолчанию используется `eth0`. */
-        const val IFACE: String = "eth0"
+        /** Имя интерфейса для root-сети или `auto` для поиска USB/RNDIS/CDC/NCM/ECM интерфейса. */
+        const val IFACE: String = "auto"
 
         /** Ключ диагностики для признака существования интерфейса. */
         val IFACE_EXISTS_LABEL: String = "${IFACE}_exists"
