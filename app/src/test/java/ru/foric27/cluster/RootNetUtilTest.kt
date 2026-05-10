@@ -80,8 +80,30 @@ class RootNetUtilTest {
 
         assertEquals("eth0", plan.iface)
         assertEquals("100", plan.routingTable)
-        assertEquals("ip route replace 192.168.40.0/24 dev eth0 scope link src 192.168.40.1 table 100", plan.commands[6])
+        // После удаления диагностических команд ip route replace на позиции 3 (было 8)
+        assertEquals("ip route replace 192.168.40.0/24 dev eth0 scope link src 192.168.40.1 table 100", plan.commands[3])
         assertFalse(plan.commands.any { it.contains("fwmark") })
+        // Удалённые команды больше не присутствуют
+        assertFalse(plan.commands.any { it.contains("ip route flush cache") })
+        assertFalse(plan.commands.any { it.contains("ip route get") })
+        assertFalse(plan.commands.any { it.contains("ip rule show") })
+        assertFalse(plan.commands.any { it.contains("ip route show") })
+        assertFalse(plan.commands.any { it.contains("11000") || it.contains("11001") })
+    }
+
+    @Test
+    fun `route planner pins target host to selected iface without iptables`() {
+        val plan = RootNetworkRoutePlanner.plan(
+            iface = "usb0",
+            localCidr = "192.168.40.1/24",
+            gatewayIp = "192.168.40.2",
+            includeFwmarkRule = false,
+        ).getOrThrow()
+
+        assertTrue(plan.commands.contains("ip route replace 192.168.40.2/32 dev usb0 scope link src 192.168.40.1 table main"))
+        assertTrue(plan.commands.contains("ip rule add to 192.168.40.2/32 lookup main priority 51"))
+        assertTrue(plan.commands.contains("ip rule add from 192.168.40.1/32 lookup main priority 52"))
+        assertFalse(plan.commands.any { it.contains("iptables") || it.contains("fwmark") })
     }
 
     @Test

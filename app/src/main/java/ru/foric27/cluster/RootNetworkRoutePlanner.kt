@@ -10,6 +10,12 @@ internal data class RootNetworkRoutePlan(
 
 /**
  * Чистая модель policy-route команд без запуска shell.
+ *
+ * Минимальный набор команд — только то, что реально меняет routing state.
+ * Удалены:
+ * - диагностические команды (ip route get/show, ip rule show)
+ * - избыточные cleanup (ip route del без /32, legacy priority 11000/11001)
+ * - ip route flush cache (не требуется на ядрах 3.6+, не везде поддерживается)
  */
 internal object RootNetworkRoutePlanner {
 
@@ -66,26 +72,25 @@ internal object RootNetworkRoutePlanner {
         includeFwmarkRule: Boolean,
     ): List<String> {
         return buildList {
-            add("ip route del $gatewayIp")
-            add("ip route del $gatewayIp/32")
-            add("ip rule del to $gatewayIp/$IPV4_BITS lookup $routingTable priority $RULE_DELETE_PRIORITY_BASE")
-            add("ip rule del from ${cidr.ip}/$IPV4_BITS lookup $routingTable priority ${RULE_DELETE_PRIORITY_BASE + 1}")
+            // Idempotent cleanup перед apply
+            add("ip route del $gatewayIp/$IPV4_BITS")
             add("ip rule del to $gatewayIp/$IPV4_BITS lookup $routingTable priority $GATEWAY_TO_PRIORITY")
             add("ip rule del from ${cidr.ip}/$IPV4_BITS lookup $routingTable priority $GATEWAY_FROM_PRIORITY")
             if (includeFwmarkRule) {
                 add("ip rule del fwmark $FWMARK_VALUE lookup $routingTable priority $FWMARK_PRIORITY")
             }
+            // Основные команды: network route + host route
             add("ip route replace ${cidr.network}/${cidr.prefix} dev $iface scope link src ${cidr.ip} table $routingTable")
             add("ip route replace $gatewayIp/$IPV4_BITS dev $iface scope link src ${cidr.ip} table $routingTable")
+            // Policy rules: fwmark (optional), gateway, local
             if (includeFwmarkRule) {
                 add("ip rule add fwmark $FWMARK_VALUE lookup $routingTable priority $FWMARK_PRIORITY")
             }
             add("ip rule add to $gatewayIp/$IPV4_BITS lookup $routingTable priority $GATEWAY_TO_PRIORITY")
             add("ip rule add from ${cidr.ip}/$IPV4_BITS lookup $routingTable priority $GATEWAY_FROM_PRIORITY")
-            add("ip route flush cache")
-            add("ip route get $gatewayIp")
-            add("ip rule show")
-            add("ip route show dev $iface")
+            // NOTE: ip route flush cache намеренно опущен — не требуется на ядрах 3.6+,
+            // отсутствует на некоторых Android-устройствах. Route kernel cache устаревает
+            // автоматически при изменении routing table.
         }
     }
 
@@ -129,7 +134,6 @@ internal object RootNetworkRoutePlanner {
     private const val FWMARK_PRIORITY = 50
     private const val GATEWAY_TO_PRIORITY = 51
     private const val GATEWAY_FROM_PRIORITY = 52
-    private const val RULE_DELETE_PRIORITY_BASE = 11000
     private const val IPV4_BITS = 32
     private const val HOSTLESS_PREFIX_START = 31
     private val IFACE_NAME_REGEX = Regex("^[a-zA-Z0-9._:-]+$")
