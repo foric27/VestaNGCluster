@@ -90,6 +90,22 @@ internal object YandexLaunchTarget {
         ).joinToString(separator = " ")
     }
 
+    /**
+     * Команда `am force-stop` для закрытия стороннего приложения (навигатора)
+     * перед запуском собственной activity на том же display.
+     * Предотвращает наложение UI навигатора поверх MED-контента.
+     */
+    fun buildForceStopCommand(packageName: String): String {
+        return "am force-stop $packageName"
+    }
+
+    /**
+     * Извлекает имя пакета из полного имени компонента (package/ClassName).
+     */
+    fun extractPackageName(component: String): String? {
+        return component.substringBefore('/').takeIf { it.isNotEmpty() }
+    }
+
     fun buildProxyIntent(command: LaunchCommand): Intent {
         return Intent().apply {
             setComponent(ComponentName(BuildConfig.APPLICATION_ID, ClusterLaunchProxyActivity::class.java.name))
