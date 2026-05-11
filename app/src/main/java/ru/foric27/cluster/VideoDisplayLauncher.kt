@@ -30,17 +30,16 @@ internal class VideoDisplayLauncher(
         val isOwnComponent = component != null && component.startsWith(BuildConfig.APPLICATION_ID)
 
         if (isOwnComponent) {
-            // Для собственных activity: если предыдущий запуск — сторонний навигатор,
-            // закрываем его перед запуском собственной activity
-            if (!component!!.startsWith(BuildConfig.APPLICATION_ID)) {
-                val stopNavCommand = YandexLaunchTarget.buildForceStopCommand(
-                    YandexLaunchTarget.extractPackageName(preferredLaunchComponent) ?: return
-                )
+            // Для собственных activity: перед запуском закрываем сторонний навигатор
+            // (RuntimeConfig.TargetApp.PACKAGE_NAME), чтобы он не отображался поверх MED.
+            val targetPackage = RuntimeConfig.TargetApp.PACKAGE_NAME
+            if (targetPackage.isNotBlank() && targetPackage != BuildConfig.APPLICATION_ID) {
+                val stopNavCommand = YandexLaunchTarget.buildForceStopCommand(targetPackage)
                 rootActivityStarter.start(stopNavCommand)
-                Timber.tag(TAG).i("Закрыт предыдущий навигатор: ${preferredLaunchComponent}")
+                Timber.tag(TAG).i("Закрыт предыдущий навигатор: $targetPackage")
             }
             // Для собственных activity используем прямой root am start --display
-            val directCommand = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component)
+            val directCommand = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component!!)
             val root = rootActivityStarter.start(directCommand)
             if (root.success) {
                 Timber.tag(TAG).i("Root-запуск собственной activity на display=$displayId: $component")
