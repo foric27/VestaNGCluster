@@ -2,7 +2,7 @@ package ru.foric27.cluster
 
 /**
  * Явная модель жизненного цикла пайплайна захвата:
- * VirtualDisplay -> SurfaceTexture/Surface -> GL/EGL -> MediaCodec.
+ * VirtualDisplay -> MediaCodec input Surface -> UDP.
  *
  * Модель намеренно остаётся чистой логикой без Android-зависимостей. Она
  * документирует допустимые переходы, а [VideoEncoder] использует её как
@@ -10,16 +10,15 @@ package ru.foric27.cluster
  * realtime-операций.
  *
  * Ресурсные инварианты:
- * - [VideoCaptureLifecycleState.IDLE]: MediaCodec, GL и Surface освобождены;
+ * - [VideoCaptureLifecycleState.IDLE]: MediaCodec и Surface освобождены;
  *   persistent VirtualDisplay может жить в процессе, но без привязанной Surface.
  * - [VideoCaptureLifecycleState.PREPARING]: создаются codec thread, MediaCodec,
- *   encoder input Surface, GL-компоновщик, SurfaceTexture и VirtualDisplay.
+ *   encoder input Surface и VirtualDisplay.
  * - [VideoCaptureLifecycleState.RUNNING]: VirtualDisplay привязан к Surface,
- *   MediaCodec запущен, GL рисует на input Surface кодека.
+ *   MediaCodec запущен и получает кадры напрямую с VirtualDisplay.
  * - [VideoCaptureLifecycleState.STOPPING]: новые кадры запрещены; shutdown order
- *   фиксирован как detach/release VirtualDisplay -> stop MediaCodec -> release GL
- *   на codec thread -> завершить codec thread -> release SurfaceTexture/Surface
- *   -> release MediaCodec.
+ *   фиксирован как detach/release VirtualDisplay -> stop MediaCodec ->
+ *   завершить codec thread -> release input Surface -> release MediaCodec.
  * - [VideoCaptureLifecycleState.ERROR]: предыдущий запуск/рендер завершился
  *   ошибкой; повторный start разрешён recovery-контуром.
  * - [VideoCaptureLifecycleState.RELEASED]: терминальное состояние владельца;

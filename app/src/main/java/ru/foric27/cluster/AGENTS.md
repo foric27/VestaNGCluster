@@ -9,7 +9,7 @@
 - Bootstrap / app lifecycle: `ClusterApp.kt`, `MainActivity.kt`, `MainAccessPreflight.kt`
 - Service orchestration: `UdpStreamService.kt`, `Udp*Coordinator.kt`, `Udp*Controller.kt`
 - Root/network: `RootNetUtil.kt`, `RootNetworkAddressing.kt`, `NetworkInterfaceSelector.kt`, `NetworkRootShell.kt`
-- Video pipeline: `VideoEncoder.kt`, `GlFrameComposer.kt`, `PersistentVirtualDisplay.kt`, `VideoCodecOutputProcessor.kt`
+- Video pipeline: `VideoEncoder.kt`, `PersistentVirtualDisplay.kt`, `VideoCodecOutputProcessor.kt`
 - Launch / display: `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt`, `MediaCoverActivity.kt`
 - Runtime config: `ProductConfig.kt`, `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt`
 - OTA/FTP: `UpdateServerManager.kt`, `UpdateFileLocator.kt`, `FtpServerConfig.kt`, `EmbeddedFtpServerFactory.kt`
