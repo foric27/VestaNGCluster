@@ -96,6 +96,9 @@ internal class UdpUpdateServerCoordinator(
         }
 
         Timber.tag(TAG).i("После извлечения USB валидный update не найден: ${result.message}")
+        lastKnownUpdateSha256 = null
+        lastAlertShownTime = 0L
+        UpdateAlertActivity.dismiss(context)
         cancelFtpRetry()
     }
 

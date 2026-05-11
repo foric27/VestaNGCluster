@@ -1,11 +1,14 @@
 package ru.foric27.cluster
 
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.app.Activity
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import timber.log.Timber
-import android.app.AlertDialog
 
 /**
  * Прозрачная Activity для показа диалога обнаружения нового обновления.
@@ -13,8 +16,12 @@ import android.app.AlertDialog
  */
 internal class UpdateAlertActivity : Activity() {
 
+    private var finishReceiver: BroadcastReceiver? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        registerFinishReceiver()
 
         val updateLocation = intent.getStringExtra(EXTRA_UPDATE_LOCATION).orEmpty()
         val searchPolicyName = intent.getStringExtra(EXTRA_SEARCH_POLICY)
@@ -33,6 +40,32 @@ internal class UpdateAlertActivity : Activity() {
             .setOnDismissListener { finish() }
             .setCancelable(false)
             .show()
+    }
+
+    override fun onDestroy() {
+        finishReceiver?.let {
+            runCatching { unregisterReceiver(it) }
+        }
+        finishReceiver = null
+        super.onDestroy()
+    }
+
+    private fun registerFinishReceiver() {
+        finishReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == ACTION_FINISH_UPDATE_ALERT) {
+                    Timber.tag(TAG).i("Получен broadcast завершения UpdateAlertActivity")
+                    finish()
+                }
+            }
+        }
+        val filter = IntentFilter(ACTION_FINISH_UPDATE_ALERT)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(finishReceiver, filter)
+        }
     }
 
     private fun performUpdate(searchPolicyName: String) {
@@ -57,6 +90,7 @@ internal class UpdateAlertActivity : Activity() {
     }
 
     companion object {
+        const val ACTION_FINISH_UPDATE_ALERT = "ru.foric27.cluster.action.FINISH_UPDATE_ALERT"
         private const val TAG = "UpdateAlertActivity"
         private const val EXTRA_UPDATE_LOCATION = "update_location"
         private const val EXTRA_SEARCH_POLICY = "search_policy"
@@ -72,6 +106,10 @@ internal class UpdateAlertActivity : Activity() {
                 putExtra(EXTRA_UPDATE_LOCATION, updateLocation)
                 putExtra(EXTRA_SEARCH_POLICY, searchPolicy.name)
             }
+        }
+
+        fun dismiss(context: Context) {
+            context.sendBroadcast(Intent(ACTION_FINISH_UPDATE_ALERT).setPackage(context.packageName))
         }
     }
 }
