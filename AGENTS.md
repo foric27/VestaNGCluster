@@ -17,6 +17,8 @@
 - Не расширяй scope без явного запроса.
 - Сохраняй обратную совместимость, если пользователь не попросил иначе.
 - Если есть риск поломки или неполная проверка — прямо укажи это.
+- Всегда собирать именно `release`-версию; `debug` использовать только как промежуточную проверку.
+- Для `release` всегда использовать ключ `foric27`, если пользователь явно не попросил другой ключ.
 
 ## Работа с AGENTS.md
 
@@ -62,6 +64,7 @@ $env:JAVA_HOME="C:\Program Files\Java\jdk-21"; $env:PATH="$env:JAVA_HOME/bin;$en
 ./gradlew.bat assembleDebug
 ./gradlew.bat :app:testDebugUnitTest
 ./gradlew.bat lintDebug
+# Основная целевая сборка: release, подписанная ключом foric27
 ./gradlew.bat assembleRelease
 ```
 
