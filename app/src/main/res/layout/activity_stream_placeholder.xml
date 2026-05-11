@@ -1,39 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/stream_placeholder_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/oem_cluster_bg">
+    android:background="@android:color/transparent">
 
     <LinearLayout
-        android:layout_width="420dp"
+        android:layout_width="380dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="@string/stream_placeholder_title"
-            android:textColor="@color/text_primary"
-            android:textSize="@dimen/screen_title_size"
-            android:textStyle="bold"
-            tools:text="Поток недоступен" />
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_media_cover_art"
+            android:contentDescription="@string/stream_placeholder_title"
+            android:padding="16dp"
+            android:scaleType="centerInside"
+            android:src="@android:drawable/ic_dialog_map"
+            app:tint="@color/oem_cluster_subtitle" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="center"
-            android:text="@string/stream_placeholder_subtitle"
-            android:textColor="@color/text_secondary"
-            android:textSize="@dimen/screen_body_size"
-            tools:text="Ожидаю навигацию или мультимедиа" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/stream_placeholder_source"
+                android:textColor="@color/oem_cluster_subtitle"
+                android:textSize="12sp"
+                tools:text="Навигация" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/stream_placeholder_title"
+                android:textColor="@color/oem_cluster_title"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                tools:text="Кластерный вывод недоступен" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/stream_placeholder_subtitle"
+                android:textColor="@color/oem_cluster_subtitle"
+                android:textSize="12sp"
+                tools:text="Ожидаю запуск навигации" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

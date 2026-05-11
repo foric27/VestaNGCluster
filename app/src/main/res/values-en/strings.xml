@@ -228,6 +228,7 @@
     <string name="media_cover_desc">Album cover</string>
     <string name="media_cover_no_media_title">No media stream</string>
     <string name="media_cover_no_media_subtitle">Start music playback</string>
-    <string name="stream_placeholder_title">Stream unavailable</string>
-    <string name="stream_placeholder_subtitle">Waiting for navigation or multimedia</string>
+    <string name="stream_placeholder_source">Navigation</string>
+    <string name="stream_placeholder_title">Cluster output unavailable</string>
+    <string name="stream_placeholder_subtitle">Waiting for navigation launch</string>
 </resources>
