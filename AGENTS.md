@@ -46,7 +46,7 @@ VestaNGClusterFlowStudio/
 |------|----------|-------|
 | App bootstrap / crash recovery | `ClusterApp.kt`, `ProcessRecoveryManager.kt`, `AppRecoveryReceiver.kt` | Timber/runtime init + process crash-loop guard |
 | Service lifecycle | `UdpStreamService.kt`, `UdpStartupFlowCoordinator.kt`, `UdpPipelineStartCoordinator.kt`, `UdpStartupProbeCoordinator.kt` | Foreground-service facade; `startForeground()` on every path |
-| Root network | `RootNetUtil.kt`, `RootNetworkAddressing.kt`, `UdpNetworkPreparationCoordinator.kt` | `su`, `eth0`, policy routing, iptables marks, pure IPv4/CIDR parsing |
+| Root network | `RootNetUtil.kt`, `RootNetworkAddressing.kt`, `UdpNetworkPreparationCoordinator.kt` | `su`, auto USB iface selection, policy routing, iptables marks, pure IPv4/CIDR parsing |
 | Video capture/encode | `VideoEncoder.kt`, `GlFrameComposer.kt`, `PersistentVirtualDisplay.kt` | shutdown order is product-critical |
 | Navigator launch | `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt` | root-only `am start --display` via proxy-activity |
 | FTP/OTA | `UdpUpdateServerCoordinator.kt`, `UpdateServerManager.kt`, `UpdateFileLocator.kt` | non-recursive `ICUpdate.zip` + `.sig` discovery |
@@ -160,6 +160,9 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 
 - После установки на устройство: `adb shell rm -f /data/local/tmp/app-release*.apk`.
 - После тестов/сборки: `./gradlew.bat clean`.
+- В рабочем каталоге не хранить локальный мусор: удалять `.gradle/`, `.kotlin/`, `build/`, `app/build/`, `.sisyphus/`, `opencode.json`, временные логи и скриншоты перед коммитом.
+- `.tools/` и `local.properties` не считать мусором: это локальный toolchain / Android SDK привязка, их удалять только при явном запросе.
+- Перед финальным git-коммитом `git status --short` должен показывать только осознанные изменения в исходниках/документации, без build-артефактов и временных файлов.
 
 ---
 
@@ -210,7 +213,7 @@ $env:JAVA_HOME="$PWD/.tools/jdk-21.0.10"; $env:PATH="$env:JAVA_HOME/bin;$env:PAT
 ### Root (root-команды и кеширование)
 | Поле | Тип | По умолчанию | Описание |
 |------|-----|--------------|----------|
-| `root_iface` | string | eth0 | Имя сетевого интерфейса для root-сети |
+| `root_iface` | string | auto | Имя сетевого интерфейса для root-сети (`auto` ищет USB/RNDIS/ECM/NCM варианты) |
 | `root_iface_cache_ttl_ms` | long | 10000 | TTL кеша проверки интерфейса (мс) |
 | `root_route_cache_ttl_ms` | long | 3000 | TTL кеша проверки маршрута (мс) |
 | `root_su_timeout_ms` | long | 10000 | Таймаут su-команды (мс) |
