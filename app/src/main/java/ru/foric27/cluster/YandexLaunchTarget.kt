@@ -99,6 +99,10 @@ internal object YandexLaunchTarget {
         return "am force-stop $packageName"
     }
 
+    fun buildBroadcastCommand(action: String): String {
+        return "am broadcast -a ${shellQuote(action)} -p ${BuildConfig.APPLICATION_ID}"
+    }
+
     /**
      * Извлекает имя пакета из полного имени компонента (package/ClassName).
      */

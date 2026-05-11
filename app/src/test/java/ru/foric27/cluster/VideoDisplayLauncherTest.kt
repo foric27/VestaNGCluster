@@ -81,11 +81,12 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(9)
 
-        assertEquals(2, rootStarter.commands.size)
-        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[0])
-        assertTrue(rootStarter.commands[1].contains("am start"))
-        assertTrue(rootStarter.commands[1].contains("--display 9"))
-        assertTrue(rootStarter.commands[1].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
+        assertEquals(4, rootStarter.commands.size)
+        assertOverlayCloseCommands(rootStarter.commands)
+        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[2])
+        assertTrue(rootStarter.commands[3].contains("am start"))
+        assertTrue(rootStarter.commands[3].contains("--display 9"))
+        assertTrue(rootStarter.commands[3].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
     }
 
     @Test
@@ -98,11 +99,12 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(11)
 
-        assertEquals(2, rootStarter.commands.size)
-        assertTrue(rootStarter.commands[0].startsWith("am force-stop "))
+        assertEquals(4, rootStarter.commands.size)
+        assertOverlayCloseCommands(rootStarter.commands)
+        assertTrue(rootStarter.commands[2].startsWith("am force-stop "))
         assertEquals(
             "am start --display 11 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[1],
+            rootStarter.commands[3],
         )
     }
 
@@ -116,15 +118,16 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(13)
 
-        assertEquals(3, rootStarter.commands.size)
-        assertTrue(rootStarter.commands[0].startsWith("am force-stop "))
+        assertEquals(5, rootStarter.commands.size)
+        assertOverlayCloseCommands(rootStarter.commands)
+        assertTrue(rootStarter.commands[2].startsWith("am force-stop "))
         assertEquals(
             "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[1],
+            rootStarter.commands[3],
         )
         assertEquals(
             "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.${StreamPlaceholderActivity::class.java.simpleName} -f 0x14000000",
-            rootStarter.commands[2],
+            rootStarter.commands[4],
         )
     }
 
@@ -138,14 +141,19 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(17)
 
-        assertEquals(2, rootStarter.commands.size)
-        assertTrue(rootStarter.commands[0].contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
+        assertEquals(4, rootStarter.commands.size)
+        assertOverlayCloseCommands(rootStarter.commands)
+        assertTrue(rootStarter.commands[2].contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
         assertEquals(
             "am start --display 17 -n ${BuildConfig.APPLICATION_ID}/.${StreamPlaceholderActivity::class.java.simpleName} -f 0x14000000",
-            rootStarter.commands[1],
+            rootStarter.commands[3],
         )
     }
 
+    private fun assertOverlayCloseCommands(commands: List<String>) {
+        assertEquals(YandexLaunchTarget.buildBroadcastCommand(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER), commands[0])
+        assertEquals(YandexLaunchTarget.buildBroadcastCommand(StreamPlaceholderActivity.ACTION_DISMISS_STREAM_PLACEHOLDER), commands[1])
+    }
     private class FakeRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
         var called = false
         var lastCommand: String? = null

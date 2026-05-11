@@ -231,7 +231,7 @@ internal class MediaCoverActivity : ComponentActivity() {
             }
         }
         if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(finishReceiver, IntentFilter(ACTION_FINISH_MEDIA_COVER), Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(finishReceiver, IntentFilter(ACTION_FINISH_MEDIA_COVER), Context.RECEIVER_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(finishReceiver, IntentFilter(ACTION_FINISH_MEDIA_COVER))

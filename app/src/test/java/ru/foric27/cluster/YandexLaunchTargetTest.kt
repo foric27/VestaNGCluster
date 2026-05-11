@@ -65,6 +65,14 @@ class YandexLaunchTargetTest {
     }
 
     @Test
+    fun `broadcast command is package scoped for exported dynamic receivers`() {
+        assertEquals(
+            "am broadcast -a 'ru.foric27.cluster.action.DISMISS_STREAM_PLACEHOLDER' -p ru.foric27.cluster",
+            YandexLaunchTarget.buildBroadcastCommand(StreamPlaceholderActivity.ACTION_DISMISS_STREAM_PLACEHOLDER),
+        )
+    }
+
+    @Test
     fun `extract package name returns segment before slash`() {
         assertEquals(
             "ru.yandex.yandexnavi",
