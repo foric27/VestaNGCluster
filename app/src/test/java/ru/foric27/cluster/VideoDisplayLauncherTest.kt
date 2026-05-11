@@ -88,6 +88,64 @@ class VideoDisplayLauncherTest {
         assertTrue(rootStarter.commands[1].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
     }
 
+    @Test
+    fun `own component launch emits only force stop and direct start on success`() {
+        val rootStarter = RecordingRootActivityStarter(success = true)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            rootActivityStarter = rootStarter,
+        )
+
+        launcher.launchOnDisplay(11)
+
+        assertEquals(2, rootStarter.commands.size)
+        assertTrue(rootStarter.commands[0].startsWith("am force-stop "))
+        assertEquals(
+            "am start --display 11 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
+            rootStarter.commands[1],
+        )
+    }
+
+    @Test
+    fun `own component failure falls back to placeholder after direct start`() {
+        val rootStarter = RecordingRootActivityStarter(success = false)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            rootActivityStarter = rootStarter,
+        )
+
+        launcher.launchOnDisplay(13)
+
+        assertEquals(3, rootStarter.commands.size)
+        assertTrue(rootStarter.commands[0].startsWith("am force-stop "))
+        assertEquals(
+            "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
+            rootStarter.commands[1],
+        )
+        assertEquals(
+            "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.${StreamPlaceholderActivity::class.java.simpleName} -f 0x14000000",
+            rootStarter.commands[2],
+        )
+    }
+
+    @Test
+    fun `external launch failure falls back to placeholder`() {
+        val rootStarter = RecordingRootActivityStarter(success = false)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            rootActivityStarter = rootStarter,
+        )
+
+        launcher.launchOnDisplay(17)
+
+        assertEquals(2, rootStarter.commands.size)
+        assertTrue(rootStarter.commands[0].contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
+        assertEquals(
+            "am start --display 17 -n ${BuildConfig.APPLICATION_ID}/.${StreamPlaceholderActivity::class.java.simpleName} -f 0x14000000",
+            rootStarter.commands[1],
+        )
+    }
+
     private class FakeRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
         var called = false
         var lastCommand: String? = null

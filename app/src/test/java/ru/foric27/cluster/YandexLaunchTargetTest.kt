@@ -70,6 +70,28 @@ class YandexLaunchTargetTest {
             "ru.yandex.yandexnavi",
             YandexLaunchTarget.extractPackageName("ru.yandex.yandexnavi/.Main"),
         )
+        assertEquals(
+            "ru.foric27.cluster",
+            YandexLaunchTarget.extractPackageName("ru.foric27.cluster"),
+        )
         assertEquals(null, YandexLaunchTarget.extractPackageName(""))
+    }
+
+    @Test
+    fun `build preferred commands uses explicit launch component when present`() {
+        val commands = YandexLaunchTarget.buildPreferredCommands("ru.test/.ClusterActivity")
+
+        assertEquals(1, commands.size)
+        assertEquals("ru.test/.ClusterActivity", commands.single().component)
+        assertEquals("Явно заданный cluster-компонент", commands.single().note)
+    }
+
+    @Test
+    fun `build preferred commands falls back to auto component when blank`() {
+        val commands = YandexLaunchTarget.buildPreferredCommands("   ")
+
+        assertEquals(1, commands.size)
+        assertEquals(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER, commands.single().component)
+        assertEquals("Штатная cluster-activity Яндекс.Навигатора Auto", commands.single().note)
     }
 }

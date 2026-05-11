@@ -60,4 +60,59 @@ class NetworkInterfaceSelectorTest {
         assertNull(selection.name)
         assertEquals("auto_missing", selection.source)
     }
+
+    @Test
+    fun `auto config prefers usb0 over usb1 and wireless`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = listOf("usb1", "wlan0", "usb0"),
+            preferredName = "auto",
+        )
+
+        assertEquals("usb0", selection.name)
+        assertEquals("auto_usb", selection.source)
+    }
+
+    @Test
+    fun `configured interface match is case insensitive`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = listOf("Eth0", "wlan0"),
+            preferredName = "eth0",
+        )
+
+        assertEquals("Eth0", selection.name)
+        assertEquals("configured", selection.source)
+    }
+
+    @Test
+    fun `auto config can select known prefix interface`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = listOf("wlan0", "enx123456"),
+            preferredName = "auto",
+        )
+
+        assertEquals("enx123456", selection.name)
+        assertEquals("auto_usb", selection.source)
+    }
+
+    @Test
+    fun `duplicate and blank names are normalized away`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = listOf("usb0", "USB0", "   ", "wlan0"),
+            preferredName = "auto",
+        )
+
+        assertEquals("usb0", selection.name)
+        assertEquals(listOf("usb0", "wlan0"), selection.available)
+    }
+
+    @Test
+    fun `empty interface list reports auto missing`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = emptyList(),
+            preferredName = "auto",
+        )
+
+        assertNull(selection.name)
+        assertEquals("auto_missing", selection.source)
+    }
 }
