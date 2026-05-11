@@ -17,7 +17,6 @@ internal data class StreamConfig(
     val height: Int,
     val dpi: Int,
     val fps: Int,
-    val dynamicFps: Boolean,
     val bitrate: Int,
     val iframeIntervalSec: Int,
 ) : Serializable {
@@ -40,7 +39,6 @@ internal data class StreamConfig(
                 height = RuntimeConfig.Video.HEIGHT,
                 dpi = dpiValue,
                 fps = RuntimeConfig.Video.FPS_LIMIT,
-                dynamicFps = RuntimeConfig.Video.DYNAMIC_FPS,
                 bitrate = RuntimeConfig.Video.BITRATE,
                 iframeIntervalSec = RuntimeConfig.Video.IFRAME_INTERVAL_SEC,
             )

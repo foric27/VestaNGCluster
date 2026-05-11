@@ -14,7 +14,6 @@ internal object RuntimeConfigFieldSpecs {
         RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_WIDTH, R.string.runtime_section_video, R.string.runtime_field_video_width, RuntimeConfig.ValueType.INT, ProductConfig.Video.WIDTH.toString()),
         RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_HEIGHT, R.string.runtime_section_video, R.string.runtime_field_video_height, RuntimeConfig.ValueType.INT, ProductConfig.Video.HEIGHT.toString()),
         RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_FPS_LIMIT, R.string.runtime_section_video, R.string.runtime_field_video_fps_limit, RuntimeConfig.ValueType.INT, ProductConfig.Video.FPS_LIMIT.toString()),
-        RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_DYNAMIC_FPS, R.string.runtime_section_video, R.string.runtime_field_video_dynamic_fps, RuntimeConfig.ValueType.BOOLEAN, ProductConfig.Video.DYNAMIC_FPS.toString()),
         RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_DEFAULT_DPI, R.string.runtime_section_video, R.string.runtime_field_video_default_dpi, RuntimeConfig.ValueType.INT, ProductConfig.Video.DEFAULT_DPI.toString()),
         RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_BITRATE, R.string.runtime_section_video, R.string.runtime_field_video_bitrate, RuntimeConfig.ValueType.INT, ProductConfig.Video.BITRATE.toString()),
         RuntimeConfig.FieldSpec(RuntimeConfig.Keys.VIDEO_IFRAME_INTERVAL_SEC, R.string.runtime_section_video, R.string.runtime_field_video_iframe_interval_sec, RuntimeConfig.ValueType.INT, ProductConfig.Video.IFRAME_INTERVAL_SEC.toString()),

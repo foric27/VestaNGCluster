@@ -127,7 +127,6 @@
     <string name="runtime_field_video_width">Frame width</string>
     <string name="runtime_field_video_height">Frame height</string>
     <string name="runtime_field_video_fps_limit">FPS</string>
-    <string name="runtime_field_video_dynamic_fps">Dynamic FPS</string>
     <string name="runtime_field_video_default_dpi">DPI density</string>
     <string name="runtime_field_video_bitrate">Bitrate</string>
     <string name="runtime_field_video_iframe_interval_sec">I-frame interval, sec</string>

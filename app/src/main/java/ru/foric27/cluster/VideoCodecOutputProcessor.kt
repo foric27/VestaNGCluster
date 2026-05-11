@@ -16,7 +16,7 @@ internal class VideoCodecOutputProcessor(
     private val streamConfig: StreamConfig,
 ) {
 
-    private val minFrameIntervalUs: Long? = if (streamConfig.dynamicFps) null else (1_000_000L / streamConfig.fps.coerceAtLeast(1))
+    private val minFrameIntervalUs: Long = 1_000_000L / streamConfig.fps.coerceAtLeast(1)
     private var lastSentPresentationTimeUs: Long = Long.MIN_VALUE
 
     // Храним SPS/PPS из codec config буферов на случай если onOutputFormatChanged
@@ -93,10 +93,9 @@ internal class VideoCodecOutputProcessor(
     }
 
     private fun shouldDropFrame(presentationTimeUs: Long): Boolean {
-        val requiredIntervalUs = minFrameIntervalUs ?: return false
         if (lastSentPresentationTimeUs == Long.MIN_VALUE) return false
         if (presentationTimeUs <= lastSentPresentationTimeUs) return true
-        return presentationTimeUs - lastSentPresentationTimeUs < requiredIntervalUs
+        return presentationTimeUs - lastSentPresentationTimeUs < minFrameIntervalUs
     }
 
     companion object {

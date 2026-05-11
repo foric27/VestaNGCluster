@@ -50,7 +50,6 @@ object RuntimeConfig {
         const val VIDEO_WIDTH = "video_width"
         const val VIDEO_HEIGHT = "video_height"
         const val VIDEO_FPS_LIMIT = "video_fps_limit"
-        const val VIDEO_DYNAMIC_FPS = "video_dynamic_fps"
         const val VIDEO_DEFAULT_DPI = "video_default_dpi"
         const val VIDEO_BITRATE = "video_bitrate"
         const val VIDEO_IFRAME_INTERVAL_SEC = "video_iframe_interval_sec"
@@ -235,7 +234,6 @@ object RuntimeConfig {
         val HEIGHT: Int get() = int(Keys.VIDEO_HEIGHT, ProductConfig.Video.HEIGHT)
         val SIZE_SHORT: String get() = "${WIDTH}x${HEIGHT}"
         val FPS_LIMIT: Int get() = int(Keys.VIDEO_FPS_LIMIT, ProductConfig.Video.FPS_LIMIT)
-        val DYNAMIC_FPS: Boolean get() = boolean(Keys.VIDEO_DYNAMIC_FPS, ProductConfig.Video.DYNAMIC_FPS)
         val DPI: Int get() = int(Keys.VIDEO_DEFAULT_DPI, ProductConfig.Video.DEFAULT_DPI)
         val BITRATE: Int get() = int(Keys.VIDEO_BITRATE, ProductConfig.Video.BITRATE)
         val IFRAME_INTERVAL_SEC: Int get() = int(Keys.VIDEO_IFRAME_INTERVAL_SEC, ProductConfig.Video.IFRAME_INTERVAL_SEC)

@@ -127,7 +127,6 @@
     <string name="runtime_field_video_width">Ширина кадра</string>
     <string name="runtime_field_video_height">Высота кадра</string>
     <string name="runtime_field_video_fps_limit">FPS</string>
-    <string name="runtime_field_video_dynamic_fps">Динамический FPS</string>
     <string name="runtime_field_video_default_dpi">Плотность DPI</string>
     <string name="runtime_field_video_bitrate">Битрейт</string>
     <string name="runtime_field_video_iframe_interval_sec">Интервал I-кадров, сек</string>
