@@ -71,6 +71,23 @@ class VideoDisplayLauncherTest {
         assertTrue(command.contains("ru.foric27.cluster/${ClusterLaunchProxyActivity::class.java.name}"))
     }
 
+    @Test
+    fun `own component launch force stops external target package before start`() {
+        val rootStarter = RecordingRootActivityStarter(success = true)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            rootActivityStarter = rootStarter,
+        )
+
+        launcher.launchOnDisplay(9)
+
+        assertEquals(2, rootStarter.commands.size)
+        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[0])
+        assertTrue(rootStarter.commands[1].contains("am start"))
+        assertTrue(rootStarter.commands[1].contains("--display 9"))
+        assertTrue(rootStarter.commands[1].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
+    }
+
     private class FakeRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
         var called = false
         var lastCommand: String? = null
@@ -78,6 +95,18 @@ class VideoDisplayLauncherTest {
         override fun start(command: String): VideoDisplayLauncher.RootLaunchAttempt {
             called = true
             lastCommand = command
+            return VideoDisplayLauncher.RootLaunchAttempt(
+                success = success,
+                errorMessage = if (success) null else "fake error",
+            )
+        }
+    }
+
+    private class RecordingRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
+        val commands = mutableListOf<String>()
+
+        override fun start(command: String): VideoDisplayLauncher.RootLaunchAttempt {
+            commands += command
             return VideoDisplayLauncher.RootLaunchAttempt(
                 success = success,
                 errorMessage = if (success) null else "fake error",

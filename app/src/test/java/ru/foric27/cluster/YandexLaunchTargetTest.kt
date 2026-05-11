@@ -42,4 +42,34 @@ class YandexLaunchTargetTest {
             rootCommand,
         )
     }
+
+    @Test
+    fun `direct am start command targets requested display and component`() {
+        val command = YandexLaunchTarget.buildDirectAmStartCommand(
+            displayId = 12,
+            component = "ru.foric27.cluster/.MediaCoverActivity",
+        )
+
+        assertEquals(
+            "am start --display 12 -n ru.foric27.cluster/.MediaCoverActivity -f 0x14000000",
+            command,
+        )
+    }
+
+    @Test
+    fun `force stop command uses package name only`() {
+        assertEquals(
+            "am force-stop ru.yandex.yandexnavi",
+            YandexLaunchTarget.buildForceStopCommand("ru.yandex.yandexnavi"),
+        )
+    }
+
+    @Test
+    fun `extract package name returns segment before slash`() {
+        assertEquals(
+            "ru.yandex.yandexnavi",
+            YandexLaunchTarget.extractPackageName("ru.yandex.yandexnavi/.Main"),
+        )
+        assertEquals(null, YandexLaunchTarget.extractPackageName(""))
+    }
 }
