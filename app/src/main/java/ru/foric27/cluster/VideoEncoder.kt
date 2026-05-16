@@ -1,6 +1,7 @@
 package ru.foric27.cluster
 
 import android.content.Context
+import android.graphics.SurfaceTexture
 import android.hardware.display.VirtualDisplay
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
@@ -13,6 +14,8 @@ import android.os.SystemClock
 import android.view.Surface
 import timber.log.Timber
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 private fun MediaFormat.trySetInteger(key: String, value: Int) {
     try {
@@ -22,19 +25,11 @@ private fun MediaFormat.trySetInteger(key: String, value: Int) {
     }
 }
 
-private fun MediaFormat.trySetLong(key: String, value: Long) {
-    try {
-        setLong(key, value)
-    } catch (_: Throwable) {
-        // Опциональная настройка кодека, можно безопасно пропустить.
-    }
-}
-
 /**
- * Координатор видеопайплайна VirtualDisplay -> MediaCodec -> UDP.
+ * Координатор видеопайплайна VirtualDisplay -> OpenGL -> MediaCodec -> UDP.
  *
  * Класс держит наружный фасад start/stop/relaunch/forceOutputFrame, а детали
- * display-launch и обработки выходных буферов делегирует
+ * display-launch, тайминга кадров и обработки выходных буферов делегирует
  * специализированным helper-компонентам в этом же пакете.
  */
 internal class VideoEncoder(
@@ -53,10 +48,15 @@ internal class VideoEncoder(
     private val height: Int = streamConfig.height
     private val dpi: Int = streamConfig.dpi
     private val displayLauncher = VideoDisplayLauncher(preferredLaunchComponent)
-    private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::updateFpsStats, streamConfig)
+    private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::updateDynamicFpsStats, streamConfig)
+    private val frameTimingController = VideoFrameTimingController(streamConfig.fps, DYNAMIC_KEEPALIVE_PERIOD_MS)
+
     @Volatile private var encoder: MediaCodec? = null
     @Volatile private var virtualDisplay: VirtualDisplay? = null
     private var encoderInputSurface: Surface? = null
+    private var vdInputSurface: Surface? = null
+    private var vdSurfaceTexture: SurfaceTexture? = null
+    private var glComposer: GlFrameComposer? = null
     private var codecThread: HandlerThread? = null
     @Volatile private var codecHandler: Handler? = null
 
@@ -67,9 +67,13 @@ internal class VideoEncoder(
 
     @Volatile private var fpsWindowStartedAtMs: Long = 0L
     @Volatile private var fpsWindowFrames: Int = 0
+    @Volatile private var hasPendingSurfaceFrame: Boolean = false
+    @Volatile private var hasRenderedAnyFrame: Boolean = false
+    @Volatile private var dynamicRenderScheduled: Boolean = false
+
     /**
      * Поднимает codec thread, настраивает MediaCodec и присоединяет к нему
-     * persistent VirtualDisplay напрямую к input surface кодека.
+     * persistent VirtualDisplay через GL-компоновщик.
      */
     fun start() {
         if (running) return
@@ -98,15 +102,43 @@ internal class VideoEncoder(
                 .also { encoder = it }
             encoderInputSurface = mediaCodec.createInputSurface()
 
+            glComposer = GlFrameComposer(
+                outputSurface = encoderInputSurface ?: throw IllegalStateException("encoderInputSurface == null"),
+                width = width,
+                height = height,
+                blackMaskHeightPx = RuntimeConfig.Video.BLACK_BOTTOM_PX,
+            )
+
+            val surfaceTexture = SurfaceTexture(glComposer!!.inputTextureId)
+                .apply {
+                    setDefaultBufferSize(width, height)
+                }
+                .also { vdSurfaceTexture = it }
+            vdInputSurface = Surface(surfaceTexture)
+            surfaceTexture.setOnFrameAvailableListener(
+                {
+                    hasPendingSurfaceFrame = true
+                    if (false) {
+                        scheduleDynamicFrameRender()
+                    }
+                },
+                codecHandler,
+            )
+
             mediaCodec.start()
             applyConfiguredBitrate()
 
             Timber.tag(TAG).i(
-                "Профиль захвата: ${RuntimeConfig.Video.SIZE_SHORT}@${dpi}, directSurfaceFps=${streamConfig.fps}, bitrate=${streamConfig.bitrate}bps, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}",
+                "Профиль захвата: ${RuntimeConfig.Video.SIZE_SHORT}@${dpi}, ${if (false) "dynamicFps<=" else "constantFps="}${streamConfig.fps}, bitrate=${streamConfig.bitrate}bps, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
             )
 
             acquireVirtualDisplayOrThrow()
             transitionLifecycle(VideoCaptureLifecycleEvent.START_COMPLETED)
+            if (!false) {
+                scheduleConstantFpsTick(initial = true)
+            } else {
+                scheduleDynamicKeepaliveTick()
+            }
         } catch (t: Throwable) {
             Timber.tag(TAG).e(t, "Не удалось запустить видеокодер")
             safeStopInternal(releasePersistentDisplay = false)
@@ -165,6 +197,9 @@ internal class VideoEncoder(
         val render = Runnable {
             if (!running || stopping) return@Runnable
             try {
+                if (false) {
+                    drawKeepaliveFrame(SystemClock.elapsedRealtime())
+                }
                 requestSyncFrame()
                 Timber.tag(TAG).i("Принудительно отправляю кадр после выхода из сна, reason=$reason")
             } catch (t: Throwable) {
@@ -209,11 +244,10 @@ internal class VideoEncoder(
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, streamConfig.bitrate)
             trySetInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
-            val fps = streamConfig.fps.coerceAtLeast(1)
-            setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-            trySetInteger(MediaFormat.KEY_CAPTURE_RATE, fps)
-            val repeatFrameAfterUs = (1_000_000L / fps).coerceAtLeast(1L)
-            trySetLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, repeatFrameAfterUs)
+            setInteger(MediaFormat.KEY_FRAME_RATE, streamConfig.fps)
+            if (false) {
+                trySetInteger(MediaFormat.KEY_CAPTURE_RATE, streamConfig.fps)
+            }
             try {
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec)
             } catch (_: Throwable) {
@@ -234,6 +268,7 @@ internal class VideoEncoder(
         virtualDisplay = null
 
         stopCodec()
+        releaseGlComposer()
         terminateCodecThread()
         releaseSurfaceResources()
         releaseMediaCodec()
@@ -247,6 +282,35 @@ internal class VideoEncoder(
         releaseSafely("Не удалось остановить MediaCodec") {
             encoder?.stop()
         }
+    }
+
+    private fun releaseGlComposer() {
+        val composer = glComposer
+        val handler = codecHandler
+        if (composer == null) {
+            glComposer = null
+            return
+        }
+
+        if (handler == null || handler.looper.thread == Thread.currentThread()) {
+            releaseSafely("") {
+                composer.release()
+            }
+            glComposer = null
+            return
+        }
+
+        val latch = CountDownLatch(1)
+        handler.post {
+            releaseSafely("") {
+                composer.release()
+            }
+            latch.countDown()
+        }
+        releaseSafely("") {
+            latch.await(CODEC_THREAD_JOIN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        }
+        glComposer = null
     }
 
     private fun terminateCodecThread() {
@@ -267,6 +331,19 @@ internal class VideoEncoder(
     }
 
     private fun releaseSurfaceResources() {
+        releaseSafely("") {
+            vdSurfaceTexture?.setOnFrameAvailableListener(null)
+        }
+        releaseSafely("Не удалось освободить SurfaceTexture VirtualDisplay") {
+            vdSurfaceTexture?.release()
+        }
+        vdSurfaceTexture = null
+
+        releaseSafely("Не удалось освободить surface VirtualDisplay") {
+            vdInputSurface?.release()
+        }
+        vdInputSurface = null
+
         releaseSafely("Не удалось освободить входной Surface кодека") {
             encoderInputSurface?.release()
         }
@@ -291,7 +368,7 @@ internal class VideoEncoder(
     }
 
     private fun acquireVirtualDisplayOrThrow() {
-        val surface = encoderInputSurface ?: throw IllegalStateException("encoderInputSurface == null")
+        val surface = vdInputSurface ?: throw IllegalStateException("vdInputSurface == null")
         val previousDisplayId = VdspState.getDisplayId()
         val vd = PersistentVirtualDisplay.acquire(
             context = context,
@@ -357,6 +434,75 @@ internal class VideoEncoder(
         }
     }
 
+    private fun renderLatestFrame() {
+        if (!running || stopping) return
+        val surfaceTexture = vdSurfaceTexture ?: return
+        val composer = glComposer ?: return
+        try {
+            composer.drawSurfaceFrame(
+                surfaceTexture = surfaceTexture,
+                presentationTimestampNs = if (false) {
+                    null
+                } else {
+                    frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime())
+                },
+            )
+            hasRenderedAnyFrame = true
+            hasPendingSurfaceFrame = false
+            frameTimingController.markRendered(SystemClock.elapsedRealtime())
+        } catch (t: Throwable) {
+            Timber.tag(TAG).e(t, "Ошибка GL-композиции кадра -> рестарт")
+            safeRequestRestart()
+        }
+    }
+
+    private fun renderConstantFpsFrame() {
+        if (!running || stopping) return
+        val surfaceTexture = vdSurfaceTexture ?: return
+        val composer = glComposer ?: return
+        try {
+            if (hasPendingSurfaceFrame || !hasRenderedAnyFrame) {
+                composer.drawSurfaceFrame(
+                    surfaceTexture = surfaceTexture,
+                    presentationTimestampNs = frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime()),
+                )
+                hasPendingSurfaceFrame = false
+                hasRenderedAnyFrame = true
+            } else {
+                composer.drawLastFrame(frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime()))
+            }
+            frameTimingController.markRendered(SystemClock.elapsedRealtime())
+        } catch (t: Throwable) {
+            Timber.tag(TAG).e(t, "Ошибка постоянного FPS -> рестарт")
+            safeRequestRestart()
+        }
+    }
+
+    private fun scheduleConstantFpsTick(initial: Boolean = false) {
+        val handler = codecHandler ?: return
+        val delayMs = (1000L / streamConfig.fps.coerceAtLeast(1)).coerceAtLeast(1L)
+        handler.removeCallbacks(constantFpsRunnable)
+        handler.postDelayed(constantFpsRunnable, if (initial) delayMs else 0L)
+    }
+
+    private fun scheduleDynamicFrameRender() {
+        val handler = codecHandler ?: return
+        val delayMs = frameTimingController.delayUntilNextDynamicRender(SystemClock.elapsedRealtime())
+        dynamicRenderScheduled = true
+        handler.removeCallbacks(dynamicFrameRunnable)
+        if (delayMs <= 0L) {
+            handler.post(dynamicFrameRunnable)
+        } else {
+            handler.postDelayed(dynamicFrameRunnable, delayMs)
+        }
+    }
+
+    private fun scheduleDynamicKeepaliveTick() {
+        val handler = codecHandler ?: return
+        handler.removeCallbacks(dynamicKeepaliveRunnable)
+        handler.postDelayed(dynamicKeepaliveRunnable, DYNAMIC_KEEPALIVE_PERIOD_MS)
+    }
+
     private fun onEncoderOutput(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
         if (stopping || !running) {
             releaseOutputBufferQuietly(codec, index)
@@ -373,7 +519,55 @@ internal class VideoEncoder(
         }
     }
 
-    private fun updateFpsStats() {
+    private val constantFpsRunnable = object : Runnable {
+        override fun run() {
+            if (!running || stopping || false) return
+            renderConstantFpsFrame()
+            scheduleConstantFpsTick(initial = true)
+        }
+    }
+
+    private val dynamicKeepaliveRunnable = object : Runnable {
+        override fun run() {
+            if (!running || stopping || !false) return
+
+            val nowMs = SystemClock.elapsedRealtime()
+            val idleMs = frameTimingController.idleDurationMs(nowMs)
+            if (frameTimingController.shouldEmitKeepalive(nowMs)) {
+                try {
+                    drawKeepaliveFrame(nowMs)
+                    Timber.tag(TAG).i("Отправляю keepalive-кадр для поддержания потока, idle=${idleMs}ms")
+                } catch (t: Throwable) {
+                    Timber.tag(TAG).e(t, "Ошибка keepalive-кадра в dynamicFps -> рестарт")
+                    safeRequestRestart()
+                    return
+                }
+            }
+
+            scheduleDynamicKeepaliveTick()
+        }
+    }
+
+    private val dynamicFrameRunnable = object : Runnable {
+        override fun run() {
+            dynamicRenderScheduled = false
+            if (!running || stopping || !false) return
+            if (!hasPendingSurfaceFrame) return
+
+            val remainingDelayMs = frameTimingController.delayUntilNextDynamicRender(SystemClock.elapsedRealtime())
+            if (remainingDelayMs > 0L) {
+                scheduleDynamicFrameRender()
+                return
+            }
+
+            renderLatestFrame()
+            if (hasPendingSurfaceFrame) {
+                scheduleDynamicFrameRender()
+            }
+        }
+    }
+
+    private fun updateDynamicFpsStats() {
         val nowMs = SystemClock.elapsedRealtime()
         if (fpsWindowStartedAtMs == 0L) {
             fpsWindowStartedAtMs = nowMs
@@ -389,7 +583,7 @@ internal class VideoEncoder(
 
         val fps = fpsWindowFrames * 1000.0 / elapsedMs.toDouble()
         Timber.tag(TAG).i(
-            "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, directSurfaceFps=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames",
+            "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, ${if (false) "dynamicMaxFps" else "constantFps"}=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames, blackBottom=${RuntimeConfig.Video.BLACK_BOTTOM_PX}px",
         )
         fpsWindowStartedAtMs = nowMs
         fpsWindowFrames = 0
@@ -425,9 +619,20 @@ internal class VideoEncoder(
         }
     }
 
+    private fun drawKeepaliveFrame(nowMs: Long) {
+        glComposer?.drawLastFrame(frameTimingController.nextScheduledPresentationTimestampNs(System.nanoTime()))
+        hasRenderedAnyFrame = true
+        hasPendingSurfaceFrame = false
+        frameTimingController.markRendered(nowMs)
+    }
+
     private fun resetFrameTrackingState() {
         fpsWindowStartedAtMs = 0L
         fpsWindowFrames = 0
+        hasPendingSurfaceFrame = false
+        hasRenderedAnyFrame = false
+        dynamicRenderScheduled = false
+        frameTimingController.reset()
     }
 
     private fun safeRequestRestart() {
@@ -443,5 +648,6 @@ internal class VideoEncoder(
         private const val MIME_AVC = "video/avc"
         private const val CODEC_THREAD_JOIN_TIMEOUT_MS = 1_000L
         private const val FPS_LOG_WINDOW_MS = 2_000L
+        private const val DYNAMIC_KEEPALIVE_PERIOD_MS = 1_500L
     }
 }
