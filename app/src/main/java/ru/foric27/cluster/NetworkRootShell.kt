@@ -30,6 +30,18 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
                 val recreateShell = attemptIndex > 0
                 try {
                     val shell = getOrCreateShellLocked(forceRecreate = recreateShell)
+
+                    if (!shell.isAlive) {
+                        val failure = IOException("libsu shell неактивен перед выполнением script")
+                        lastFailure = failure
+                        discardShellLocked()
+                        if (attemptIndex + 1 < MAX_ATTEMPTS) {
+                            Timber.tag(TAG).w("libsu shell неактивен перед script, пересоздаю и повторяю попытку")
+                            return@repeat
+                        }
+                        return Result.failure(failure)
+                    }
+
                     val result = shell
                         .newJob()
                         .add(*normalizedCommands.toTypedArray())
@@ -55,6 +67,11 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
                     discardShellLocked()
                     if (attemptIndex + 1 >= MAX_ATTEMPTS) {
                         return Result.failure(t)
+                    }
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
                     }
                     Timber.tag(TAG).w(t, "Ошибка network shell, пересоздаю persistent shell")
                 }
@@ -168,7 +185,8 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
 
     private companion object {
         private const val TAG = "NetworkRootShell"
-        private const val MAX_ATTEMPTS = 2
+        private const val MAX_ATTEMPTS = 3
+        private const val RETRY_DELAY_MS = 100L
         private val BLOCKED_SHELL_TOKENS = listOf(
             "$(",
             "&&",
