@@ -45,6 +45,9 @@ internal object LogcatExporter {
         } catch (t: Throwable) {
             "Не удалось прочитать logcat: ${t.message ?: t.javaClass.simpleName}"
         }
+            .lines()
+            .filterNot { it.contains("PipelineWatcher:") }
+            .joinToString(separator = System.lineSeparator())
     }
 
     private fun cleanupOldLogs(logDir: File) {
