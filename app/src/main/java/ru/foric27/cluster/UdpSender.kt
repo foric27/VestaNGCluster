@@ -106,11 +106,17 @@ internal class UdpSender(
                 offset += len
                 paceAfterPacket(len)
             }
+        } catch (e: java.net.PortUnreachableException) {
+            sendErrors.incrementAndGet()
+            Timber.tag(TAG).w("UDP PortUnreachable (сеть недоступна), отправлено $offset/${data.size} байт")
+            // Не пробрасываем — это не фатальная ошибка, сеть может восстановиться
         } catch (e: IOException) {
             sendErrors.incrementAndGet()
-            throw e
+            Timber.tag(TAG).w(e, "UDP send error, отправлено $offset/${data.size} байт")
+            // Не пробрасываем — codec thread не должен падать из-за сетевых проблем
         } catch (e: RuntimeException) {
             sendErrors.incrementAndGet()
+            Timber.tag(TAG).e(e, "UDP send runtime error")
             throw e
         }
     }
@@ -147,6 +153,7 @@ internal class UdpSender(
             Timber.tag(TAG).i("UDP-сокет перезапущен")
         } catch (e: IOException) {
             Timber.tag(TAG).e(e, "Не удалось перезапустить UDP-сокет")
+            closed = true // Гарантируем что isClosed() вернёт true при неудачном restart
         }
     }
 
@@ -189,7 +196,13 @@ internal class UdpSender(
 
         val waitNs = pacingNextSendNs - nowNs
         if (waitNs > 0L) {
-            sleepUntil(nowNs + waitNs)
+            // Потолок: не ждать дольше PACING_MAX_WAIT_NS, чтобы не блокировать codec thread
+            val cappedWaitNs = waitNs.coerceAtMost(PACING_MAX_WAIT_NS)
+            sleepUntil(nowNs + cappedWaitNs)
+            if (cappedWaitNs < waitNs) {
+                // Сбрасываем pacing, если пришлось обрезать ожидание
+                pacingNextSendNs = System.nanoTime()
+            }
         }
     }
 
@@ -234,6 +247,7 @@ internal class UdpSender(
         private const val MIN_PACING_BPS: Int = 1_000_000
         private const val PACING_BURST_BYTES: Int = 4800
         private const val PACING_IDLE_RESET_NS: Long = 50_000_000L
+        private const val PACING_MAX_WAIT_NS: Long = 10_000_000L // 10ms ceiling для paceAfterPacket
         private const val MIN_PACING_WAIT_NS: Long = 250_000L
         private const val PARK_THRESHOLD_NS: Long = 2_000_000L
         private const val SPIN_GUARD_NS: Long = 300_000L

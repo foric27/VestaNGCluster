@@ -68,12 +68,14 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
                     if (attemptIndex + 1 >= MAX_ATTEMPTS) {
                         return Result.failure(t)
                     }
+                    // Exponential backoff: 100ms → 250ms → 500ms
+                    val backoffMs = (RETRY_BASE_DELAY_MS * (attemptIndex + 1)).coerceAtMost(RETRY_MAX_DELAY_MS)
                     try {
-                        Thread.sleep(RETRY_DELAY_MS)
+                        Thread.sleep(backoffMs)
                     } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
                     }
-                    Timber.tag(TAG).w(t, "Ошибка network shell, пересоздаю persistent shell")
+                    Timber.tag(TAG).w(t, "Ошибка network shell (попытка ${attemptIndex + 1}/$MAX_ATTEMPTS), жду ${backoffMs}мс и пересоздаю persistent shell")
                 }
             }
             return Result.failure(lastFailure ?: IllegalStateException("Не удалось выполнить network script"))
@@ -186,7 +188,8 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
     private companion object {
         private const val TAG = "NetworkRootShell"
         private const val MAX_ATTEMPTS = 3
-        private const val RETRY_DELAY_MS = 100L
+        private const val RETRY_BASE_DELAY_MS = 100L
+        private const val RETRY_MAX_DELAY_MS = 500L
         private val BLOCKED_SHELL_TOKENS = listOf(
             "$(",
             "&&",
