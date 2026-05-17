@@ -18,6 +18,10 @@ internal class UdpServiceRecoveryScheduler(
     fun schedule(reason: String, delayMs: Long, userReason: String = reason, launchUi: Boolean = false) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
+                Timber.tag(tag).w("SCHEDULE_EXACT_ALARM не выдано, пропускаю планирование восстановления")
+                return
+            }
             val triggerAtMillis = SystemClock.elapsedRealtime() + delayMs
             val pendingIntent = buildPendingIntent(reason = userReason, launchUi = launchUi)
             if (Build.VERSION.SDK_INT >= 23) {

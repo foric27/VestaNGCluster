@@ -20,6 +20,16 @@ class AppRecoveryReceiver : BroadcastReceiver() {
 
         try {
             UdpStreamService.startServiceCompat(context.applicationContext)
+        } catch (t: Throwable) {
+            if (isForegroundStartRestricted(t)) {
+                Timber.tag(TAG).i("Прямой foreground-старт запрещён при восстановлении, reason=$reason")
+                return
+            }
+            Timber.tag(TAG).w(t, "Не удалось выполнить восстановление сервиса, reason=$reason")
+            return
+        }
+
+        try {
             if (launchUi) {
                 context.startActivity(
                     MainActivity.createLaunchIntent(
@@ -34,6 +44,13 @@ class AppRecoveryReceiver : BroadcastReceiver() {
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось выполнить восстановление, reason=$reason, launchUi=$launchUi")
         }
+    }
+
+    private fun isForegroundStartRestricted(error: Throwable): Boolean {
+        val name = error.javaClass.name
+        val message = error.message.orEmpty()
+        return name.contains("ForegroundServiceStartNotAllowedException") ||
+            message.contains("ForegroundServiceStartNotAllowedException")
     }
 
     companion object {

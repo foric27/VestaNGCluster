@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import androidx.core.app.NotificationManagerCompat
 import timber.log.Timber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,12 @@ class BootReceiver : BroadcastReceiver() {
 
     private fun handleServiceAutostart(context: Context, action: String) {
         logMissingPrerequisites(context, action)
+
+        if (Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            Timber.tag(TAG).w("$action: POST_NOTIFICATIONS не выдано, пропускаю автостарт")
+            return
+        }
+
         try {
             UdpStreamService.startServiceCompat(context)
             Timber.tag(TAG).i("$action: foreground-сервис запущен")
@@ -61,15 +68,6 @@ class BootReceiver : BroadcastReceiver() {
                 return
             }
             Timber.tag(TAG).w(t, "$action: не удалось запустить foreground-сервис")
-        }
-        try {
-            context.startActivity(
-                MainActivity.createLaunchIntent(context, keepInForeground = false)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-            Timber.tag(TAG).i("$action: UI поднят, будет свёрнут если разрешения уже выданы")
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "$action: не удалось поднять UI (возможно, экран заблокирован)")
         }
     }
 
@@ -85,6 +83,10 @@ class BootReceiver : BroadcastReceiver() {
     private fun scheduleDeferredRecovery(context: Context, action: String) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
+                Timber.tag(TAG).w("$action: SCHEDULE_EXACT_ALARM не выдано, отложенное восстановление невозможно")
+                return
+            }
             val pendingIntent = AppRecoveryReceiver.createPendingIntent(
                 context = context.applicationContext,
                 requestCode = RuntimeConfig.Service.SERVICE_RECOVERY_REQUEST_CODE,
