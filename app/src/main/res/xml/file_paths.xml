@@ -3,4 +3,7 @@
     <cache-path
         name="logcat"
         path="shared-logcat/" />
+    <cache-path
+        name="persistent-logs"
+        path="persistent-logs/" />
 </paths>

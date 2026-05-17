@@ -195,4 +195,30 @@ class LogSanitizerTest {
             LogSanitizer.sanitize("Password=secret ToKeN:abc"),
         )
     }
+
+    @Test
+    fun `sanitize redacts ftp password`() {
+        assertEquals("ftp_password=<redacted>", LogSanitizer.sanitize("ftp_password=topsecret"))
+        assertEquals("ftp-password:<redacted>", LogSanitizer.sanitize("ftp-password:topsecret"))
+    }
+
+    @Test
+    fun `sanitize redacts api key and automotive identifiers`() {
+        assertEquals("api_key=<redacted>", LogSanitizer.sanitize("api_key=abcdef"))
+        assertEquals("imei=<redacted>", LogSanitizer.sanitize("imei=123456789012345"))
+        assertEquals("serial_number=<redacted>", LogSanitizer.sanitize("serial_number=ABC123"))
+        assertEquals("vin=<redacted>", LogSanitizer.sanitize("vin=1HGBH41JXMN109186"))
+    }
+
+    @Test
+    fun `sanitize redacts MAC but keeps cluster IP`() {
+        assertEquals(
+            "iface=<mac-redacted> target=192.168.40.2",
+            LogSanitizer.sanitize("iface=AA:BB:CC:DD:EE:FF target=192.168.40.2"),
+        )
+        assertEquals(
+            "route ok iface=eth0 target=192.168.40.2",
+            LogSanitizer.sanitize("route ok iface=eth0 target=192.168.40.2"),
+        )
+    }
 }

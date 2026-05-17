@@ -9,11 +9,19 @@ internal object LogSanitizer {
         Regex("(?i)(token\\s*[=:]\\s*)\\S+"),
         Regex("(?i)(secret\\s*[=:]\\s*)\\S+"),
         Regex("(?i)(authorization\\s*[=:]\\s*)\\S+"),
+        Regex("(?i)(ftp[_-]?password\\s*[=:]\\s*)\\S+"),
+        Regex("(?i)(api[_-]?key\\s*[=:]\\s*)\\S+"),
+        Regex("(?i)(imei\\s*[=:]\\s*)\\S+"),
+        Regex("(?i)(serial[_-]?number\\s*[=:]\\s*)\\S+"),
+        Regex("(?i)(vin\\s*[=:]\\s*)\\S+"),
     )
 
+    private val macPattern = Regex("(?i)(\\b[0-9a-f]{2}[:\\-]){5}[0-9a-f]{2}\\b")
+
     fun sanitize(value: String): String {
-        return sensitivePatterns.fold(value) { current, pattern ->
+        val partiallySanitized = sensitivePatterns.fold(value) { current, pattern ->
             pattern.replace(current) { match -> "${match.groupValues[1]}<redacted>" }
         }
+        return macPattern.replace(partiallySanitized, "<mac-redacted>")
     }
 }
