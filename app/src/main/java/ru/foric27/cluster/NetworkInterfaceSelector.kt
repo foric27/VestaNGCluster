@@ -15,7 +15,25 @@ object NetworkInterfaceSelector {
 
     private const val TAG = "NetIfaceSelector"
     private const val AUTO = "auto"
-    private val KNOWN_USB_EXACT_NAMES = listOf("usb0", "usb1", "rndis0", "rndis1", "eth0", "eth1")
+    private val KNOWN_USB_EXACT_NAMES = listOf(
+        "usb0",
+        "usb1",
+        "usb2",
+        "usb3",
+        "rndis0",
+        "rndis1",
+        "rndis2",
+        "rndis_data0",
+        "rndis_data1",
+        "ncm0",
+        "ncm1",
+        "ecm0",
+        "ecm1",
+        "cdc0",
+        "cdc1",
+        "eth0",
+        "eth1",
+    )
     private val KNOWN_USB_PREFIXES = listOf("usb", "rndis", "enx", "enp", "eth", "cdc", "ncm", "ecm")
 
     data class Selection(

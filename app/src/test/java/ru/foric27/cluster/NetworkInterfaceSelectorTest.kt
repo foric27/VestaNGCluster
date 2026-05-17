@@ -95,6 +95,28 @@ class NetworkInterfaceSelectorTest {
     }
 
     @Test
+    fun `auto config selects android rndis data interface before ethernet fallback`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = listOf("wlan0", "eth0", "rndis_data0"),
+            preferredName = "auto",
+        )
+
+        assertEquals("rndis_data0", selection.name)
+        assertEquals("auto_usb", selection.source)
+    }
+
+    @Test
+    fun `missing configured interface falls back to android ncm usb interface`() {
+        val selection = NetworkInterfaceSelector.selectFromAvailable(
+            availableNames = listOf("wlan0", "ncm0"),
+            preferredName = "eth0",
+        )
+
+        assertEquals("ncm0", selection.name)
+        assertEquals("configured_missing_auto_usb", selection.source)
+    }
+
+    @Test
     fun `duplicate and blank names are normalized away`() {
         val selection = NetworkInterfaceSelector.selectFromAvailable(
             availableNames = listOf("usb0", "USB0", "   ", "wlan0"),

@@ -61,8 +61,8 @@ internal class UdpSender(
                     Timber.tag(TAG).i("UDP-сокет привязан к локальному адресу $bindIp")
                 }
             } catch (be: BindException) {
-                Timber.tag(TAG).w("Не удалось привязать UDP-сокет к $bindIp (${be.message}), использую bind 0.0.0.0")
-                DatagramSocket()
+                Timber.tag(TAG).e(be, "Не удалось привязать UDP-сокет к $bindIp; fallback на 0.0.0.0 отключён")
+                throw IOException("Не удалось привязать UDP-сокет к $bindIp", be)
             }
         } else {
             DatagramSocket()
@@ -112,7 +112,7 @@ internal class UdpSender(
             // Не пробрасываем — это не фатальная ошибка, сеть может восстановиться
         } catch (e: IOException) {
             sendErrors.incrementAndGet()
-            Timber.tag(TAG).w(e, "UDP send error, отправлено $offset/${data.size} байт")
+            Timber.tag(TAG).w(e, "UDP send error, host=$host:$port, bindIp=${bindIp ?: "auto"}, отправлено $offset/${data.size} байт")
             // Не пробрасываем — codec thread не должен падать из-за сетевых проблем
         } catch (e: RuntimeException) {
             sendErrors.incrementAndGet()
@@ -140,7 +140,7 @@ internal class UdpSender(
             true
         } catch (t: Throwable) {
             sendErrors.incrementAndGet()
-            Timber.tag(TAG).w(t, "Проверочная отправка UDP не удалась")
+            Timber.tag(TAG).w(t, "Проверочная отправка UDP не удалась: host=$host:$port, bindIp=${bindIp ?: "auto"}")
             false
         }
     }
