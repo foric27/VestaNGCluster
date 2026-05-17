@@ -205,6 +205,7 @@
     <string name="update_server_context_not_initialized">Контекст приложения ещё не инициализирован</string>
     <string name="update_server_preparing_internal">Подготовка FTP-сервера обновления: поиск во внутренней памяти</string>
     <string name="update_server_preparing_usb_first">Подготовка FTP-сервера обновления: поиск на USB и во внутренней памяти</string>
+    <string name="update_server_preparing_usb_only">Подготовка FTP-сервера обновления: поиск на USB</string>
     <string name="update_server_started_fmt">FTP-сервер обновления запущен: %1$s:%2$d; источник %3$s</string>
     <string name="update_server_poll_new_update_fmt">Периодический опрос обнаружил новое или изменённое обновление: %1$s</string>
     <string name="update_server_rejection_fmt">Кандидат отклонён: %1$s. %2$s. expected=%3$s, actual=%4$s</string>
@@ -231,4 +232,6 @@
     <string name="stream_placeholder_source">Навигация</string>
     <string name="stream_placeholder_title">Кластерный вывод недоступен</string>
     <string name="stream_placeholder_subtitle">Ожидаю запуск навигации</string>
+    <string name="runtime_field_video_encoder_profile">Профиль H.264</string>
+    <string name="runtime_field_video_encoder_level">Уровень H.264</string>
 </resources>

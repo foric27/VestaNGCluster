@@ -67,7 +67,13 @@ object ProductConfig {
         /** Интервал между I-frame в секундах. */
         const val IFRAME_INTERVAL_SEC: Int = 1
 
-        /** Высота чёрной маски снизу кадра в пикселях. */
+        /** Профиль H.264: AVCProfileBaseline=1, AVCProfileMain=2, AVCProfileHigh=8. */
+        const val ENCODER_PROFILE: Int = android.media.MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
+
+        /** Уровень H.264: AVCLevel3=0x200, AVCLevel31=0x400, AVCLevel32=0x800, AVCLevel4=0x1000. */
+        const val ENCODER_LEVEL: Int = android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel3
+
+        /** Высота чёрной маски снизу кадра в пикселях (устарело, не используется). */
         const val BLACK_BOTTOM_PX: Int = 106
     }
 

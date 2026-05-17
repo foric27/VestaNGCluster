@@ -53,6 +53,8 @@ object RuntimeConfig {
         const val VIDEO_DEFAULT_DPI = "video_default_dpi"
         const val VIDEO_BITRATE = "video_bitrate"
         const val VIDEO_IFRAME_INTERVAL_SEC = "video_iframe_interval_sec"
+        const val VIDEO_ENCODER_PROFILE = "video_encoder_profile"
+        const val VIDEO_ENCODER_LEVEL = "video_encoder_level"
         const val VIDEO_BLACK_BOTTOM_PX = "video_black_bottom_px"
 
         const val NETWORK_TARGET_IP = "network_target_ip"
@@ -82,9 +84,6 @@ object RuntimeConfig {
 
         const val LOGGING_VERBOSE_ENABLED = "logging_verbose_enabled"
 
-        const val SERVICE_NOTIFICATION_ID = "service_notification_id"
-        const val SERVICE_NOTIFICATION_CHANNEL_ID = "service_notification_channel_id"
-        const val SERVICE_NOTIFICATION_CHANNEL_NAME = "service_notification_channel_name"
         const val SERVICE_RESTART_BACKOFF_START_MS = "service_restart_backoff_start_ms"
         const val SERVICE_RESTART_BACKOFF_MAX_MS = "service_restart_backoff_max_ms"
         const val SERVICE_RECOVERY_DELAY_MS = "service_recovery_delay_ms"
@@ -107,6 +106,9 @@ object RuntimeConfig {
         const val SERVICE_PROCESS_CRASH_WINDOW_MS = "service_process_crash_window_ms"
         const val SERVICE_PROCESS_CRASH_MAX_IN_WINDOW = "service_process_crash_max_in_window"
         const val SERVICE_PROCESS_CRASH_SUPPRESS_MS = "service_process_crash_suppress_ms"
+        const val SERVICE_NOTIFICATION_CHANNEL_NAME = "service_notification_channel_name"
+        const val SERVICE_NOTIFICATION_CHANNEL_ID = "service_notification_channel_id"
+        const val SERVICE_NOTIFICATION_ID = "service_notification_id"
     }
 
     private val fieldSpecs: List<FieldSpec> = RuntimeConfigFieldSpecs.create()
@@ -237,6 +239,8 @@ object RuntimeConfig {
         val DPI: Int get() = int(Keys.VIDEO_DEFAULT_DPI, ProductConfig.Video.DEFAULT_DPI)
         val BITRATE: Int get() = int(Keys.VIDEO_BITRATE, ProductConfig.Video.BITRATE)
         val IFRAME_INTERVAL_SEC: Int get() = int(Keys.VIDEO_IFRAME_INTERVAL_SEC, ProductConfig.Video.IFRAME_INTERVAL_SEC)
+        val ENCODER_PROFILE: Int get() = int(Keys.VIDEO_ENCODER_PROFILE, ProductConfig.Video.ENCODER_PROFILE)
+        val ENCODER_LEVEL: Int get() = int(Keys.VIDEO_ENCODER_LEVEL, ProductConfig.Video.ENCODER_LEVEL)
         val BLACK_BOTTOM_PX: Int get() = int(Keys.VIDEO_BLACK_BOTTOM_PX, ProductConfig.Video.BLACK_BOTTOM_PX)
     }
 
@@ -281,9 +285,6 @@ object RuntimeConfig {
     }
 
     object Service {
-        val NOTIFICATION_ID: Int get() = int(Keys.SERVICE_NOTIFICATION_ID, ProductConfig.Service.NOTIFICATION_ID)
-        val NOTIFICATION_CHANNEL_ID: String get() = string(Keys.SERVICE_NOTIFICATION_CHANNEL_ID, ProductConfig.Service.NOTIFICATION_CHANNEL_ID)
-        val NOTIFICATION_CHANNEL_NAME: String get() = string(Keys.SERVICE_NOTIFICATION_CHANNEL_NAME, ProductConfig.Service.NOTIFICATION_CHANNEL_NAME)
         val RESTART_BACKOFF_START_MS: Long get() = long(Keys.SERVICE_RESTART_BACKOFF_START_MS, ProductConfig.Service.RESTART_BACKOFF_START_MS)
         val RESTART_BACKOFF_MAX_MS: Long get() = long(Keys.SERVICE_RESTART_BACKOFF_MAX_MS, ProductConfig.Service.RESTART_BACKOFF_MAX_MS)
         val SERVICE_RECOVERY_DELAY_MS: Long get() = long(Keys.SERVICE_RECOVERY_DELAY_MS, ProductConfig.Service.SERVICE_RECOVERY_DELAY_MS)
@@ -306,5 +307,8 @@ object RuntimeConfig {
         val PROCESS_CRASH_WINDOW_MS: Long get() = long(Keys.SERVICE_PROCESS_CRASH_WINDOW_MS, ProductConfig.Service.PROCESS_CRASH_WINDOW_MS)
         val PROCESS_CRASH_MAX_IN_WINDOW: Int get() = int(Keys.SERVICE_PROCESS_CRASH_MAX_IN_WINDOW, ProductConfig.Service.PROCESS_CRASH_MAX_IN_WINDOW)
         val PROCESS_CRASH_SUPPRESS_MS: Long get() = long(Keys.SERVICE_PROCESS_CRASH_SUPPRESS_MS, ProductConfig.Service.PROCESS_CRASH_SUPPRESS_MS)
+        val NOTIFICATION_CHANNEL_NAME: String get() = string(Keys.SERVICE_NOTIFICATION_CHANNEL_NAME, ProductConfig.Service.NOTIFICATION_CHANNEL_NAME)
+        val NOTIFICATION_CHANNEL_ID: String get() = string(Keys.SERVICE_NOTIFICATION_CHANNEL_ID, ProductConfig.Service.NOTIFICATION_CHANNEL_ID)
+        val NOTIFICATION_ID: Int get() = int(Keys.SERVICE_NOTIFICATION_ID, ProductConfig.Service.NOTIFICATION_ID)
     }
 }

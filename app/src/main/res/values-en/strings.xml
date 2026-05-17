@@ -205,6 +205,7 @@
     <string name="update_server_context_not_initialized">Application context not yet initialized</string>
     <string name="update_server_preparing_internal">Preparing FTP update server: searching internal memory</string>
     <string name="update_server_preparing_usb_first">Preparing FTP update server: searching USB and internal memory</string>
+    <string name="update_server_preparing_usb_only">Preparing FTP update server: searching USB</string>
     <string name="update_server_started_fmt">FTP update server started: %1$s:%2$d; source %3$s</string>
     <string name="update_server_poll_new_update_fmt">Periodic poll detected new or changed update: %1$s</string>
     <string name="update_server_rejection_fmt">Candidate rejected: %1$s. %2$s. expected=%3$s, actual=%4$s</string>
@@ -231,4 +232,6 @@
     <string name="stream_placeholder_source">Navigation</string>
     <string name="stream_placeholder_title">Cluster output unavailable</string>
     <string name="stream_placeholder_subtitle">Waiting for navigation launch</string>
+    <string name="runtime_field_video_encoder_profile">H.264 Profile</string>
+    <string name="runtime_field_video_encoder_level">H.264 Level</string>
 </resources>
