@@ -10,12 +10,18 @@ class ClusterApp : Application() {
         super.onCreate()
         appContext = applicationContext
         RuntimeConfig.init(applicationContext)
-        Timber.plant(AppTimberTree())
+        persistentLogWriter = PersistentLogWriter(PersistentLogWriter.defaultDirectory(applicationContext))
+        Timber.plant(AppTimberTree(persistentLogWriter))
         ProcessRecoveryManager.install(applicationContext)
     }
 
     companion object {
         lateinit var appContext: Context
             private set
+
+        @Volatile
+        private var persistentLogWriter: PersistentLogWriter? = null
+
+        internal fun persistedLogWriter(): PersistentLogWriter? = persistentLogWriter
     }
 }

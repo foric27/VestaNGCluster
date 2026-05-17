@@ -174,6 +174,24 @@ object ProductConfig {
     object Logging {
         /** Разрешает подробные release-логи только для временной диагностики. */
         const val VERBOSE_ENABLED: Boolean = false
+
+        /** Директория app-owned persisted логов внутри cacheDir. */
+        const val FILE_DIR_NAME: String = "persistent-logs"
+
+        /** Активный persisted лог-файл. */
+        const val FILE_NAME: String = "vesta.log"
+
+        /** Отдельный файл с последним crash dump. */
+        const val CRASH_LOG_FILE: String = "crash.log"
+
+        /** Максимальный размер одного persisted лог-файла. */
+        const val FILE_MAX_BYTES: Long = 512L * 1024L
+
+        /** Общее количество persisted лог-файлов с учётом текущего. */
+        const val FILE_COUNT: Int = 5
+
+        /** Лимит строк system logcat при экспорте. */
+        const val EXPORT_MAX_LINES: Int = 5_000
     }
 
     object Service {

@@ -10,7 +10,9 @@ import timber.log.Timber
  * только безопасные диагностические сообщения уровня info/warn/error, а
  * расширенный вывод можно временно включить через экран разработчика.
  */
-internal class AppTimberTree : Timber.Tree() {
+internal class AppTimberTree(
+    private val persistentLogWriter: PersistentLogWriter? = null,
+) : Timber.Tree() {
 
     override fun isLoggable(tag: String?, priority: Int): Boolean {
         if (BuildConfig.DEBUG) return true
@@ -21,11 +23,17 @@ internal class AppTimberTree : Timber.Tree() {
         if (!isLoggable(tag, priority)) return
         val safeMessage = LogSanitizer.sanitize(message)
         val safeTag = tag ?: DEFAULT_TAG
+        val persistedMessage = if (t == null) {
+            safeMessage
+        } else {
+            "$safeMessage\n${LogSanitizer.sanitize(Log.getStackTraceString(t))}"
+        }
         if (t == null) {
             Log.println(priority, safeTag, safeMessage)
         } else {
             Log.println(priority, safeTag, "$safeMessage\n${Log.getStackTraceString(t)}")
         }
+        persistentLogWriter?.write(priority, safeTag, persistedMessage)
     }
 
     private companion object {
