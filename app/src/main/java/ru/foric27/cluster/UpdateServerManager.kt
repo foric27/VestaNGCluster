@@ -2,6 +2,7 @@ package ru.foric27.cluster
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import timber.log.Timber
 import androidx.annotation.StringRes
 import java.util.concurrent.atomic.AtomicReference
@@ -18,10 +19,16 @@ internal object UpdateServerManager {
         ERROR,
     }
 
+    data class PreparedFileInfo(
+        val path: String,
+        val size: Long,
+        val sha256: String,
+    )
+
     data class State(
         val status: Status,
         val message: String,
-        val fileInfo: PreparedUpdateRepository.PreparedFileInfo? = null,
+        val fileInfo: PreparedFileInfo? = null,
         val boundAddress: EmbeddedFtpServerFactory.BoundAddress? = null,
         val retrySuggested: Boolean = false,
         val detectedLocation: String? = null,
@@ -31,7 +38,7 @@ internal object UpdateServerManager {
     data class Result(
         val success: Boolean,
         val message: String,
-        val fileInfo: PreparedUpdateRepository.PreparedFileInfo? = null,
+        val fileInfo: PreparedFileInfo? = null,
         val boundAddress: EmbeddedFtpServerFactory.BoundAddress? = null,
         val retrySuggested: Boolean = false,
         val detectedLocation: String? = null,
@@ -45,27 +52,31 @@ internal object UpdateServerManager {
     private val lock = Any()
     private val locator = UpdateFileLocator()
     private val verifier = Sha256Verifier()
-    private val repository = PreparedUpdateRepository()
     private val ftpFactory = EmbeddedFtpServerFactory()
     private val currentState = AtomicReference(State(Status.STOPPED, "FTP-сервер не запущен"))
 
     @Volatile private var appContext: Context? = null
-    @Volatile private var preparedUpdate: PreparedUpdateRepository.PreparedUpdate? = null
     @Volatile private var runningServer: EmbeddedFtpServerFactory.RunningServer? = null
-    @Volatile private var lastSearchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY
+    @Volatile private var lastSearchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY
     @Volatile private var preparedSourceKind: UpdateFileLocator.SourceKind? = null
     @Volatile private var preparedSourceDirectory: String? = null
+    @Volatile private var runningZipPath: String? = null
+    @Volatile private var runningZipLastModified: Long = 0L
+    @Volatile private var runningZipSize: Long = 0L
+    @Volatile private var runningZipSha256: String? = null
     @Volatile private var lastDetectedLocation: String? = null
     @Volatile private var lastDetectedFilePath: String? = null
 
     fun prepareAndStartServer(
         context: Context,
-        searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
+        searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY,
     ): Result {
+        val startedAtMs = SystemClock.elapsedRealtime()
         val outcome = synchronized(lock) {
             val applicationContext = context.applicationContext
             appContext = applicationContext
             lastSearchPolicy = searchPolicy
+            locator.clearPersistedInternalTreeUri(applicationContext)
             val previousState = currentState.get()
             setState(
                 State(
@@ -101,7 +112,14 @@ internal object UpdateServerManager {
             )
         }
         outcome.serverToStop?.let(::performStop)
-        return outcome.result
+        val durationMs = SystemClock.elapsedRealtime() - startedAtMs
+        val result = outcome.result
+        if (result.success) {
+            Timber.tag(TAG).i("FTP READY за ${durationMs}мс, source=${result.sourceFilePath}")
+        } else {
+            Timber.tag(TAG).w("FTP не готов за ${durationMs}мс: ${result.message}")
+        }
+        return result
     }
 
     fun stopServer() {
@@ -148,51 +166,21 @@ internal object UpdateServerManager {
     }
 
     fun handleUsbInserted(context: Context): Result {
-        return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.USB_FIRST)
+        return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.USB_ONLY)
     }
 
     fun handleUsbRemoved(context: Context): Result {
-        return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.INTERNAL_ONLY)
+        return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.USB_ONLY)
     }
 
+    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
     fun pollAvailableStorage(context: Context): Result {
-        val outcome = synchronized(lock) {
-            val applicationContext = context.applicationContext
-            appContext = applicationContext
-            val searchPolicy = UpdateFileLocator.SearchPolicy.USB_FIRST
-            resolveAndStartLocked(
-                context = applicationContext,
-                searchPolicy = searchPolicy,
-                failureLogMessage = "Ошибка периодического опроса обновления во внутренней памяти",
-                samePreparedHandler = { validatedPair ->
-                    if (isSamePreparedUpdateLocked(validatedPair)) {
-                        ResolveStartOutcome(resultFromState(currentState.get()))
-                    } else {
-                        null
-                    }
-                },
-                runningServerHandler = {
-                    val current = currentState.get()
-                    if (runningServer != null && current.status == Status.RUNNING) {
-                        Timber.tag(TAG).i("Опрос нашёл другой источник обновления, но FTP уже активен; сохраняю текущий listener")
-                        setState(current)
-                        ResolveStartOutcome(resultFromState(current))
-                    } else {
-                        null
-                    }
-                },
-                beforeStart = { validatedPair ->
-                    Timber.tag(TAG).i(str(R.string.update_server_poll_new_update_fmt, validatedPair.pair.directoryLabel))
-                },
-            )
-        }
-        outcome.serverToStop?.let(::performStop)
-        return outcome.result
+        return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.USB_ONLY)
     }
 
     fun getServerState(): State = currentState.get()
 
-    fun getPreparedFileInfo(): PreparedUpdateRepository.PreparedFileInfo? = currentState.get().fileInfo
+    fun getPreparedFileInfo(): PreparedFileInfo? = currentState.get().fileInfo
 
     fun getBoundAddress(): EmbeddedFtpServerFactory.BoundAddress? = currentState.get().boundAddress
 
@@ -203,16 +191,35 @@ internal object UpdateServerManager {
     ): Result {
         lastSearchPolicy = searchPolicy
 
-        Timber.tag(TAG).i("Проверка SHA-256 успешна: ${validatedPair.verification.actualSha256}")
-        val prepared = repository.prepare(context, validatedPair.pair, validatedPair.verification.actualSha256)
-        val server = startFtpServerWithCleanup(FtpServerConfig.fromProject(), prepared.rootDir)
+        val ftpRootDir = validatedPair.pair.ftpRootDir
+        if (ftpRootDir == null) {
+            val message = "Источник обновления не поддерживает прямой FTP-root: ${validatedPair.pair.directoryLabel}"
+            Timber.tag(TAG).w(message)
+            return failState(
+                message = message,
+                detectedLocation = validatedPair.pair.directoryLabel,
+                sourceFilePath = validatedPair.pair.zipFile.debugPath,
+            )
+        }
 
-        preparedUpdate = prepared
+        Timber.tag(TAG).i("Проверка SHA-256 успешна: ${validatedPair.verification.actualSha256}")
+        val server = startFtpServerWithCleanup(FtpServerConfig.fromProject(), ftpRootDir)
+
         runningServer = server
         preparedSourceKind = validatedPair.pair.sourceKind
         preparedSourceDirectory = validatedPair.pair.directoryLabel
+        runningZipPath = validatedPair.pair.zipFile.debugPath
+        runningZipLastModified = validatedPair.pair.zipFile.lastModified
+        runningZipSize = validatedPair.pair.zipFile.size
+        runningZipSha256 = validatedPair.verification.actualSha256
         lastDetectedLocation = validatedPair.pair.directoryLabel
         lastDetectedFilePath = validatedPair.pair.zipFile.debugPath
+
+        val fileInfo = PreparedFileInfo(
+            path = validatedPair.pair.zipFile.debugPath,
+            size = validatedPair.pair.zipFile.size,
+            sha256 = validatedPair.verification.actualSha256,
+        )
 
         val sourceText = "${validatedPair.pair.sourceKind.displayName}: ${validatedPair.pair.directoryLabel}"
         val message = str(
@@ -225,7 +232,7 @@ internal object UpdateServerManager {
         val successState = State(
             status = Status.RUNNING,
             message = message,
-            fileInfo = prepared.info,
+            fileInfo = fileInfo,
             boundAddress = server.boundAddress,
             detectedLocation = validatedPair.pair.directoryLabel,
             sourceFilePath = validatedPair.pair.zipFile.debugPath,
@@ -234,7 +241,7 @@ internal object UpdateServerManager {
         return Result(
             success = true,
             message = message,
-            fileInfo = prepared.info,
+            fileInfo = fileInfo,
             boundAddress = server.boundAddress,
             retrySuggested = false,
             detectedLocation = validatedPair.pair.directoryLabel,
@@ -248,7 +255,26 @@ internal object UpdateServerManager {
     ): EmbeddedFtpServerFactory.RunningServer {
         var firstFailure: Throwable? = null
         repeat(FTP_START_ATTEMPTS) { attemptIndex ->
-            val server = ftpFactory.create(config, rootDir)
+            val server = ftpFactory.create(
+                config = config,
+                ftpRoot = rootDir,
+                onTransferError = { errorMsg ->
+                    Timber.tag(TAG).w("Ошибка передачи FTP: $errorMsg")
+                    synchronized(lock) {
+                        if (runningServer != null) {
+                            runningServer = null
+                            val errorState = State(
+                                status = Status.ERROR,
+                                message = errorMsg,
+                                detectedLocation = lastDetectedLocation,
+                                sourceFilePath = lastDetectedFilePath,
+                                retrySuggested = true,
+                            )
+                            setState(errorState)
+                        }
+                    }
+                },
+            )
             try {
                 server.ftpServer.start()
                 if (attemptIndex > 0) {
@@ -430,12 +456,13 @@ internal object UpdateServerManager {
     }
 
     private fun isSamePreparedUpdateLocked(validatedPair: ValidatedPair): Boolean {
-        val preparedInfo = preparedUpdate?.info ?: return false
         return runningServer != null &&
             preparedSourceKind == validatedPair.pair.sourceKind &&
             preparedSourceDirectory == validatedPair.pair.directoryLabel &&
-            preparedInfo.sha256 == validatedPair.verification.actualSha256 &&
-            preparedInfo.size == validatedPair.pair.zipFile.size
+            runningZipPath == validatedPair.pair.zipFile.debugPath &&
+            runningZipLastModified == validatedPair.pair.zipFile.lastModified &&
+            runningZipSize == validatedPair.pair.zipFile.size &&
+            runningZipSha256 == validatedPair.verification.actualSha256
     }
 
     private fun stopServerLocked(clearPrepared: Boolean): EmbeddedFtpServerFactory.RunningServer? {
@@ -445,8 +472,10 @@ internal object UpdateServerManager {
         preparedSourceDirectory = null
 
         if (clearPrepared) {
-            appContext?.let { repository.clear(it) }
-            preparedUpdate = null
+            runningZipPath = null
+            runningZipLastModified = 0L
+            runningZipSize = 0L
+            runningZipSha256 = null
         }
         return server
     }
@@ -466,6 +495,7 @@ internal object UpdateServerManager {
         val preparingResId = when (searchPolicy) {
             UpdateFileLocator.SearchPolicy.INTERNAL_ONLY -> R.string.update_server_preparing_internal
             UpdateFileLocator.SearchPolicy.USB_FIRST -> R.string.update_server_preparing_usb_first
+            UpdateFileLocator.SearchPolicy.USB_ONLY -> R.string.update_server_preparing_usb_only
         }
         return str(preparingResId)
     }
@@ -532,6 +562,7 @@ internal object UpdateServerManager {
             R.string.update_server_context_not_initialized -> "Контекст приложения ещё не инициализирован"
             R.string.update_server_preparing_internal -> "Подготовка FTP-сервера обновления: поиск во внутренней памяти"
             R.string.update_server_preparing_usb_first -> "Подготовка FTP-сервера обновления: поиск на USB и во внутренней памяти"
+            R.string.update_server_preparing_usb_only -> "Подготовка FTP-сервера обновления: поиск на USB"
             R.string.update_server_started_fmt -> "FTP-сервер обновления запущен: ${args[0]}:${args[1]}; источник ${args[2]}"
             R.string.update_server_poll_new_update_fmt -> "Периодический опрос обнаружил новое или изменённое обновление: ${args[0]}"
             R.string.update_server_rejection_fmt -> "Кандидат отклонён: ${args[0]}. ${args[1]}. expected=${args[2]}, actual=${args[3]}"

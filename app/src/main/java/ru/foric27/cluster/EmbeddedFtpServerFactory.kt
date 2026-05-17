@@ -37,6 +37,7 @@ internal class EmbeddedFtpServerFactory {
     fun create(
         config: FtpServerConfig,
         ftpRoot: File,
+        onTransferError: ((String) -> Unit)? = null,
     ): RunningServer {
         require(ftpRoot.exists() && ftpRoot.isDirectory) {
             "FTP-root не существует: ${ftpRoot.absolutePath}"
@@ -65,7 +66,7 @@ internal class EmbeddedFtpServerFactory {
             isCreateHome = true
         }
         serverFactory.fileSystem = fileSystemFactory
-        serverFactory.ftplets = mutableMapOf("updateLogger" to LoggingFtplet())
+        serverFactory.ftplets = mutableMapOf("updateLogger" to LoggingFtplet(onTransferError))
 
         val user = BaseUser().apply {
             name = config.ftpUser
@@ -165,7 +166,9 @@ internal class EmbeddedFtpServerFactory {
         val reason: String,
     )
 
-    private class LoggingFtplet : DefaultFtplet() {
+    private class LoggingFtplet(
+        private val onTransferError: ((String) -> Unit)? = null,
+    ) : DefaultFtplet() {
         override fun onConnect(session: FtpSession?): FtpletResult {
             val message = "FTP клиент подключился: ${session.clientAddress()}"
             Timber.tag(TAG).i(message)
@@ -204,7 +207,13 @@ internal class EmbeddedFtpServerFactory {
                 val code = reply?.code ?: -1
                 Timber.tag(TAG).i("FTP ${session.clientAddress()} <- $command код=$code")
                 if (command == "RETR") {
-                    Timber.tag(TAG).i("Передача файла завершена, код=$code")
+                    if (code >= 400) {
+                        val errorMsg = "Передача файла прервана с ошибкой, код=$code"
+                        Timber.tag(TAG).w(errorMsg)
+                        onTransferError?.invoke(errorMsg)
+                    } else {
+                        Timber.tag(TAG).i("Передача файла завершена, код=$code")
+                    }
                 }
             }
             return FtpletResult.DEFAULT

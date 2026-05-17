@@ -27,7 +27,7 @@ internal class UdpUpdateServerCoordinator(
         val result = runFtpOperation("startup") {
             UpdateServerManager.prepareAndStartServer(
                 context,
-                UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
+                UpdateFileLocator.SearchPolicy.USB_ONLY,
             )
         } ?: return
         if (result.success) {
@@ -42,7 +42,7 @@ internal class UdpUpdateServerCoordinator(
         scheduleFtpRetry("startup")
     }
 
-    fun restartUpdateServer(searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY) {
+    fun restartUpdateServer(searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY) {
         val result = runFtpOperation("restart") {
             UpdateServerManager.replaceAndStartServer(context, searchPolicy)
         } ?: return
@@ -63,7 +63,7 @@ internal class UdpUpdateServerCoordinator(
         val result = runFtpOperation("usb_refresh") {
             UpdateServerManager.replaceAndStartServer(
                 context,
-                UpdateFileLocator.SearchPolicy.USB_FIRST,
+                UpdateFileLocator.SearchPolicy.USB_ONLY,
             )
         } ?: return
         if (result.success) {
@@ -83,7 +83,7 @@ internal class UdpUpdateServerCoordinator(
         val result = runFtpOperation("usb_removed") {
             UpdateServerManager.replaceAndStartServer(
                 context = context,
-                searchPolicy = UpdateFileLocator.SearchPolicy.INTERNAL_ONLY,
+                searchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY,
                 clearDetection = true,
             )
         } ?: return
@@ -102,30 +102,25 @@ internal class UdpUpdateServerCoordinator(
         cancelFtpRetry()
     }
 
+    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
     fun scheduleInternalUpdatePoll() {
-        if (internalUpdatePollScheduled) {
-            mainHandler.removeCallbacks(internalUpdatePollRunnable)
-        }
-        internalUpdatePollScheduled = true
-        mainHandler.postDelayed(
-            internalUpdatePollRunnable,
-            RuntimeConfig.UpdateFtp.INTERNAL_POLL_PERIOD_MS,
-        )
+        // no-op: USB-only mode uses event-driven detection via ACTION_MEDIA_MOUNTED
     }
 
+    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
     fun cancelInternalUpdatePoll() {
         internalUpdatePollScheduled = false
         mainHandler.removeCallbacks(internalUpdatePollRunnable)
     }
 
-    fun cancelFtpRetry() {
-        ftpRetryScheduled = false
-        mainHandler.removeCallbacks(ftpRetryRunnable)
-    }
-
     fun stop() {
         cancelInternalUpdatePoll()
         cancelFtpRetry()
+    }
+
+    fun cancelFtpRetry() {
+        ftpRetryScheduled = false
+        mainHandler.removeCallbacks(ftpRetryRunnable)
     }
 
     private fun scheduleFtpRetry(reason: String) {
@@ -177,38 +172,9 @@ internal class UdpUpdateServerCoordinator(
         }
     }
 
+    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
     private fun performInternalUpdatePoll() {
-        if (!isServiceRunning()) {
-            internalUpdatePollScheduled = false
-            return
-        }
-        internalUpdatePollScheduled = false
-
-        startDetachedWorker("UpdatePollWorker") {
-            try {
-                val result = runFtpOperation("poll") { UpdateServerManager.pollAvailableStorage(context) }
-                    ?: return@startDetachedWorker
-                val report = (if (result.success) "ok:" else "fail:") + result.message
-                if (report != lastInternalUpdatePollReport) {
-                    lastInternalUpdatePollReport = report
-                    if (!result.success) {
-                        Timber.tag(TAG).w("Периодический опрос обновления: ${result.message}")
-                    }
-                }
-                if (result.success) {
-                    cancelFtpRetry()
-                    checkAndShowUpdateAlert(result)
-                } else {
-                    scheduleFtpRetry("internal_poll")
-                }
-            } catch (t: Throwable) {
-                Timber.tag(TAG).e(t, "Ошибка периодического опроса обновления")
-            } finally {
-                if (isServiceRunning()) {
-                    scheduleInternalUpdatePoll()
-                }
-            }
-        }
+        // no-op: USB-only mode uses event-driven detection via ACTION_MEDIA_MOUNTED
     }
 
     private fun checkAndShowUpdateAlert(result: UpdateServerManager.Result) {
@@ -228,7 +194,7 @@ internal class UdpUpdateServerCoordinator(
             val intent = UpdateAlertActivity.createIntent(
                 context,
                 location,
-                UpdateFileLocator.SearchPolicy.USB_FIRST,
+                UpdateFileLocator.SearchPolicy.USB_ONLY,
             )
             context.startActivity(intent)
             lastKnownUpdateSha256 = currentSha256

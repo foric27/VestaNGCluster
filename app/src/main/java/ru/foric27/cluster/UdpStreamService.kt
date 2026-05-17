@@ -1073,11 +1073,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     return@startDetachedWorker
                 }
                 if (forceRestart) {
-                    updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_FIRST)
-                } else {
-                    startOrRefreshUpdateServer()
+                    updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_ONLY)
                 }
-                updateCoordinator.scheduleInternalUpdatePoll()
                 if (!networkPrep.ifacePresent) {
                     handleMissingInterface(scheduleRestart = false)
                     return@startDetachedWorker

@@ -119,6 +119,31 @@ class UpdateFileLocatorTest {
     }
 
     @Test
+    fun `file root search finds update pair in usb root`() {
+        val usbRoot = temporaryFolder.newFolder("usb-root")
+        val zip = File(usbRoot, ProductConfig.UpdateFtp.UPDATE_ZIP_NAME).apply { writeText("zip") }
+        val sig = File(usbRoot, ProductConfig.UpdateFtp.UPDATE_SIG_NAME).apply { writeText("sig") }
+
+        val candidates = UpdateFileLocator().findCandidatesInFileRoots(
+            listOf(
+                UpdateFileLocator.FileScanRoot(
+                    sourceKind = UpdateFileLocator.SourceKind.USB,
+                    directoryLabel = usbRoot.absolutePath,
+                    directory = usbRoot,
+                ),
+            ),
+        )
+
+        assertEquals(1, candidates.size)
+        val candidate = candidates.single()
+        assertEquals(UpdateFileLocator.SourceKind.USB, candidate.sourceKind)
+        assertEquals(usbRoot.absolutePath, candidate.directoryLabel)
+        assertEquals(zip.absolutePath, candidate.zipFile.debugPath)
+        assertEquals(sig.absolutePath, candidate.sigFile.debugPath)
+        assertEquals(usbRoot, candidate.ftpRootDir)
+    }
+
+    @Test
     fun `file root search is not recursive`() {
         val storageRoot = temporaryFolder.newFolder("storage-root")
         val nested = File(storageRoot, "updates").apply { mkdirs() }
@@ -175,6 +200,15 @@ class UpdateFileLocatorTest {
         val relativePath: String,
         val isStorageRoot: Boolean,
     )
+
+    @Test
+    fun `parse root descriptor distinguishes internal and usb for uri cleanup`() {
+        val internalDesc = parseRootDescriptor("primary:")
+        val usbDesc = parseRootDescriptor("ABCD-0001:")
+
+        assertEquals(UpdateFileLocator.SourceKind.INTERNAL, internalDesc.sourceKind)
+        assertEquals(UpdateFileLocator.SourceKind.USB, usbDesc.sourceKind)
+    }
 
     private class FakePersistedTreePermissionAccess {
         var takenFlags: Int? = null

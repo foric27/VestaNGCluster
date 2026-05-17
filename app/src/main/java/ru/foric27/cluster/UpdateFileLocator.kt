@@ -22,8 +22,13 @@ import java.io.InputStream
 internal class UpdateFileLocator {
 
     enum class SearchPolicy {
+        @Deprecated("Используйте USB_ONLY для runtime поиска обновлений")
         INTERNAL_ONLY,
+
+        @Deprecated("Используйте USB_ONLY для runtime поиска обновлений")
         USB_FIRST,
+
+        USB_ONLY,
     }
 
     enum class SourceKind(
@@ -49,6 +54,7 @@ internal class UpdateFileLocator {
         val zipFile: UpdateSourceFile,
         val sigFile: UpdateSourceFile,
         val lastModified: Long,
+        val ftpRootDir: File? = null,
     )
 
     internal data class FileScanRoot(
@@ -83,9 +89,21 @@ internal class UpdateFileLocator {
         searchPolicy: SearchPolicy,
     ): List<ScanRoot> {
         val persistedTree = resolvePersistedTree(context) ?: return emptyList()
-        if (searchPolicy == SearchPolicy.INTERNAL_ONLY && persistedTree.sourceKind != SourceKind.INTERNAL) {
-            Timber.tag(TAG).i("Persisted SAF URI не указывает на внутреннюю память; INTERNAL_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
-            return emptyList()
+        when (searchPolicy) {
+            SearchPolicy.INTERNAL_ONLY -> {
+                if (persistedTree.sourceKind != SourceKind.INTERNAL) {
+                    Timber.tag(TAG).i("Persisted SAF URI не указывает на внутреннюю память; INTERNAL_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
+                    return emptyList()
+                }
+            }
+            SearchPolicy.USB_ONLY -> {
+                if (persistedTree.sourceKind != SourceKind.USB) {
+                    Timber.tag(TAG).i("Persisted SAF URI не указывает на USB; USB_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
+                    return emptyList()
+                }
+            }
+            SearchPolicy.USB_FIRST -> { /* no filter */
+            }
         }
         return listOf(persistedTree)
     }
@@ -99,10 +117,6 @@ internal class UpdateFileLocator {
             directoryLabel = INTERNAL_STORAGE_ROOT,
             directory = File(INTERNAL_STORAGE_ROOT),
         )
-        if (searchPolicy == SearchPolicy.INTERNAL_ONLY) {
-            return listOf(internalRoot)
-        }
-
         val usbRoots = discoverUsbRoots(context).map { usbRoot ->
             FileScanRoot(
                 sourceKind = SourceKind.USB,
@@ -110,7 +124,11 @@ internal class UpdateFileLocator {
                 directory = usbRoot,
             )
         }
-        return usbRoots + internalRoot
+        return when (searchPolicy) {
+            SearchPolicy.INTERNAL_ONLY -> listOf(internalRoot)
+            SearchPolicy.USB_FIRST -> usbRoots + internalRoot
+            SearchPolicy.USB_ONLY -> usbRoots
+        }
     }
 
     private fun resolvePersistedTree(context: Context): ScanRoot? {
@@ -183,6 +201,7 @@ internal class UpdateFileLocator {
             zipFile = zipFile,
             sigFile = sigFile,
             lastModified = maxOf(zipFile.lastModified, sigFile.lastModified),
+            ftpRootDir = root.directory,
         )
     }
 
@@ -247,6 +266,25 @@ internal class UpdateFileLocator {
 
     private fun logInfo(message: String) {
         runCatching { Timber.tag(TAG).i(message) }
+    }
+
+    /**
+     * Очищает persisted SAF URI, если он указывает на внутреннюю память.
+     * Используется при миграции на USB-only режим.
+     */
+    fun clearPersistedInternalTreeUri(context: Context): Boolean {
+        return clearPersistedInternalTreeUri(getPrefs(context))
+    }
+
+    internal fun clearPersistedInternalTreeUri(prefs: SharedPreferences): Boolean {
+        val uri = getPersistedTreeUri(prefs) ?: return false
+        val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }
+            .onFailure { Timber.tag(TAG).w(it, "Не удалось получить treeDocumentId для очистки URI") }
+            .getOrNull() ?: return false
+        val rootDescriptor = parseRootDescriptor(treeDocumentId)
+        if (rootDescriptor.sourceKind != SourceKind.INTERNAL) return false
+        Timber.tag(TAG).i("Очищаю persisted SAF URI для внутренней памяти при USB_ONLY режиме")
+        return clearPersistedTreeUri(prefs, uri.toString())
     }
 
     companion object {

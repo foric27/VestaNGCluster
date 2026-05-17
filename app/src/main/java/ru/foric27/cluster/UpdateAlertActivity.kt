@@ -98,7 +98,7 @@ internal class UpdateAlertActivity : Activity() {
         fun createIntent(
             context: Context,
             updateLocation: String,
-            searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_FIRST,
+            searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY,
         ): Intent {
             return Intent(context, UpdateAlertActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
