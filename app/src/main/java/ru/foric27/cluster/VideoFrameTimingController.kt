@@ -1,33 +1,28 @@
 package ru.foric27.cluster
 
+/**
+ * Контроллер таймингов видеопотока.
+ *
+ * Гарантирует монотонность presentation timestamps и равномерные интервалы
+ * между кадрами. При обнаружении overrun (реальное время ушло далеко вперёд
+ * от расписания) выполняет resync к текущему времени, чтобы избежать
+ * накопления задержки.
+ */
 internal class VideoFrameTimingController(
     fps: Int,
-    private val keepalivePeriodMs: Long,
 ) {
 
-    private val minRenderIntervalMs: Long = (1000L / fps.coerceAtLeast(1)).coerceAtLeast(1L)
-    private val frameIntervalNs: Long = (1_000_000_000L / fps.coerceAtLeast(1)).coerceAtLeast(1L)
+    private var frameIntervalNs: Long = (1_000_000_000L / fps.coerceAtLeast(1)).coerceAtLeast(1L)
 
-    private var lastRenderAtMs: Long = 0L
     private var lastPresentationTimestampNs: Long = 0L
 
-    fun delayUntilNextDynamicRender(nowMs: Long): Long {
-        if (lastRenderAtMs <= 0L) return 0L
-        return (minRenderIntervalMs - (nowMs - lastRenderAtMs)).coerceAtLeast(0L)
-    }
-
-    fun shouldEmitKeepalive(nowMs: Long): Boolean {
-        return lastRenderAtMs > 0L && nowMs - lastRenderAtMs >= keepalivePeriodMs
-    }
-
-    fun idleDurationMs(nowMs: Long): Long {
-        if (lastRenderAtMs <= 0L) return 0L
-        return (nowMs - lastRenderAtMs).coerceAtLeast(0L)
-    }
-
-    fun markRendered(nowMs: Long) {
-        lastRenderAtMs = nowMs
-    }
+    /**
+     * Максимально допустимое отставание реального времени от расписания
+     * перед принудительным resync. 2 интервала — достаточно, чтобы
+     * пережить краткие задержки render, но не копить drift.
+     */
+    private val maxOverrunNs: Long
+        get() = frameIntervalNs * 2
 
     fun sanitizePresentationTimestamp(candidateTimestampNs: Long): Long {
         val normalizedCandidate = candidateTimestampNs.coerceAtLeast(1L)
@@ -46,11 +41,28 @@ internal class VideoFrameTimingController(
         } else {
             lastPresentationTimestampNs + frameIntervalNs
         }
-        return sanitizePresentationTimestamp(scheduledCandidate)
+
+        // Overrun policy: если nowNs ушёл далеко вперёд от scheduled,
+        // resync к nowNs вместо накопления задержки.
+        val overrun = nowNs - scheduledCandidate
+        val finalCandidate = if (overrun > maxOverrunNs) {
+            nowNs
+        } else {
+            scheduledCandidate
+        }
+
+        return sanitizePresentationTimestamp(finalCandidate)
+    }
+
+    fun markFrameScheduled(timestampNs: Long) {
+        lastPresentationTimestampNs = timestampNs
+    }
+
+    fun setTargetFps(fps: Int) {
+        frameIntervalNs = (1_000_000_000L / fps.coerceAtLeast(1)).coerceAtLeast(1L)
     }
 
     fun reset() {
-        lastRenderAtMs = 0L
         lastPresentationTimestampNs = 0L
     }
 }

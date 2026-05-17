@@ -14,10 +14,9 @@ internal class GlFrameComposer(
     outputSurface: Surface,
     private val width: Int,
     private val height: Int,
-    private val blackMaskHeightPx: Int,
 ) {
-    private val vertexBuffer: FloatBuffer = createFloatBuffer(computeVertices())
-    private val texCoordBuffer: FloatBuffer = createFloatBuffer(computeTexCoords())
+    private val vertexBuffer: FloatBuffer = createFloatBuffer(FULL_RECT_VERTICES)
+    private val texCoordBuffer: FloatBuffer = createFloatBuffer(FULL_RECT_TEX_COORDS)
     private val transformMatrix = FloatArray(16)
 
     private var eglDisplay = EGL14.EGL_NO_DISPLAY
@@ -29,7 +28,6 @@ internal class GlFrameComposer(
     private val positionLoc: Int
     private val texCoordLoc: Int
     private val textureMatrixLoc: Int
-    private val timestampSanitizer = VideoFrameTimingController(fps = 1, keepalivePeriodMs = 1L)
 
     init {
         try {
@@ -74,7 +72,7 @@ internal class GlFrameComposer(
             GLES20.glViewport(0, 0, width, height)
 
             // Освобождаем EGL-контекст на потоке инициализации.
-            // Дальше drawFrame будет привязывать его на codecHandler-потоке перед updateTexImage().
+            // Далее drawFrame будет привязывать его на codecHandler-потоке перед updateTexImage().
             EGL14.eglMakeCurrent(
                 eglDisplay,
                 EGL14.EGL_NO_SURFACE,
@@ -87,59 +85,28 @@ internal class GlFrameComposer(
         }
     }
 
-    /**
-     * Возвращает вершинные координаты с учётом подъёма изображения на
-     * [blackMaskHeightPx] пикселей. Смещает нижнюю границу квадрата вверх
-     * в clip-space, чтобы контент занимал верхнюю часть кадра.
-     */
-    private fun computeVertices(): FloatArray {
-        if (blackMaskHeightPx <= 0) return FULL_RECT_VERTICES
-        val yOffset = 2.0f * blackMaskHeightPx / height
-        return floatArrayOf(
-            -1f, -1f + yOffset,
-            1f, -1f + yOffset,
-            -1f, 1f,
-            1f, 1f,
-        )
-    }
-
-    /**
-     * Возвращает текстурные координаты с обрезкой нижней части текстуры
-     * пропорционально [blackMaskHeightPx]. Сохраняет исходное соотношение
-     * сторон и не растягивает изображение.
-     */
-    private fun computeTexCoords(): FloatArray {
-        if (blackMaskHeightPx <= 0) return FULL_RECT_TEX_COORDS
-        val vOffset = blackMaskHeightPx.toFloat() / height
-        return floatArrayOf(
-            0f, vOffset,
-            1f, vOffset,
-            0f, 1f,
-            1f, 1f,
-        )
-    }
-
     fun drawSurfaceFrame(surfaceTexture: SurfaceTexture, presentationTimestampNs: Long? = null) {
-        makeCurrent()
-        surfaceTexture.updateTexImage()
-        surfaceTexture.getTransformMatrix(transformMatrix)
-        val timestampNs = presentationTimestampNs
-            ?: surfaceTexture.timestamp.takeIf { it > 0L }
-            ?: System.nanoTime()
-        drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(timestampNs))
+        renderInternal(surfaceTexture, presentationTimestampNs)
     }
 
     fun drawLastFrame(presentationTimestampNs: Long? = null) {
-        makeCurrent()
-        val timestampNs = presentationTimestampNs ?: System.nanoTime()
-        drawPreparedFrame(timestampSanitizer.sanitizePresentationTimestamp(timestampNs))
+        renderInternal(null, presentationTimestampNs)
     }
 
-    private fun drawPreparedFrame(timestampNs: Long) {
+    private fun renderInternal(surfaceTexture: SurfaceTexture?, presentationTimestampNs: Long?) {
+        makeCurrent()
+
+        if (surfaceTexture != null) {
+            surfaceTexture.updateTexImage()
+            surfaceTexture.getTransformMatrix(transformMatrix)
+        }
+
+        val timestampNs = presentationTimestampNs
+            ?: surfaceTexture?.timestamp?.takeIf { it > 0L }
+            ?: System.nanoTime()
+
         GLES20.glViewport(0, 0, width, height)
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
-        // Фон оставляем прозрачным (чёрным для H.264), контент поднимается за счёт
-        // смещения вершин и обрезки текстурных координат в computeVertices/TexCoords.
         GLES20.glClearColor(0f, 0f, 0f, 0f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
@@ -165,8 +132,12 @@ internal class GlFrameComposer(
     fun release() {
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
             makeCurrent()
-            GLES20.glDeleteTextures(1, intArrayOf(inputTextureId), 0)
-            GLES20.glDeleteProgram(program)
+            if (inputTextureId != 0) {
+                GLES20.glDeleteTextures(1, intArrayOf(inputTextureId), 0)
+            }
+            if (program != 0) {
+                GLES20.glDeleteProgram(program)
+            }
             EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
             EGL14.eglDestroySurface(eglDisplay, eglSurface)
             EGL14.eglDestroyContext(eglDisplay, eglContext)
@@ -179,7 +150,17 @@ internal class GlFrameComposer(
     }
 
     private fun makeCurrent() {
+        if (EGL14.eglGetCurrentContext() == eglContext) return
         require(EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)) { "eglMakeCurrent failed" }
+    }
+
+    private fun createFloatBuffer(coords: FloatArray): FloatBuffer {
+        val buffer = ByteBuffer.allocateDirect(coords.size * 4)
+            .order(ByteOrder.nativeOrder())
+            .asFloatBuffer()
+        buffer.put(coords)
+        buffer.position(0)
+        return buffer
     }
 
     private fun createExternalTexture(): Int {
@@ -228,16 +209,6 @@ internal class GlFrameComposer(
             error("glCompileShader failed: $log")
         }
         return shader
-    }
-
-    private fun createFloatBuffer(values: FloatArray): FloatBuffer {
-        return ByteBuffer.allocateDirect(values.size * 4)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
-            .apply {
-                put(values)
-                position(0)
-            }
     }
 
     private companion object {

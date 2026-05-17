@@ -16,9 +16,6 @@ internal class VideoCodecOutputProcessor(
     private val streamConfig: StreamConfig,
 ) {
 
-    private val minFrameIntervalUs: Long = 1_000_000L / streamConfig.fps.coerceAtLeast(1)
-    private var lastSentPresentationTimeUs: Long = Long.MIN_VALUE
-
     // Храним SPS/PPS из codec config буферов на случай если onOutputFormatChanged
     // ещё не вызвался к моменту первого keyframe
     @Volatile private var storedCodecConfig: ByteArray? = null
@@ -55,13 +52,12 @@ internal class VideoCodecOutputProcessor(
         // Если буфер помечен как codec config — извлекаем и сохраняем SPS/PPS
         if (codecConfig) {
             storedCodecConfig = payloadAnnexB
-            val firstByte = if (payloadAnnexB.isNotEmpty()) payloadAnnexB[0].toInt() and 0xFF else -1
-            val nalType = if (payloadAnnexB.size > 4) payloadAnnexB[4].toInt() and 0x1F else -1
-            Timber.tag(TAG).d("Codec config buffer: size=%d, firstByte=0x%02X, nalType=%d", payloadAnnexB.size, firstByte, nalType)
+            if (!hasLoggedConfig) {
+                hasLoggedConfig = true
+                Timber.tag(TAG).i("Codec config сохранён из output buffer: size=%d", payloadAnnexB.size)
+            }
             return
         }
-
-        if (shouldDropFrame(info.presentationTimeUs)) return
 
         // Используем config из onOutputFormatChanged, либо из codec config буфера
         val effectiveConfig = configAnnexB ?: storedCodecConfig
@@ -88,29 +84,11 @@ internal class VideoCodecOutputProcessor(
         }
 
         udpSender.sendFrame(annexB)
-        lastSentPresentationTimeUs = info.presentationTimeUs
         onFrameSent()
-    }
-
-    private fun shouldDropFrame(presentationTimeUs: Long): Boolean {
-        if (lastSentPresentationTimeUs == Long.MIN_VALUE) return false
-        if (presentationTimeUs <= lastSentPresentationTimeUs) return true
-        return presentationTimeUs - lastSentPresentationTimeUs < minFrameIntervalUs
     }
 
     companion object {
         private const val TAG = "VideoCodecOutput"
-
-        internal fun shouldDropFrameForConstantFps(
-            lastSentPresentationTimeUs: Long,
-            presentationTimeUs: Long,
-            fps: Int,
-        ): Boolean {
-            if (lastSentPresentationTimeUs == Long.MIN_VALUE) return false
-            if (presentationTimeUs <= lastSentPresentationTimeUs) return true
-            val requiredIntervalUs = 1_000_000L / fps.coerceAtLeast(1)
-            return presentationTimeUs - lastSentPresentationTimeUs < requiredIntervalUs
-        }
 
         /**
          * Добавляет SPS/PPS к keyframe если их ещё нет в начале кадра.

@@ -1,8 +1,6 @@
 package ru.foric27.cluster
 
 import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VideoCodecOutputProcessorTest {
@@ -28,20 +26,20 @@ class VideoCodecOutputProcessorTest {
     }
 
     @Test
-    fun `constant fps drops frames that arrive earlier than target interval`() {
-        assertTrue(
-            VideoCodecOutputProcessor.shouldDropFrameForConstantFps(
-                lastSentPresentationTimeUs = 1_000_000L,
-                presentationTimeUs = 1_050_000L,
-                fps = 8,
-            ),
-        )
-        assertFalse(
-            VideoCodecOutputProcessor.shouldDropFrameForConstantFps(
-                lastSentPresentationTimeUs = 1_000_000L,
-                presentationTimeUs = 1_125_000L,
-                fps = 8,
-            ),
-        )
+    fun `prependCodecConfigIfNeeded returns frame when config is null`() {
+        val frame = byteArrayOf(0, 0, 0, 1, 101, 1, 2, 3)
+
+        val result = VideoCodecOutputProcessor.prependCodecConfigIfNeeded(frame, null)
+
+        assertArrayEquals(frame, result)
+    }
+
+    @Test
+    fun `prependCodecConfigIfNeeded returns frame when config is empty`() {
+        val frame = byteArrayOf(0, 0, 0, 1, 101, 1, 2, 3)
+
+        val result = VideoCodecOutputProcessor.prependCodecConfigIfNeeded(frame, byteArrayOf())
+
+        assertArrayEquals(frame, result)
     }
 }

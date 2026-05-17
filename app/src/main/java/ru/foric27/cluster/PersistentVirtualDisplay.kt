@@ -36,11 +36,18 @@ object PersistentVirtualDisplay {
     ): VirtualDisplay {
         val existing = virtualDisplay
         if (existing != null && this.width == width && this.height == height && this.dpi == dpi) {
-            try {
-                existing.setSurface(surface)
-                return existing
-            } catch (t: Throwable) {
-                Timber.tag(TAG).w(t, "Не удалось переиспользовать VirtualDisplay, пересоздаю")
+            // Проверяем валидность display перед reuse — система могла уничтожить его
+            val display = existing.display
+            if (display != null && display.isValid) {
+                try {
+                    existing.setSurface(surface)
+                    return existing
+                } catch (t: Throwable) {
+                    Timber.tag(TAG).w(t, "Не удалось переиспользовать VirtualDisplay, пересоздаю")
+                    releaseLocked(clearState = false)
+                }
+            } else {
+                Timber.tag(TAG).w("Existing VirtualDisplay невалиден (display=$display), пересоздаю")
                 releaseLocked(clearState = false)
             }
         }
