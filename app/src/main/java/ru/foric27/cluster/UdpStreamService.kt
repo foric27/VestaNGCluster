@@ -377,7 +377,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun initWakeLock() {
         val powerManager = getSystemService(POWER_SERVICE) as? PowerManager ?: return
         streamWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:stream").apply {
-            setReferenceCounted(false)
+            setReferenceCounted(true)
         }
     }
 
@@ -430,7 +430,17 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
         Timber.tag(TAG).i(
             "Wake snapshot: ${ConnectivityHealth.describeWakeSnapshot(runtimeSnapshot)} | " +
-                ConnectivityHealth.describeWakeDecision(runtimeSnapshot),
+                ConnectivityHealth.describeWakeDecision(runtimeSnapshot) +
+                " | " + logContext(
+                    "streamActive" to runtimeSnapshot.streamActive,
+                    "startInProgress" to runtimeSnapshot.startInProgress,
+                    "senderReady" to runtimeSnapshot.senderReady,
+                    "displayReady" to runtimeSnapshot.displayReady,
+                    "recentVideoTraffic" to runtimeSnapshot.recentVideoTraffic,
+                    "routeReady" to runtimeSnapshot.routeReady,
+                    "targetHost" to targetHostValue,
+                    "expectedBindIp" to expectedBindIp,
+                ),
         )
         return UdpWakeRecoverySnapshot(
             streamHealthy = ConnectivityHealth.isWakeStreamHealthy(runtimeSnapshot),
@@ -864,11 +874,26 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             SystemClock.elapsedRealtime() - it
         } ?: -1L
         Timber.tag(TAG).i(
-            "Снимок сервиса | $prefix | streamActive=$streamActive, startInProgress=$startInProgress, displayId=$displayId, " +
-                "sender=${senderSnapshot != null}, host=${senderSnapshot?.host ?: targetHost ?: "unknown"}, " +
-                "videoFrames=${senderSnapshot?.videoFramesSent ?: 0}, videoPackets=${senderSnapshot?.videoPacketsSent ?: 0}, " +
-                "sendErrors=${senderSnapshot?.sendErrors ?: 0}, lastSendAgo=${lastSendAgoMs}ms, routeFailureStreak=${connectivityWatchdogCoordinator.currentRouteFailureStreak()}",
+            "Снимок сервиса | $prefix | ${logContext(
+                "streamActive" to streamActive,
+                "startInProgress" to startInProgress,
+                "displayId" to displayId,
+                "sender" to (senderSnapshot != null),
+                "host" to (senderSnapshot?.host ?: targetHost ?: "unknown"),
+                "targetPort" to targetPort,
+                "videoFrames" to (senderSnapshot?.videoFramesSent ?: 0),
+                "videoPackets" to (senderSnapshot?.videoPacketsSent ?: 0),
+                "sendErrors" to (senderSnapshot?.sendErrors ?: 0),
+                "lastSendAgoMs" to lastSendAgoMs,
+                "routeFailureStreak" to connectivityWatchdogCoordinator.currentRouteFailureStreak(),
+                "bindIp" to lastBindIp,
+                "iface" to RuntimeConfig.Root.IFACE,
+            )}",
         )
+    }
+
+    private fun logContext(vararg pairs: Pair<String, Any?>): String {
+        return pairs.joinToString(" ") { (key, value) -> "$key=${value ?: "null"}" }
     }
 
     private fun ensureNotificationChannel() {
@@ -1129,7 +1154,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         synchronized(serviceLock) {
             streamStoppedForSleep = false
             if (!streamActive && !startInProgress) {
-                attemptRestart("wake_recovery")
+                startDetachedWorker("WakeResume") {
+                    attemptRestart("wake_recovery")
+                }
             } else {
                 updateNotification(getString(R.string.service_notification_wake_started))
             }
@@ -1234,7 +1261,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         private const val TAG = "UdpStreamService"
         private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2
         private const val FTP_STARTUP_REFRESH_DELAY_MS = 1_500L
-        private const val STREAM_WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L
+        private const val STREAM_WAKE_LOCK_TIMEOUT_MS = 60_000L
         private val CHANNEL_ID: String
             get() = RuntimeConfig.Service.NOTIFICATION_CHANNEL_ID
 
