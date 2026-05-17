@@ -720,10 +720,21 @@ internal object RootNetUtil {
                 failureReason = FailureReason.ROOT_UNAVAILABLE,
             )
         }
-        return shell.execScript(commands).fold(
+        val result = shell.execScript(commands).fold(
             onSuccess = { NetworkScriptResult.success(it) },
             onFailure = { NetworkScriptResult.failure(it.message ?: it.toString()) },
         )
+        val commandPreview = commands.firstOrNull().orEmpty()
+        if (result.ok) {
+            Timber.tag(TAG).d(
+                "root_script_ok cmd=${LogSanitizer.sanitize(commandPreview)} stdout=${LogSanitizer.sanitize(result.output.take(240))}",
+            )
+        } else {
+            Timber.tag(TAG).w(
+                "root_script_fail cmd=${LogSanitizer.sanitize(commandPreview)} rootRequired=${result.rootRequired} stderr=${LogSanitizer.sanitize(result.error.take(240))}",
+            )
+        }
+        return result
     }
 
     private fun sanitizeIfaceName(iface: String?): String? {

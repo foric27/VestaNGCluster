@@ -4,7 +4,11 @@ import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import timber.log.Timber
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 internal object ProcessRecoveryManager {
 
@@ -14,12 +18,21 @@ internal object ProcessRecoveryManager {
     private const val KEY_CRASH_SUPPRESSED_UNTIL = "crash_suppressed_until"
     private const val REQUEST_CODE = 41_092
 
+    data class RecoveryDebugState(
+        val crashCountInWindow: Int,
+        val suppressedUntilElapsedMs: Long,
+        val timestamps: List<Long>,
+    )
+
     fun install(context: Context) {
         val appContext = context.applicationContext
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
                 RuntimeConfig.init(appContext)
+                ClusterApp.persistedLogWriter()?.flushAndShutdown()
+                writeCrashLog(appContext, thread, throwable)
+                LogcatExporter.exportOnCrash(appContext)
                 if (shouldScheduleRecovery(appContext)) {
                     scheduleRecovery(appContext, throwable.javaClass.simpleName.ifBlank { "uncaught_exception" })
                 } else {
@@ -35,6 +48,20 @@ internal object ProcessRecoveryManager {
                     kotlin.system.exitProcess(2)
                 }
         }
+    }
+
+    fun readDebugState(context: Context): RecoveryDebugState {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val now = SystemClock.elapsedRealtime()
+        val timestamps = prefs.getString(KEY_CRASH_TIMESTAMPS, "").orEmpty()
+            .split(',')
+            .mapNotNull { it.toLongOrNull() }
+            .filter { (now - it) <= RuntimeConfig.Service.PROCESS_CRASH_WINDOW_MS }
+        return RecoveryDebugState(
+            crashCountInWindow = timestamps.size,
+            suppressedUntilElapsedMs = prefs.getLong(KEY_CRASH_SUPPRESSED_UNTIL, 0L),
+            timestamps = timestamps,
+        )
     }
 
     private fun shouldScheduleRecovery(context: Context): Boolean {
@@ -60,8 +87,31 @@ internal object ProcessRecoveryManager {
         return !suppress
     }
 
+    private fun writeCrashLog(context: Context, thread: Thread, throwable: Throwable) {
+        val crashFile = PersistentLogWriter.crashLogFile(context)
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
+        val content = buildString {
+            appendLine("=== CRASH LOG ===")
+            appendLine("timestamp=$timestamp")
+            appendLine("thread=${thread.name}#${thread.id}")
+            appendLine("exception=${throwable.javaClass.name}")
+            appendLine("message=${throwable.message}")
+            appendLine("stacktrace=")
+            appendLine(LogSanitizer.sanitize(Log.getStackTraceString(throwable)))
+            appendLine("=== END CRASH LOG ===")
+        }
+        runCatching {
+            crashFile.parentFile?.mkdirs()
+            crashFile.writeText(content, Charsets.UTF_8)
+        }.onFailure { Timber.tag(TAG).e(it, "Не удалось записать crash log") }
+    }
+
     private fun scheduleRecovery(context: Context, reason: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
+            Timber.tag(TAG).w("SCHEDULE_EXACT_ALARM не выдано, пропускаю восстановление после падения")
+            return
+        }
         val pendingIntent = AppRecoveryReceiver.createPendingIntent(
             context = context,
             requestCode = REQUEST_CODE,
