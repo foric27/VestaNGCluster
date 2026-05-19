@@ -39,7 +39,11 @@ internal class UdpUpdateServerCoordinator(
 
         Timber.tag(TAG).w("FTP обновление не запущено: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
-        scheduleFtpRetry("startup")
+        if (result.retrySuggested) {
+            scheduleFtpRetry("startup")
+        } else {
+            cancelFtpRetry()
+        }
     }
 
     fun restartUpdateServer(searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY) {
@@ -56,7 +60,11 @@ internal class UdpUpdateServerCoordinator(
 
         Timber.tag(TAG).w("FTP после перезапуска не поднят: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
-        scheduleFtpRetry("restart")
+        if (result.retrySuggested) {
+            scheduleFtpRetry("restart")
+        } else {
+            cancelFtpRetry()
+        }
     }
 
     fun refreshUsbUpdateServer() {
@@ -76,7 +84,11 @@ internal class UdpUpdateServerCoordinator(
 
         Timber.tag(TAG).w("USB-aware обновление FTP не запустило сервер: ${result.message}")
         publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
-        scheduleFtpRetry("usb_refresh")
+        if (result.retrySuggested) {
+            scheduleFtpRetry("usb_refresh")
+        } else {
+            cancelFtpRetry()
+        }
     }
 
     fun refreshAfterUsbRemoved() {
@@ -162,8 +174,10 @@ internal class UdpUpdateServerCoordinator(
 
                 if (result.success) {
                     cancelFtpRetry()
-                } else {
+                } else if (result.retrySuggested) {
                     scheduleFtpRetry("ftp_retry")
+                } else {
+                    cancelFtpRetry()
                 }
             } catch (t: Throwable) {
                 Timber.tag(TAG).e(t, "Ошибка повторного запуска FTP")

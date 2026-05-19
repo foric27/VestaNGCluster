@@ -66,6 +66,9 @@ internal object UpdateServerManager {
     @Volatile private var runningZipSha256: String? = null
     @Volatile private var lastDetectedLocation: String? = null
     @Volatile private var lastDetectedFilePath: String? = null
+    @Volatile private var lastPrepareAttemptMs: Long = 0L
+    @Volatile private var lastPrepareAttemptPolicy: UpdateFileLocator.SearchPolicy? = null
+    @Volatile private var lastPrepareAttemptFailed: Boolean = false
 
     fun prepareAndStartServer(
         context: Context,
@@ -76,6 +79,18 @@ internal object UpdateServerManager {
             val applicationContext = context.applicationContext
             appContext = applicationContext
             lastSearchPolicy = searchPolicy
+            if (shouldSkipRepeatedPrepareLocked(startedAtMs, searchPolicy)) {
+                val message = "Повторная подготовка FTP пропущена: предыдущее неуспешное USB_ONLY-сканирование ещё актуально"
+                Timber.tag(TAG).i(message)
+                return@synchronized ResolveStartOutcome(
+                    result = failState(
+                        message = message,
+                        retrySuggested = false,
+                        detectedLocation = lastDetectedLocation,
+                        sourceFilePath = lastDetectedFilePath,
+                    ),
+                )
+            }
             locator.clearPersistedInternalTreeUri(applicationContext)
             val previousState = currentState.get()
             setState(
@@ -114,6 +129,9 @@ internal object UpdateServerManager {
         outcome.serverToStop?.let(::performStop)
         val durationMs = SystemClock.elapsedRealtime() - startedAtMs
         val result = outcome.result
+        synchronized(lock) {
+            recordPrepareAttemptLocked(startedAtMs, searchPolicy, result)
+        }
         if (result.success) {
             Timber.tag(TAG).i("FTP READY за ${durationMs}мс, source=${result.sourceFilePath}")
         } else {
@@ -147,6 +165,7 @@ internal object UpdateServerManager {
             if (clearDetection) {
                 lastDetectedLocation = null
                 lastDetectedFilePath = null
+                clearPrepareCooldownLocked()
             }
             setState(
                 State(
@@ -525,6 +544,34 @@ internal object UpdateServerManager {
         return result
     }
 
+    private fun shouldSkipRepeatedPrepareLocked(
+        nowMs: Long,
+        searchPolicy: UpdateFileLocator.SearchPolicy,
+    ): Boolean {
+        if (!lastPrepareAttemptFailed) return false
+        if (lastPrepareAttemptPolicy != searchPolicy) return false
+        if (searchPolicy != UpdateFileLocator.SearchPolicy.USB_ONLY) return false
+        val previousDetectedPath = lastDetectedFilePath
+        if (!previousDetectedPath.isNullOrBlank()) return false
+        return nowMs - lastPrepareAttemptMs < PREPARE_RETRY_COOLDOWN_MS
+    }
+
+    private fun recordPrepareAttemptLocked(
+        nowMs: Long,
+        searchPolicy: UpdateFileLocator.SearchPolicy,
+        result: Result,
+    ) {
+        lastPrepareAttemptMs = nowMs
+        lastPrepareAttemptPolicy = searchPolicy
+        lastPrepareAttemptFailed = !result.success
+    }
+
+    private fun clearPrepareCooldownLocked() {
+        lastPrepareAttemptMs = 0L
+        lastPrepareAttemptPolicy = null
+        lastPrepareAttemptFailed = false
+    }
+
     private fun setState(state: State) {
         currentState.also { reference ->
             reference.set(state)
@@ -600,4 +647,5 @@ internal object UpdateServerManager {
     }
 
     const val ACTION_UPDATE_SERVER_STATE_CHANGED = "ru.foric27.cluster.action.UPDATE_SERVER_STATE_CHANGED"
+    private const val PREPARE_RETRY_COOLDOWN_MS = 2_000L
 }
