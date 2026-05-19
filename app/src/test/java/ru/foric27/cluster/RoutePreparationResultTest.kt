@@ -40,7 +40,7 @@ class RoutePreparationResultTest {
     }
 
     @Test
-    fun `network unreachable remains non-blocking structured fallback`() {
+    fun `network unreachable blocks startup udp probe`() {
         val result = UdpNetworkPreparationResult(
             RoutePreparationResult.NetworkUnreachable(
                 ifaceName = "eth0",
@@ -51,8 +51,25 @@ class RoutePreparationResultTest {
 
         assertFalse(result.rootRequired)
         assertTrue(result.ifacePresent)
+        assertFalse(result.routeReady)
         assertEquals("192.168.40.1", result.bindIp)
         assertEquals("NetworkUnreachable", result.routePreparation.statusName)
+    }
+
+    @Test
+    fun `success marks route ready for udp probe`() {
+        val result = UdpNetworkPreparationResult(
+            RoutePreparationResult.Success(
+                ifaceName = "eth0",
+                bindIp = "192.168.40.1",
+            ),
+        )
+
+        assertFalse(result.rootRequired)
+        assertTrue(result.ifacePresent)
+        assertTrue(result.routeReady)
+        assertEquals("192.168.40.1", result.bindIp)
+        assertEquals("Success", result.routePreparation.statusName)
     }
 
     @Test

@@ -62,6 +62,7 @@ internal data class UdpNetworkPreparationResult(
     val ifaceName: String? get() = routePreparation.ifaceName
     val ifacePresent: Boolean get() = routePreparation !is RoutePreparationResult.IfaceMissing
     val rootRequired: Boolean get() = routePreparation is RoutePreparationResult.RootUnavailable
+    val routeReady: Boolean get() = routePreparation is RoutePreparationResult.Success
 }
 
 internal class UdpNetworkPreparationCoordinator(
