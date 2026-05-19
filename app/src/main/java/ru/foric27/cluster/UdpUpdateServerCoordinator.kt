@@ -12,15 +12,12 @@ internal class UdpUpdateServerCoordinator(
     private val publishWarning: (String) -> Unit,
 ) {
 
-    @Volatile private var lastInternalUpdatePollReport: String? = null
     @Volatile private var lastFtpRetryReport: String? = null
-    @Volatile private var internalUpdatePollScheduled = false
     @Volatile private var ftpRetryScheduled = false
     @Volatile private var ftpOperationInProgress = false
     @Volatile private var lastKnownUpdateSha256: String? = null
     @Volatile private var lastAlertShownTime: Long = 0L
 
-    private val internalUpdatePollRunnable = Runnable { performInternalUpdatePoll() }
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
 
     fun startOrRefreshUpdateServer() {
@@ -114,19 +111,7 @@ internal class UdpUpdateServerCoordinator(
         cancelFtpRetry()
     }
 
-    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
-    fun scheduleInternalUpdatePoll() {
-        // no-op: USB-only mode uses event-driven detection via ACTION_MEDIA_MOUNTED
-    }
-
-    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
-    fun cancelInternalUpdatePoll() {
-        internalUpdatePollScheduled = false
-        mainHandler.removeCallbacks(internalUpdatePollRunnable)
-    }
-
     fun stop() {
-        cancelInternalUpdatePoll()
         cancelFtpRetry()
     }
 
@@ -185,12 +170,6 @@ internal class UdpUpdateServerCoordinator(
             }
         }
     }
-
-    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
-    private fun performInternalUpdatePoll() {
-        // no-op: USB-only mode uses event-driven detection via ACTION_MEDIA_MOUNTED
-    }
-
     private fun checkAndShowUpdateAlert(result: UpdateServerManager.Result) {
         val fileInfo = result.fileInfo ?: return
         val currentSha256 = fileInfo.sha256
