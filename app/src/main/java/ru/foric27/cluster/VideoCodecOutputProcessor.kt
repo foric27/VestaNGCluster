@@ -69,14 +69,6 @@ internal class VideoCodecOutputProcessor(
             payloadAnnexB
         }
 
-        if (keyFrame) {
-            if (effectiveConfig == null) {
-                Timber.tag(TAG).w("Keyframe без SPS/PPS — configAnnexB=%s, storedCodecConfig=%s", configAnnexB?.size, storedCodecConfig?.size)
-            } else {
-                Timber.tag(TAG).w("Keyframe с SPS/PPS: payload=%d, config=%d, result=%d", payloadAnnexB.size, effectiveConfig.size, annexB.size)
-            }
-        }
-
         // Для keyframe отправляем SPS/PPS отдельным пакетом перед кадром,
         // чтобы приёмник имел два шанса получить конфигурацию (при потере UDP)
         if (keyFrame && effectiveConfig != null && effectiveConfig.isNotEmpty()) {
