@@ -16,10 +16,10 @@
     android:id="@+id/media_cover_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/oem_cluster_bg">
+    android:background="@android:color/transparent">
 
     <!--
-        Корень — чёрный opaque фон, полностью закрывает навигатор.
+        Корень — прозрачный фон, чтобы не закрывать навигатор.
         media_visible_area позиционируется через код в configureMediaVisibleArea().
     -->
     <LinearLayout
