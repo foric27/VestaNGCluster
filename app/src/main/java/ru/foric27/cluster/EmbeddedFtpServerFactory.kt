@@ -22,7 +22,63 @@ import java.util.Locale
 /**
  * Создание встроенного Apache FtpServer с read-only доступом к подготовленной директории обновления.
  */
-internal class EmbeddedFtpServerFactory {
+internal class EmbeddedFtpServerFactory(
+    private val interfaceIpv4sProvider: (String) -> List<String> = { interfaceName ->
+        val networkInterface = NetworkInterface.getByName(interfaceName)
+        if (networkInterface == null || !networkInterface.isUp || networkInterface.isLoopback) {
+            emptyList()
+        } else {
+            sequence {
+                val enumeration = networkInterface.inetAddresses
+                while (enumeration.hasMoreElements()) {
+                    yield(enumeration.nextElement())
+                }
+            }
+                .filterIsInstance<Inet4Address>()
+                .filterNot { it.isLoopbackAddress }
+                .mapNotNull { it.hostAddress }
+                .toList()
+        }
+    },
+    private val firstNonLoopbackIpv4Provider: () -> String? = {
+        sequence<NetworkInterface> {
+            val enumeration = NetworkInterface.getNetworkInterfaces() ?: return@sequence
+            while (enumeration.hasMoreElements()) {
+                yield(enumeration.nextElement())
+            }
+        }
+            .filter { runCatching { it.isUp && !it.isLoopback }.getOrDefault(false) }
+            .flatMap { networkInterface ->
+                sequence {
+                    val inetAddresses = networkInterface.inetAddresses
+                    while (inetAddresses.hasMoreElements()) {
+                        yield(inetAddresses.nextElement())
+                    }
+                }
+            }
+            .filterIsInstance<Inet4Address>()
+            .firstOrNull { !it.isLoopbackAddress }
+            ?.hostAddress
+    },
+    private val localIpv4Checker: (String) -> Boolean = { host ->
+        sequence<NetworkInterface> {
+            val enumeration = NetworkInterface.getNetworkInterfaces() ?: return@sequence
+            while (enumeration.hasMoreElements()) {
+                yield(enumeration.nextElement())
+            }
+        }
+            .flatMap { networkInterface ->
+                sequence {
+                    val inetAddresses = networkInterface.inetAddresses
+                    while (inetAddresses.hasMoreElements()) {
+                        yield(inetAddresses.nextElement())
+                    }
+                }
+            }
+            .filterIsInstance<Inet4Address>()
+            .any { address -> address.hostAddress == host }
+    },
+) {
 
     data class BoundAddress(
         val host: String,
@@ -87,19 +143,32 @@ internal class EmbeddedFtpServerFactory {
         )
     }
 
-    private fun resolveBindAddress(config: FtpServerConfig): ResolvedAddress {
+    internal fun resolveBindAddress(config: FtpServerConfig): ResolvedAddress {
         val explicitHost = config.ftpAdvertisedHost?.trim().orEmpty()
+        val interfaceName = config.ftpInterfaceName?.trim().orEmpty()
         if (explicitHost.isNotEmpty()) {
-            if (isValidIpv4(explicitHost) && isLocalIpv4(explicitHost)) {
-                Timber.tag(TAG).i("Использую локальный explicit FTP host: $explicitHost")
-                return ResolvedAddress(explicitHost, "Явный локальный IP из конфигурации")
+            if (!isValidIpv4(explicitHost) || !localIpv4Checker(explicitHost)) {
+                throw FtpException("Явный FTP host недоступен на текущем устройстве: $explicitHost")
             }
-            throw FtpException("Явный FTP host недоступен на текущем устройстве: $explicitHost")
+
+            if (interfaceName.isNotEmpty()) {
+                val interfaceHosts = interfaceIpv4sProvider(interfaceName)
+                if (interfaceHosts.isEmpty()) {
+                    throw FtpException("FTP host $explicitHost ещё не назначен на интерфейс $interfaceName")
+                }
+                if (explicitHost !in interfaceHosts) {
+                    throw FtpException("FTP host $explicitHost назначен не на интерфейс $interfaceName")
+                }
+                Timber.tag(TAG).i("Использую explicit FTP host $explicitHost на интерфейсе $interfaceName")
+                return ResolvedAddress(explicitHost, "Явный локальный IP $explicitHost на интерфейсе $interfaceName")
+            }
+
+            Timber.tag(TAG).i("Использую локальный explicit FTP host: $explicitHost")
+            return ResolvedAddress(explicitHost, "Явный локальный IP из конфигурации")
         }
 
-        val interfaceName = config.ftpInterfaceName?.trim().orEmpty()
         if (interfaceName.isNotEmpty()) {
-            val interfaceHost = findInterfaceIpv4(interfaceName)
+            val interfaceHost = interfaceIpv4sProvider(interfaceName).firstOrNull()
             if (interfaceHost != null) {
                 Timber.tag(TAG).i("Выбран интерфейс из конфигурации: $interfaceName -> $interfaceHost")
                 return ResolvedAddress(interfaceHost, "Интерфейс $interfaceName")
@@ -107,22 +176,23 @@ internal class EmbeddedFtpServerFactory {
             Timber.tag(TAG).w("Интерфейс $interfaceName не найден или не содержит IPv4, перехожу к fallback")
         }
 
-        val fallbackHost = firstNonLoopbackIpv4()
+        val fallbackHost = firstNonLoopbackIpv4Provider()
             ?: throw FtpException("Не найден IPv4 для запуска FTP-сервера")
         Timber.tag(TAG).i("Использую первый подходящий non-loopback IPv4: $fallbackHost")
         return ResolvedAddress(fallbackHost, "Первый non-loopback IPv4")
     }
 
-    private fun findInterfaceIpv4(interfaceName: String): String? {
-        val networkInterface = NetworkInterface.getByName(interfaceName) ?: return null
-        if (!networkInterface.isUp || networkInterface.isLoopback) return null
+    private fun resolveInterfaceIpv4s(interfaceName: String): List<String> {
+        val networkInterface = NetworkInterface.getByName(interfaceName) ?: return emptyList()
+        if (!networkInterface.isUp || networkInterface.isLoopback) return emptyList()
         return networkInterface.inetAddressesSequence()
             .filterIsInstance<Inet4Address>()
-            .firstOrNull { !it.isLoopbackAddress }
-            ?.hostAddress
+            .filter { !it.isLoopbackAddress }
+            .mapNotNull { it.hostAddress }
+            .toList()
     }
 
-    private fun firstNonLoopbackIpv4(): String? {
+    private fun resolveFirstNonLoopbackIpv4(): String? {
         return networkInterfacesSequence()
             .filter { runCatching { it.isUp && !it.isLoopback }.getOrDefault(false) }
             .flatMap { it.inetAddressesSequence() }
@@ -131,7 +201,7 @@ internal class EmbeddedFtpServerFactory {
             ?.hostAddress
     }
 
-    private fun isLocalIpv4(host: String): Boolean {
+    private fun resolveLocalIpv4(host: String): Boolean {
         return networkInterfacesSequence()
             .flatMap { it.inetAddressesSequence() }
             .filterIsInstance<Inet4Address>()
@@ -161,7 +231,7 @@ internal class EmbeddedFtpServerFactory {
         }
     }
 
-    private data class ResolvedAddress(
+    internal data class ResolvedAddress(
         val host: String,
         val reason: String,
     )
