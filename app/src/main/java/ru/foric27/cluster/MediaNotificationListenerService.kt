@@ -65,7 +65,7 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
                 attachToMediaController(controller)
             }
         } catch (e: SecurityException) {
-            Timber.tag(TAG).w(e, "Нет доступа к списку MediaSession, остаётся быстрый захват уведомлений")
+            Timber.tag(TAG).i(e, "Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
         }
 
         processActiveNotifications()
