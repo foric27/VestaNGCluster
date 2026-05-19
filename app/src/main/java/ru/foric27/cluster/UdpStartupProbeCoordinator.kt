@@ -62,6 +62,13 @@ internal class UdpStartupProbeCoordinator(
     ) {
         closeSenderQuietly(localSender)
         clearSenderIfCurrent(localSender)
+        handleRoutePreparationNotReady(hostValue, noRouteRestartBackoffMinMs)
+    }
+
+    fun handleRoutePreparationNotReady(
+        hostValue: String,
+        noRouteRestartBackoffMinMs: Long,
+    ) {
         setStartInProgress(false)
         val backoffMs = increaseRestartBackoff(noRouteRestartBackoffMinMs)
         logPipelineSnapshot("Маршрут не готов для $hostValue")

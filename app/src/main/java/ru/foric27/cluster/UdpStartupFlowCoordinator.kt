@@ -12,16 +12,23 @@ internal class UdpStartupFlowCoordinator(
     private val postToMain: (() -> Unit) -> Unit,
     private val waitForUdpReady: (UdpSender, String, Long) -> Boolean,
     private val handleRouteNotReady: (UdpSender, String, Long) -> Unit,
+    private val handleRoutePreparationNotReady: (String, Long) -> Unit,
 ) {
 
     fun start(
         hostValue: String,
         port: Int,
         bindIp: String?,
+        routeReady: Boolean,
         routeWaitTimeoutMs: Long,
         noRouteRestartBackoffMinMs: Long,
         onReadyPipeline: (UdpSender) -> Unit,
     ) {
+        if (!routeReady) {
+            handleRoutePreparationNotReady(hostValue, noRouteRestartBackoffMinMs)
+            return
+        }
+
         val localSender = try {
             createSender(hostValue, port, bindIp)
         } catch (t: Throwable) {

@@ -371,6 +371,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             postToMain = { block -> mainHandler.post { block() } },
             waitForUdpReady = startupProbeCoordinator::waitForUdpReady,
             handleRouteNotReady = startupProbeCoordinator::handleRouteNotReady,
+            handleRoutePreparationNotReady = startupProbeCoordinator::handleRoutePreparationNotReady,
         )
     }
 
@@ -593,11 +594,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
                 mainHandler.post {
                     if (!serviceRunning) return@post
+                    restartController.resetBackoff()
                     lastBindIp = networkPrep.bindIp
                     startPipelineAsync(
                         cfg = cfg,
                         targetHostValue = requestedTargetHost,
                         bindIp = networkPrep.bindIp,
+                        routeReady = networkPrep.routeReady,
                         launchComponent = cfg.launchComponent,
                         restartLog = true,
                     )
@@ -727,6 +730,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         cfg: StreamConfig,
         targetHostValue: String,
         bindIp: String?,
+        routeReady: Boolean = true,
         launchComponent: String?,
         restartLog: Boolean,
     ) {
@@ -734,6 +738,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             hostValue = targetHostValue,
             port = targetPort,
             bindIp = bindIp,
+            routeReady = routeReady,
             routeWaitTimeoutMs = ROUTE_WAIT_TIMEOUT_MS,
             noRouteRestartBackoffMinMs = NO_ROUTE_RESTART_BACKOFF_MIN_MS,
             onReadyPipeline = { localSender ->
@@ -1110,11 +1115,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         return@post
                     }
                     activeRootIface = networkPrep.ifaceName
+                    restartController.resetBackoff()
                     lastBindIp = networkPrep.bindIp
                     startPipelineAsync(
                         cfg = cfg,
                         targetHostValue = requestedTargetHost,
                         bindIp = networkPrep.bindIp,
+                        routeReady = networkPrep.routeReady,
                         launchComponent = cfg.launchComponent,
                         restartLog = false,
                     )
