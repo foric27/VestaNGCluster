@@ -323,6 +323,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             setStartInProgress = { startInProgress = it },
             resetRestartBackoff = restartController::resetBackoff,
             setRestartBackoff = restartController::setBackoff,
+            ensureMinRestartBackoff = restartController::ensureMinBackoff,
             resetNoLinkWarning = serviceAlerts::resetNoLinkWarning,
             replayRootWarningIfPresent = serviceAlerts::replayRootWarningIfPresent,
             acquireStreamWakeLock = { updateStreamWakeLock(held = true) },

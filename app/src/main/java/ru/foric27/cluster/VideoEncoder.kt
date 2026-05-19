@@ -25,6 +25,94 @@ private fun MediaFormat.trySetInteger(key: String, value: Int) {
     }
 }
 
+internal enum class VideoEncoderStartupFailureReason {
+    CONFIGURE,
+    START,
+}
+
+internal class VideoEncoderStartupException(
+    val reason: VideoEncoderStartupFailureReason,
+    message: String,
+    cause: Throwable,
+) : RuntimeException(message, cause)
+
+internal data class CodecProfileLevelSupport(
+    val profile: Int,
+    val level: Int,
+)
+
+internal data class EncoderCapabilitySnapshot(
+    val codecName: String,
+    val supportsCbr: Boolean,
+    val supportedProfileLevels: List<CodecProfileLevelSupport>,
+)
+
+internal data class CodecConfigCandidate(
+    val label: String,
+    val profile: Int?,
+    val level: Int?,
+    val bitrateMode: Int?,
+)
+
+internal fun buildCodecConfigCandidates(
+    capabilities: EncoderCapabilitySnapshot,
+    requestedProfile: Int,
+    requestedLevel: Int,
+): List<CodecConfigCandidate> {
+    val bitrateMode = if (capabilities.supportsCbr) {
+        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+    } else {
+        null
+    }
+    val candidates = linkedSetOf<CodecConfigCandidate>()
+    val sameProfileLevels = capabilities.supportedProfileLevels
+        .filter { it.profile == requestedProfile }
+        .map { it.level }
+        .sortedDescending()
+    val exactOrHigherLevelSupported = sameProfileLevels.any { it >= requestedLevel }
+    if (exactOrHigherLevelSupported) {
+        candidates += CodecConfigCandidate(
+            label = "requested_profile_level",
+            profile = requestedProfile,
+            level = requestedLevel,
+            bitrateMode = bitrateMode,
+        )
+    } else if (sameProfileLevels.isNotEmpty()) {
+        candidates += CodecConfigCandidate(
+            label = "requested_profile_supported_level",
+            profile = requestedProfile,
+            level = sameProfileLevels.first(),
+            bitrateMode = bitrateMode,
+        )
+    }
+
+    val fallbackProfiles = listOf(
+        MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline,
+        MediaCodecInfo.CodecProfileLevel.AVCProfileMain,
+        MediaCodecInfo.CodecProfileLevel.AVCProfileHigh,
+    )
+    fallbackProfiles.forEach { profile ->
+        val fallbackLevel = capabilities.supportedProfileLevels
+            .filter { it.profile == profile }
+            .maxOfOrNull { it.level }
+            ?: return@forEach
+        candidates += CodecConfigCandidate(
+            label = "fallback_profile_${profile}_level_${fallbackLevel}",
+            profile = profile,
+            level = fallbackLevel,
+            bitrateMode = bitrateMode,
+        )
+    }
+
+    candidates += CodecConfigCandidate(
+        label = "generic_surface_avc",
+        profile = null,
+        level = null,
+        bitrateMode = bitrateMode,
+    )
+    return candidates.toList()
+}
+
 /**
  * Координатор видеопайплайна VirtualDisplay -> OpenGL -> MediaCodec -> UDP.
  *
@@ -95,13 +183,9 @@ internal class VideoEncoder(
             codecThread = handlerThread
             codecHandler = Handler(handlerThread.looper)
 
-            val mediaCodec = MediaCodec.createEncoderByType(MIME_AVC)
-                .apply {
-                    setCallback(codecCallback, codecHandler)
-                    configure(buildCodecFormat(), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                }
-                .also { encoder = it }
-            encoderInputSurface = mediaCodec.createInputSurface()
+            val configuredEncoder = createConfiguredEncoder()
+            val mediaCodec = configuredEncoder.codec.also { encoder = it }
+            encoderInputSurface = configuredEncoder.inputSurface
 
             glComposer = GlFrameComposer(
                 outputSurface = encoderInputSurface ?: throw IllegalStateException("encoderInputSurface == null"),
@@ -118,11 +202,19 @@ internal class VideoEncoder(
                 codecHandler,
             )
 
-            mediaCodec.start()
+            try {
+                mediaCodec.start()
+            } catch (t: Throwable) {
+                throw VideoEncoderStartupException(
+                    reason = VideoEncoderStartupFailureReason.START,
+                    message = "Не удалось запустить MediaCodec после configure: ${configuredEncoder.candidate.label}",
+                    cause = t,
+                )
+            }
             applyConfiguredBitrate()
 
             Timber.tag(TAG).i(
-                "Профиль захвата: ${RuntimeConfig.Video.SIZE_SHORT}@${dpi}, constantFps=${streamConfig.fps}, bitrate=${streamConfig.bitrate}bps, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, profile=${RuntimeConfig.Video.ENCODER_PROFILE}, level=${RuntimeConfig.Video.ENCODER_LEVEL}",
+                "Профиль захвата: ${RuntimeConfig.Video.SIZE_SHORT}@${dpi}, constantFps=${streamConfig.fps}, bitrate=${streamConfig.bitrate}bps, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, profile=${configuredEncoder.candidate.profile ?: RuntimeConfig.Video.ENCODER_PROFILE}, level=${configuredEncoder.candidate.level ?: RuntimeConfig.Video.ENCODER_LEVEL}, codecCandidate=${configuredEncoder.candidate.label}",
             )
 
             acquireVirtualDisplayOrThrow()
@@ -224,21 +316,89 @@ internal class VideoEncoder(
         }
     }
 
-    private fun buildCodecFormat(): MediaFormat {
+    private fun createConfiguredEncoder(): ConfiguredEncoder {
+        val capabilities = inspectEncoderCapabilities()
+        Timber.tag(TAG).i(
+            "MediaCodec capabilities: codec=${capabilities.codecName}, supportsCbr=${capabilities.supportsCbr}, profiles=${capabilities.supportedProfileLevels.joinToString { "${it.profile}/${it.level}" }}",
+        )
+        val candidates = buildCodecConfigCandidates(
+            capabilities = capabilities,
+            requestedProfile = RuntimeConfig.Video.ENCODER_PROFILE,
+            requestedLevel = RuntimeConfig.Video.ENCODER_LEVEL,
+        )
+        var lastError: Throwable? = null
+        candidates.forEach { candidate ->
+            var mediaCodec: MediaCodec? = null
+            var inputSurface: Surface? = null
+            try {
+                val format = buildCodecFormat(candidate)
+                Timber.tag(TAG).i("Пробую configure MediaCodec: ${describeCodecCandidate(candidate)}")
+                mediaCodec = MediaCodec.createEncoderByType(MIME_AVC)
+                mediaCodec.setCallback(codecCallback, codecHandler)
+                mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                inputSurface = mediaCodec.createInputSurface()
+                Timber.tag(TAG).i("MediaCodec configure успешен: ${describeCodecCandidate(candidate)}")
+                return ConfiguredEncoder(mediaCodec, inputSurface, candidate)
+            } catch (t: Throwable) {
+                lastError = t
+                Timber.tag(TAG).w(t, "MediaCodec configure не удался: ${describeCodecCandidate(candidate)}")
+                runCatching { inputSurface?.release() }
+                runCatching { mediaCodec?.release() }
+            }
+        }
+        throw VideoEncoderStartupException(
+            reason = VideoEncoderStartupFailureReason.CONFIGURE,
+            message = "Не удалось подобрать рабочую конфигурацию MediaCodec для H.264 encoder",
+            cause = lastError ?: IllegalStateException("configure failed without cause"),
+        )
+    }
+
+    private fun inspectEncoderCapabilities(): EncoderCapabilitySnapshot {
+        val mediaCodec = MediaCodec.createEncoderByType(MIME_AVC)
+        try {
+            val codecInfo = mediaCodec.codecInfo
+            val capabilities = codecInfo.getCapabilitiesForType(MIME_AVC)
+            val profileLevels = capabilities.profileLevels
+                ?.map { CodecProfileLevelSupport(profile = it.profile, level = it.level) }
+                .orEmpty()
+            val supportsCbr = runCatching {
+                capabilities.encoderCapabilities?.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR) == true
+            }.getOrDefault(false)
+            return EncoderCapabilitySnapshot(
+                codecName = codecInfo.name,
+                supportsCbr = supportsCbr,
+                supportedProfileLevels = profileLevels,
+            )
+        } catch (t: Throwable) {
+            throw VideoEncoderStartupException(
+                reason = VideoEncoderStartupFailureReason.START,
+                message = "Не удалось прочитать capability encoder'а H.264",
+                cause = t,
+            )
+        } finally {
+            runCatching { mediaCodec.release() }
+        }
+    }
+
+    private fun buildCodecFormat(candidate: CodecConfigCandidate): MediaFormat {
         return MediaFormat.createVideoFormat(MIME_AVC, width, height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, streamConfig.bitrate)
-            trySetInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+            candidate.bitrateMode?.let { trySetInteger(MediaFormat.KEY_BITRATE_MODE, it) }
             setInteger(MediaFormat.KEY_FRAME_RATE, streamConfig.fps)
             try {
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec)
             } catch (_: Throwable) {
                 setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, streamConfig.iframeIntervalSec.toFloat())
             }
-            trySetInteger(MediaFormat.KEY_PROFILE, RuntimeConfig.Video.ENCODER_PROFILE)
-            trySetInteger(MediaFormat.KEY_LEVEL, RuntimeConfig.Video.ENCODER_LEVEL)
+            candidate.profile?.let { trySetInteger(MediaFormat.KEY_PROFILE, it) }
+            candidate.level?.let { trySetInteger(MediaFormat.KEY_LEVEL, it) }
             trySetInteger(MediaFormat.KEY_PRIORITY, 0)
         }
+    }
+
+    private fun describeCodecCandidate(candidate: CodecConfigCandidate): String {
+        return "candidate=${candidate.label}, profile=${candidate.profile ?: "default"}, level=${candidate.level ?: "default"}, bitrateMode=${candidate.bitrateMode ?: "default"}, size=${width}x${height}, fps=${streamConfig.fps}, bitrate=${streamConfig.bitrate}"
     }
 
     private fun safeStopInternal(releasePersistentDisplay: Boolean) {
@@ -562,4 +722,10 @@ internal class VideoEncoder(
         private const val CODEC_THREAD_JOIN_TIMEOUT_MS = 1_000L
         private const val FPS_LOG_WINDOW_MS = 2_000L
     }
+
+    private data class ConfiguredEncoder(
+        val codec: MediaCodec,
+        val inputSurface: Surface,
+        val candidate: CodecConfigCandidate,
+    )
 }

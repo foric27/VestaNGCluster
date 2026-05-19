@@ -18,6 +18,7 @@ internal class UdpPipelineStartCoordinator(
     private val setStartInProgress: (Boolean) -> Unit,
     private val resetRestartBackoff: () -> Unit,
     private val setRestartBackoff: (Long) -> Unit,
+    private val ensureMinRestartBackoff: (Long) -> Long,
     private val resetNoLinkWarning: () -> Unit,
     private val replayRootWarningIfPresent: () -> Unit,
     private val acquireStreamWakeLock: () -> Unit,
@@ -109,7 +110,18 @@ internal class UdpPipelineStartCoordinator(
         } catch (t: Throwable) {
             setStartInProgress(false)
             setStreamActive(false)
+            val startupFailure = t as? VideoEncoderStartupException
+            val codecStartupBackoffMs = if (startupFailure != null) {
+                ensureMinRestartBackoff(RuntimeConfig.Service.CODEC_ERROR_RESTART_DEBOUNCE_MS)
+            } else {
+                0L
+            }
             Timber.tag(tag).e(t, "Ошибка запуска кодера")
+            if (codecStartupBackoffMs > 0L) {
+                Timber.tag(tag).w(
+                    "Поднимаю backoff после startup codec failure до ${codecStartupBackoffMs}мс, reason=${startupFailure?.reason}",
+                )
+            }
             closeSenderQuietly(localSender)
             clearSenderIfCurrent(localSender)
             stopEncoderQuietly()
