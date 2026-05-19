@@ -110,6 +110,14 @@ internal class GlFrameComposer(
         GLES20.glClearColor(0f, 0f, 0f, 0f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
+        // Маска нижней полосы: не рисуем туда контент VirtualDisplay,
+        // оставляя прозрачный clear-color для пустой нижней зоны.
+        val blackBottomPx = RuntimeConfig.Video.BLACK_BOTTOM_PX
+        if (blackBottomPx in 1 until height) {
+            GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+            GLES20.glScissor(0, blackBottomPx, width, height - blackBottomPx)
+        }
+
         GLES20.glUseProgram(program)
         vertexBuffer.position(0)
         GLES20.glVertexAttribPointer(positionLoc, 2, GLES20.GL_FLOAT, false, 0, vertexBuffer)
@@ -124,6 +132,10 @@ internal class GlFrameComposer(
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
         GLES20.glDisableVertexAttribArray(positionLoc)
         GLES20.glDisableVertexAttribArray(texCoordLoc)
+
+        if (blackBottomPx in 1 until height) {
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+        }
 
         EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, timestampNs)
         EGL14.eglSwapBuffers(eglDisplay, eglSurface)
