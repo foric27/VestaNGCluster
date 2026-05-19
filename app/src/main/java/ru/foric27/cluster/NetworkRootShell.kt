@@ -1,5 +1,6 @@
 package ru.foric27.cluster
 
+import android.os.SystemClock
 import timber.log.Timber
 import com.topjohnwu.superuser.Shell
 import java.io.IOException
@@ -89,11 +90,18 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
                 val shell = getOrCreateShellLocked(forceRecreate = false)
                 val available = shell.isRoot && shell.isAlive
                 if (!available) {
-                    Timber.tag(TAG).w("Root-доступ недоступен: shell.isRoot=${shell.isRoot}, shell.isAlive=${shell.isAlive}")
+                    logAvailabilityFailure(
+                        message = "Root-доступ недоступен: shell.isRoot=${shell.isRoot}, shell.isAlive=${shell.isAlive}",
+                    )
+                } else {
+                    resetAvailabilityFailureLogState()
                 }
                 available
             } catch (t: Throwable) {
-                Timber.tag(TAG).w(t, "Root-доступ недоступен: исключение при проверке shell")
+                logAvailabilityFailure(
+                    message = "Root-доступ недоступен: исключение при проверке shell",
+                    error = t,
+                )
                 discardShellLocked()
                 false
             }
@@ -185,11 +193,54 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
         return IOException(message)
     }
 
+    private fun logAvailabilityFailure(message: String, error: Throwable? = null) {
+        val nowMs = SystemClock.elapsedRealtime()
+        val signature = buildString {
+            append(message)
+            if (error != null) {
+                append('|')
+                append(error.javaClass.name)
+                append(':')
+                append(error.message)
+            }
+        }
+        val sameFailure = signature == lastAvailabilityFailureSignature
+        val withinWindow = sameFailure && (nowMs - lastAvailabilityFailureLogElapsedRealtimeMs) < AVAILABILITY_FAILURE_LOG_WINDOW_MS
+        if (withinWindow) {
+            suppressedAvailabilityFailureCount += 1
+            return
+        }
+
+        val suppressedCount = suppressedAvailabilityFailureCount
+        val repeatedFailure = sameFailure && suppressedCount > 0
+        lastAvailabilityFailureSignature = signature
+        lastAvailabilityFailureLogElapsedRealtimeMs = nowMs
+        suppressedAvailabilityFailureCount = 0
+
+        if (repeatedFailure) {
+            Timber.tag(TAG).w("$message; повторов suppressed=$suppressedCount")
+            return
+        }
+
+        if (error == null) {
+            Timber.tag(TAG).w(message)
+        } else {
+            Timber.tag(TAG).w(error, message)
+        }
+    }
+
+    private fun resetAvailabilityFailureLogState() {
+        lastAvailabilityFailureSignature = null
+        lastAvailabilityFailureLogElapsedRealtimeMs = 0L
+        suppressedAvailabilityFailureCount = 0
+    }
+
     private companion object {
         private const val TAG = "NetworkRootShell"
         private const val MAX_ATTEMPTS = 3
         private const val RETRY_BASE_DELAY_MS = 100L
         private const val RETRY_MAX_DELAY_MS = 500L
+        private const val AVAILABILITY_FAILURE_LOG_WINDOW_MS = 5_000L
         private val BLOCKED_SHELL_TOKENS = listOf(
             "$(",
             "&&",
@@ -211,6 +262,15 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
             "ndc",
             "cmd network",
         )
+
+        @Volatile
+        private var lastAvailabilityFailureSignature: String? = null
+
+        @Volatile
+        private var lastAvailabilityFailureLogElapsedRealtimeMs: Long = 0L
+
+        @Volatile
+        private var suppressedAvailabilityFailureCount: Int = 0
     }
 
     private val lock = Any()

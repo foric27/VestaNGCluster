@@ -428,9 +428,13 @@ class MainActivity : AppCompatActivity() {
             shell.close()
         }
         if (!rootAvailable) {
-            Timber.tag(TAG).w("ROOT НЕ ДОСТУПЕН: приложение запущено без root-прав")
-            Toast.makeText(this, R.string.msg_root_missing_toast, Toast.LENGTH_LONG).show()
-            AppWarningCenter.publish(getString(R.string.msg_root_required))
+            val rootMessage = getString(R.string.msg_root_required)
+            val shouldShowWarning = !AppWarningCenter.contains(rootMessage)
+            if (shouldShowWarning) {
+                Timber.tag(TAG).w("ROOT НЕ ДОСТУПЕН: приложение запущено без root-прав")
+                Toast.makeText(this, R.string.msg_root_missing_toast, Toast.LENGTH_LONG).show()
+            }
+            AppWarningCenter.publish(rootMessage)
         }
     }
 

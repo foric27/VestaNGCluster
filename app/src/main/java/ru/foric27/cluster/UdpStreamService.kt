@@ -79,13 +79,19 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         super.onCreate()
         RuntimeConfig.init(applicationContext)
         RootNetUtil.attachNetworkRootShell(networkRootShell)
-        if (!networkRootShell.isAvailable()) {
-            Timber.tag(TAG).e("ROOT НЕ ДОСТУПЕН: сервис запущен без root-прав, сетевые функции и видеотрансляция будут недоступны")
-        }
+        val rootAvailable = networkRootShell.isAvailable()
         serviceRunning = true
         streamActiveState = false
         initWakeLock()
         initCollaborators()
+        if (!rootAvailable) {
+            val rootMessage = getString(R.string.msg_root_required)
+            val shouldLogWarning = !AppWarningCenter.contains(rootMessage)
+            serviceAlerts.notifyRootRequiredOnce()
+            if (shouldLogWarning) {
+                Timber.tag(TAG).w("ROOT НЕ ДОСТУПЕН: сервис запущен без root-прав, сетевые функции и видеотрансляция будут недоступны")
+            }
+        }
         ensureNotificationChannel()
         recoveryScheduler.cancel()
         wakeRecoveryController.register()
