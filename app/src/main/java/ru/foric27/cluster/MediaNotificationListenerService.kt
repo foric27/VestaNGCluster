@@ -44,6 +44,7 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
     private var notificationScanJob: Job? = null
     private var lastPublishedKey: String? = null
     private var lastPublishedSnapshot: TrackSnapshot? = null
+    private var mediaSessionAccessDeniedLogged = false
 
     private val activeSessionsChangedListener =
         MediaSessionManager.OnActiveSessionsChangedListener { activeControllers ->
@@ -65,7 +66,12 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
                 attachToMediaController(controller)
             }
         } catch (e: SecurityException) {
-            Timber.tag(TAG).i(e, "Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
+            if (!mediaSessionAccessDeniedLogged) {
+                mediaSessionAccessDeniedLogged = true
+                Timber.tag(TAG).i(e, "Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
+            } else {
+                Timber.tag(TAG).i("Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
+            }
         }
 
         processActiveNotifications()

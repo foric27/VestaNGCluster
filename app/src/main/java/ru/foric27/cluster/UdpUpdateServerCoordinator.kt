@@ -13,6 +13,7 @@ internal class UdpUpdateServerCoordinator(
 ) {
 
     @Volatile private var lastFtpRetryReport: String? = null
+    @Volatile private var lastFtpFailureReport: String? = null
     @Volatile private var ftpRetryScheduled = false
     @Volatile private var ftpOperationInProgress = false
     @Volatile private var lastKnownUpdateSha256: String? = null
@@ -29,13 +30,17 @@ internal class UdpUpdateServerCoordinator(
         } ?: return
         if (result.success) {
             Timber.tag(TAG).i("FTP обновление активно: ${result.boundAddress?.host}:${result.boundAddress?.port}")
+            lastFtpFailureReport = null
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Timber.tag(TAG).w("FTP обновление не запущено: ${result.message}")
-        publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
+        reportFtpFailureOnce(
+            report = "startup:${result.message}",
+            logMessage = "FTP обновление не запущено: ${result.message}",
+            warningMessage = context.getString(R.string.service_notification_ftp_message_fmt, result.message),
+        )
         if (result.retrySuggested) {
             scheduleFtpRetry("startup")
         } else {
@@ -50,13 +55,17 @@ internal class UdpUpdateServerCoordinator(
         if (result.success) {
             val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
             Timber.tag(TAG).i("FTP перезапущен: $address")
+            lastFtpFailureReport = null
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Timber.tag(TAG).w("FTP после перезапуска не поднят: ${result.message}")
-        publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
+        reportFtpFailureOnce(
+            report = "restart:${result.message}",
+            logMessage = "FTP после перезапуска не поднят: ${result.message}",
+            warningMessage = context.getString(R.string.service_notification_ftp_message_fmt, result.message),
+        )
         if (result.retrySuggested) {
             scheduleFtpRetry("restart")
         } else {
@@ -74,13 +83,17 @@ internal class UdpUpdateServerCoordinator(
         if (result.success) {
             val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
             Timber.tag(TAG).i("FTP обновлён по USB-aware пути: $address")
+            lastFtpFailureReport = null
             cancelFtpRetry()
             checkAndShowUpdateAlert(result)
             return
         }
 
-        Timber.tag(TAG).w("USB-aware обновление FTP не запустило сервер: ${result.message}")
-        publishWarning(context.getString(R.string.service_notification_ftp_message_fmt, result.message))
+        reportFtpFailureOnce(
+            report = "usb_refresh:${result.message}",
+            logMessage = "USB-aware обновление FTP не запустило сервер: ${result.message}",
+            warningMessage = context.getString(R.string.service_notification_ftp_message_fmt, result.message),
+        )
         if (result.retrySuggested) {
             scheduleFtpRetry("usb_refresh")
         } else {
@@ -157,13 +170,14 @@ internal class UdpUpdateServerCoordinator(
                     }
                 }
 
-                if (result.success) {
-                    cancelFtpRetry()
-                } else if (result.retrySuggested) {
-                    scheduleFtpRetry("ftp_retry")
-                } else {
-                    cancelFtpRetry()
-                }
+        if (result.success) {
+            cancelFtpRetry()
+            lastFtpFailureReport = null
+        } else if (result.retrySuggested) {
+            scheduleFtpRetry("ftp_retry")
+        } else {
+            cancelFtpRetry()
+        }
             } catch (t: Throwable) {
                 Timber.tag(TAG).e(t, "Ошибка повторного запуска FTP")
                 scheduleFtpRetry("ftp_retry_exception")
@@ -215,6 +229,17 @@ internal class UdpUpdateServerCoordinator(
                 ftpOperationInProgress = false
             }
         }
+    }
+
+    private fun reportFtpFailureOnce(
+        report: String,
+        logMessage: String,
+        warningMessage: String,
+    ) {
+        if (report == lastFtpFailureReport) return
+        lastFtpFailureReport = report
+        Timber.tag(TAG).w(logMessage)
+        publishWarning(warningMessage)
     }
 
     private companion object {

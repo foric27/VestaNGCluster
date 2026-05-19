@@ -69,6 +69,7 @@ internal object UpdateServerManager {
     @Volatile private var lastPrepareAttemptMs: Long = 0L
     @Volatile private var lastPrepareAttemptPolicy: UpdateFileLocator.SearchPolicy? = null
     @Volatile private var lastPrepareAttemptFailed: Boolean = false
+    @Volatile private var lastAccessDeniedLogMessage: String? = null
 
     fun prepareAndStartServer(
         context: Context,
@@ -421,7 +422,7 @@ internal object UpdateServerManager {
         beforeStart: (ValidatedPair) -> Unit = {},
     ): ResolveStartOutcome {
         if (!StorageAccessManager.isAllFilesAccessGranted()) {
-            accessDeniedLogMessage?.let { Timber.tag(TAG).w(it) }
+            accessDeniedLogMessage?.let { logAccessDeniedOnce(it) }
             val serverToStop = stopServerLocked(clearPrepared = true)
             return ResolveStartOutcome(
                 result = failState(
@@ -472,6 +473,12 @@ internal object UpdateServerManager {
                 serverToStop = stopServerLocked(clearPrepared = true),
             )
         }
+    }
+
+    private fun logAccessDeniedOnce(message: String) {
+        if (message == lastAccessDeniedLogMessage) return
+        lastAccessDeniedLogMessage = message
+        Timber.tag(TAG).i(message)
     }
 
     private fun isSamePreparedUpdateLocked(validatedPair: ValidatedPair): Boolean {
