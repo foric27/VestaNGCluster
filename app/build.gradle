@@ -18,6 +18,13 @@ def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS') ?: signingProps.getProp
 def releaseKeyPassword = System.getenv('ANDROID_KEY_PASSWORD') ?: signingProps.getProperty('keyPassword')
 if (releaseStoreFile != null) {
     releaseStoreFile = releaseStoreFile.replace('\\', '/')
+    def configuredStoreFile = file(releaseStoreFile)
+    if (!configuredStoreFile.exists()) {
+        def fallbackStoreFile = rootProject.file(".tools/signing/${configuredStoreFile.name}")
+        if (fallbackStoreFile.exists()) {
+            releaseStoreFile = fallbackStoreFile.absolutePath.replace('\\', '/')
+        }
+    }
 }
 def releaseSigningReady = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it != null && !it.toString().trim().isEmpty() }
 
