@@ -410,7 +410,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val cfg = lastCfg ?: StreamConfig.fixedConfig(applicationContext, getCurrentStreamMode())
         val currentSender = sender
         val senderSnapshot = currentSender?.snapshot()
-        val recentVideoTraffic = senderSnapshot?.lastSendElapsedRealtimeMs?.let { lastSendMs ->
+        val recentVideoTraffic = senderSnapshot?.lastSendSuccessElapsedRealtimeMs?.let { lastSendMs ->
             lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
         } == true
         val displayId = VdspState.getDisplayId()
@@ -875,7 +875,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private fun logPipelineSnapshot(prefix: String) {
         val senderSnapshot = sender?.snapshot()
         val displayId = VdspState.getDisplayId()
-        val lastSendAgoMs = senderSnapshot?.lastSendElapsedRealtimeMs?.takeIf { it > 0L }?.let {
+        val lastSendAttemptAgoMs = senderSnapshot?.lastSendAttemptElapsedRealtimeMs?.takeIf { it > 0L }?.let {
+            SystemClock.elapsedRealtime() - it
+        } ?: -1L
+        val lastSendSuccessAgoMs = senderSnapshot?.lastSendSuccessElapsedRealtimeMs?.takeIf { it > 0L }?.let {
             SystemClock.elapsedRealtime() - it
         } ?: -1L
         Timber.tag(TAG).i(
@@ -889,7 +892,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 "videoFrames" to (senderSnapshot?.videoFramesSent ?: 0),
                 "videoPackets" to (senderSnapshot?.videoPacketsSent ?: 0),
                 "sendErrors" to (senderSnapshot?.sendErrors ?: 0),
-                "lastSendAgoMs" to lastSendAgoMs,
+                "consecutiveSendErrors" to (senderSnapshot?.consecutiveFrameSendErrors ?: 0),
+                "lastSendAttemptAgoMs" to lastSendAttemptAgoMs,
+                "lastSendSuccessAgoMs" to lastSendSuccessAgoMs,
                 "routeFailureStreak" to connectivityWatchdogCoordinator.currentRouteFailureStreak(),
                 "bindIp" to lastBindIp,
                 "iface" to RuntimeConfig.Root.IFACE,

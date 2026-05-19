@@ -52,8 +52,8 @@ internal class UdpConnectivityWatchdogCoordinator(
                 val targetHost = hostProvider()?.takeIf { it.isNotBlank() } ?: cfg.ip
                 val localCidr = cfg.localCidr?.takeIf { it.isNotBlank() } ?: defaultUsbLocalCidr
                 val expectedBindIp = cfg.bindIp?.takeIf { it.isNotBlank() } ?: ipFromCidr(localCidr)
-                val lastSendMs = snapshot.lastSendElapsedRealtimeMs
-                val recentVideoTraffic = lastSendMs > 0L && (nowMs - lastSendMs) <= routeRecentSendGraceMs
+                val lastSendSuccessMs = snapshot.lastSendSuccessElapsedRealtimeMs
+                val recentVideoTraffic = lastSendSuccessMs > 0L && (nowMs - lastSendSuccessMs) <= routeRecentSendGraceMs
 
                 val activeProbeState = RootNetUtil.getIfaceProbeState(force = false)
                 if (!activeProbeState.rootRequired && activeProbeState.exists && !activeProbeState.linkUp) {
@@ -102,7 +102,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                     continue
                 }
 
-                val probeState = RootNetUtil.getIfaceProbeState(force = false)
+                val probeState = activeProbeState
                 if (!probeState.rootRequired && probeState.exists && !probeState.linkUp) {
                     Timber.tag(tag).w("Watchdog: link ${probeState.iface} down во время активного стрима")
                     requestImmediateRecovery(
@@ -133,10 +133,14 @@ internal class UdpConnectivityWatchdogCoordinator(
                     val routeCheck = RootNetUtil.checkRouteTo(targetHost, expectedBindIp, forceProbe = false)
                     val routeReady = routeCheck.ok
                     logRouteVerdict("watchdog", routeCheck)
-                    val probeOk = try {
-                        currentSender.probe()
-                    } catch (t: Throwable) {
-                        Timber.tag(tag).w(t, "Watchdog: исключение при UDP probe во время route-check")
+                    val probeOk = if (routeReady) {
+                        try {
+                            currentSender.probe()
+                        } catch (t: Throwable) {
+                            Timber.tag(tag).w(t, "Watchdog: исключение при UDP probe во время route-check")
+                            false
+                        }
+                    } else {
                         false
                     }
 

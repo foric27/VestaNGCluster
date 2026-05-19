@@ -41,7 +41,12 @@ internal class UdpSender(
     private val probePacketsSent = AtomicLong(0)
     private val probeBytesSent = AtomicLong(0)
     private val sendErrors = AtomicLong(0)
-    @Volatile private var lastSendElapsedRealtimeMs: Long = 0L
+    @Volatile private var lastSendAttemptElapsedRealtimeMs: Long = 0L
+    @Volatile private var lastSendSuccessElapsedRealtimeMs: Long = 0L
+    @Volatile private var consecutiveFrameSendErrors: Int = 0
+    @Volatile private var lastProbeFailureLogElapsedRealtimeMs: Long = 0L
+    @Volatile private var lastProbeFailureSignature: String? = null
+    @Volatile private var suppressedProbeFailureCount: Int = 0
 
     private var pacingDebtBytes: Int = 0
     private var pacingNextSendNs: Long = 0L
@@ -99,21 +104,26 @@ internal class UdpSender(
             while (offset < data.size) {
                 val len = minOf(safePayloadBytes, data.size - offset)
                 val packet = DatagramPacket(data, offset, len, a, port)
+                markSendAttempt()
                 s.send(packet)
                 videoPacketsSent.incrementAndGet()
                 videoBytesSent.addAndGet(len.toLong())
-                lastSendElapsedRealtimeMs = android.os.SystemClock.elapsedRealtime()
+                markSendSuccess()
                 offset += len
                 paceAfterPacket(len)
             }
         } catch (e: java.net.PortUnreachableException) {
-            sendErrors.incrementAndGet()
+            val failureCount = markFrameSendFailure()
             Timber.tag(TAG).w("UDP PortUnreachable (сеть недоступна), отправлено $offset/${data.size} байт")
-            // Не пробрасываем — это не фатальная ошибка, сеть может восстановиться
+            if (failureCount >= MAX_CONSECUTIVE_FRAME_SEND_ERRORS) {
+                throw IOException("Повторяющаяся UDP PortUnreachable ошибка ($failureCount подряд)", e)
+            }
         } catch (e: IOException) {
-            sendErrors.incrementAndGet()
+            val failureCount = markFrameSendFailure()
             Timber.tag(TAG).w(e, "UDP send error, host=$host:$port, bindIp=${bindIp ?: "auto"}, отправлено $offset/${data.size} байт")
-            // Не пробрасываем — codec thread не должен падать из-за сетевых проблем
+            if (failureCount >= MAX_CONSECUTIVE_FRAME_SEND_ERRORS) {
+                throw IOException("Повторяющаяся ошибка UDP-отправки ($failureCount подряд)", e)
+            }
         } catch (e: RuntimeException) {
             sendErrors.incrementAndGet()
             Timber.tag(TAG).e(e, "UDP send runtime error")
@@ -133,14 +143,15 @@ internal class UdpSender(
         return try {
             val payload = byteArrayOf(0)
             val packet = DatagramPacket(payload, 0, payload.size, a, port)
+            markSendAttempt()
             s.send(packet)
             probePacketsSent.incrementAndGet()
             probeBytesSent.addAndGet(payload.size.toLong())
-            lastSendElapsedRealtimeMs = android.os.SystemClock.elapsedRealtime()
+            markSendSuccess()
             true
         } catch (t: Throwable) {
             sendErrors.incrementAndGet()
-            Timber.tag(TAG).w(t, "Проверочная отправка UDP не удалась: host=$host:$port, bindIp=${bindIp ?: "auto"}")
+            logProbeFailure(t)
             false
         }
     }
@@ -175,8 +186,62 @@ internal class UdpSender(
         probePacketsSent = probePacketsSent.get(),
         probeBytesSent = probeBytesSent.get(),
         sendErrors = sendErrors.get(),
-        lastSendElapsedRealtimeMs = lastSendElapsedRealtimeMs,
+        consecutiveFrameSendErrors = consecutiveFrameSendErrors,
+        lastSendAttemptElapsedRealtimeMs = lastSendAttemptElapsedRealtimeMs,
+        lastSendSuccessElapsedRealtimeMs = lastSendSuccessElapsedRealtimeMs,
     )
+
+    private fun markSendAttempt() {
+        lastSendAttemptElapsedRealtimeMs = android.os.SystemClock.elapsedRealtime()
+    }
+
+    private fun markSendSuccess() {
+        val nowMs = android.os.SystemClock.elapsedRealtime()
+        lastSendAttemptElapsedRealtimeMs = nowMs
+        lastSendSuccessElapsedRealtimeMs = nowMs
+        consecutiveFrameSendErrors = 0
+        lastProbeFailureLogElapsedRealtimeMs = 0L
+        lastProbeFailureSignature = null
+        suppressedProbeFailureCount = 0
+    }
+
+    private fun logProbeFailure(error: Throwable) {
+        val nowMs = android.os.SystemClock.elapsedRealtime()
+        val currentSignature = buildString {
+            append(error.javaClass.name)
+            append(':')
+            append(error.message.orEmpty())
+        }
+        val sameFailure = currentSignature == lastProbeFailureSignature
+        val withinWindow = sameFailure &&
+            lastProbeFailureLogElapsedRealtimeMs > 0L &&
+            (nowMs - lastProbeFailureLogElapsedRealtimeMs) < PROBE_FAILURE_LOG_WINDOW_MS
+
+        if (withinWindow) {
+            suppressedProbeFailureCount += 1
+            return
+        }
+
+        val hostLabel = "$host:$port"
+        val bindLabel = bindIp ?: "auto"
+        if (sameFailure && suppressedProbeFailureCount > 0) {
+            Timber.tag(TAG).w(
+                "Проверочная отправка UDP всё ещё не удаётся: host=$hostLabel, bindIp=$bindLabel, repeats=${suppressedProbeFailureCount + 1}, cause=${error.message ?: error.javaClass.simpleName}",
+            )
+        } else {
+            Timber.tag(TAG).w(error, "Проверочная отправка UDP не удалась: host=$hostLabel, bindIp=$bindLabel")
+        }
+
+        lastProbeFailureLogElapsedRealtimeMs = nowMs
+        lastProbeFailureSignature = currentSignature
+        suppressedProbeFailureCount = 0
+    }
+
+    private fun markFrameSendFailure(): Int {
+        sendErrors.incrementAndGet()
+        consecutiveFrameSendErrors += 1
+        return consecutiveFrameSendErrors
+    }
 
     private fun paceAfterPacket(packetBytes: Int) {
         pacingDebtBytes += packetBytes
@@ -238,7 +303,9 @@ internal class UdpSender(
         val probePacketsSent: Long,
         val probeBytesSent: Long,
         val sendErrors: Long,
-        val lastSendElapsedRealtimeMs: Long,
+        val consecutiveFrameSendErrors: Int,
+        val lastSendAttemptElapsedRealtimeMs: Long,
+        val lastSendSuccessElapsedRealtimeMs: Long,
     )
 
     companion object {
@@ -253,6 +320,8 @@ internal class UdpSender(
         private const val SPIN_GUARD_NS: Long = 300_000L
         private const val YIELD_THRESHOLD_NS: Long = 80_000L
         private const val MIN_COMPAT_WAIT_NS: Long = 20_000L
+        private const val MAX_CONSECUTIVE_FRAME_SEND_ERRORS: Int = 3
+        private const val PROBE_FAILURE_LOG_WINDOW_MS: Long = 5_000L
         private const val TAG = "UdpSender"
     }
 }

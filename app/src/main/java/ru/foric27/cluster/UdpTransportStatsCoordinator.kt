@@ -65,15 +65,20 @@ internal class UdpTransportStatsCoordinator(
 
                 val videoMbps = deltaBytes * 8.0 / 2_000_000.0
                 val statusKbps = deltaStatusBytes * 8.0 / 2_000.0
-                val lastSendAgo = if (snapshot.lastSendElapsedRealtimeMs > 0L) {
-                    SystemClock.elapsedRealtime() - snapshot.lastSendElapsedRealtimeMs
+                val lastSendAttemptAgo = if (snapshot.lastSendAttemptElapsedRealtimeMs > 0L) {
+                    SystemClock.elapsedRealtime() - snapshot.lastSendAttemptElapsedRealtimeMs
+                } else {
+                    -1L
+                }
+                val lastSendSuccessAgo = if (snapshot.lastSendSuccessElapsedRealtimeMs > 0L) {
+                    SystemClock.elapsedRealtime() - snapshot.lastSendSuccessElapsedRealtimeMs
                 } else {
                     -1L
                 }
 
                 Timber.tag(tag).i(String.format(
                         Locale.US,
-                        "UDP stats | dst=%s:%d | video: +%d frames, +%d packets, +%d bytes, %.3f Mbps | probes: +%d packets, +%d bytes | status: +%d packets, +%d bytes, %.2f kbps | errors:+%d | lastSendAgo=%dms",
+                        "UDP stats | dst=%s:%d | video: +%d frames, +%d packets, +%d bytes, %.3f Mbps | probes: +%d packets, +%d bytes | status: +%d packets, +%d bytes, %.2f kbps | errors:+%d | consecutiveSendErrors=%d | lastSendAttemptAgo=%dms | lastSendSuccessAgo=%dms",
                         snapshot.host,
                         snapshot.port,
                         deltaFrames,
@@ -86,7 +91,9 @@ internal class UdpTransportStatsCoordinator(
                         deltaStatusBytes,
                         statusKbps,
                         deltaErrors,
-                        lastSendAgo,
+                        snapshot.consecutiveFrameSendErrors,
+                        lastSendAttemptAgo,
+                        lastSendSuccessAgo,
                     ),
                 )
             }
