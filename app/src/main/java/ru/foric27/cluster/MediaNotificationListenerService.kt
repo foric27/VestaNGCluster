@@ -46,6 +46,12 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
     private var lastPublishedSnapshot: TrackSnapshot? = null
     private var mediaSessionAccessDeniedLogged = false
 
+    // Debounce: подавляем повторяющиеся события в течение 300 мс
+    private var lastPublishTimeMs: Long = 0L
+    private var pendingPublishSnapshot: TrackSnapshot? = null
+    private var pendingPublishSource: String = ""
+    private var publishDebounceJob: Job? = null
+
     private val activeSessionsChangedListener =
         MediaSessionManager.OnActiveSessionsChangedListener { activeControllers ->
             activeControllers.orEmpty().forEach { controller ->
@@ -328,25 +334,58 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         if (!mergedSnapshot.isPlaying && activePackage != null && mergedSnapshot.packageName != activePackage) return
         val publishKey = mergedSnapshot.publishKey
         if (publishKey == lastPublishedKey) return
-        lastPublishedKey = publishKey
-        lastPublishedSnapshot = mergedSnapshot
-        activePackage = mergedSnapshot.packageName
+
+        // Debounce: если ключ изменился, но прошло менее 300 мс с последней публикации,
+        // откладываем публикацию и ждём стабилизации данных
+        val nowMs = SystemClock.elapsedRealtime()
+        val timeSinceLastPublish = nowMs - lastPublishTimeMs
+        if (timeSinceLastPublish < PUBLISH_DEBOUNCE_MS && publishDebounceJob?.isActive == true) {
+            // Обновляем pending snapshot на более свежий
+            pendingPublishSnapshot = mergedSnapshot
+            pendingPublishSource = source
+            return
+        }
+
+        // Отменяем предыдущий debounce job
+        publishDebounceJob?.cancel()
+
+        if (timeSinceLastPublish < PUBLISH_DEBOUNCE_MS) {
+            // Запускаем debounce job
+            pendingPublishSnapshot = mergedSnapshot
+            pendingPublishSource = source
+            publishDebounceJob = serviceScope.launch {
+                delay(PUBLISH_DEBOUNCE_MS - timeSinceLastPublish)
+                val pending = pendingPublishSnapshot ?: return@launch
+                doPublishSnapshot(pending, pendingPublishSource)
+                pendingPublishSnapshot = null
+            }
+        } else {
+            // Публикуем сразу
+            doPublishSnapshot(mergedSnapshot, source)
+        }
+    }
+
+    private fun doPublishSnapshot(snapshot: TrackSnapshot, source: String) {
+        lastPublishTimeMs = SystemClock.elapsedRealtime()
+        lastPublishedKey = snapshot.publishKey
+        lastPublishedSnapshot = snapshot
+        activePackage = snapshot.packageName
         Timber.tag(TAG).i(
             "Медиа обновлено из %s: pkg=%s, title=%s, artist=%s, cover=%s",
             source,
-            mergedSnapshot.packageName,
-            mergedSnapshot.title,
-            mergedSnapshot.artist,
-            mergedSnapshot.coverBitmap != null,
+            snapshot.packageName,
+            snapshot.title,
+            snapshot.artist,
+            snapshot.coverBitmap != null,
         )
         MediaCoverState.update(
-            sourceLabel = mergedSnapshot.sourceLabel,
-            title = mergedSnapshot.title,
-            artist = mergedSnapshot.artist,
-            album = mergedSnapshot.album,
-            coverBitmap = mergedSnapshot.coverBitmap,
-            positionMs = mergedSnapshot.positionMs,
-            durationMs = mergedSnapshot.durationMs,
+            sourceLabel = snapshot.sourceLabel,
+            title = snapshot.title,
+            artist = snapshot.artist,
+            album = snapshot.album,
+            coverBitmap = snapshot.coverBitmap,
+            positionMs = snapshot.positionMs,
+            durationMs = snapshot.durationMs,
         )
     }
 
@@ -476,5 +515,6 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         private const val EXTRA_LARGE_ICON_BIG = "android.largeIcon.big"
         private const val EXTRA_PICTURE = "android.picture"
         private const val PROGRESS_DEDUPE_BUCKET_MS = 1_000L
+        private const val PUBLISH_DEBOUNCE_MS = 300L
     }
 }
