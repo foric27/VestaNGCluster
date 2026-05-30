@@ -1,5 +1,9 @@
 name: Android Release
 
+concurrency:
+  group: release
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -12,6 +16,7 @@ permissions:
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -61,6 +66,21 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease
 
+      - name: Generate SHA256 checksum
+        run: |
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          sha256sum "${APK_PATH}" > "${APK_PATH}.sha256"
+          echo "SHA256: $(cat ${APK_PATH}.sha256)"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release.apk.sha256
+          retention-days: 30
+
       - name: Publish rolling release
         shell: bash
         env:
@@ -69,17 +89,37 @@ jobs:
           TAG_NAME="main-latest"
           RELEASE_NAME="Autobuild main"
           APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          SHA_PATH="${APK_PATH}.sha256"
+          COMMIT_SHA="${GITHUB_SHA::7}"
+          COMMIT_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -f "${TAG_NAME}" "${GITHUB_SHA}"
           git push origin "refs/tags/${TAG_NAME}" --force
 
+          NOTES=$(cat <<EOF
+          ## Vesta NG Cluster — Rolling Release
+
+          - **Commit:** [${COMMIT_SHA}](${COMMIT_URL})
+          - **Build Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
+          - **Status:** ${SIGNING_STATUS}
+
+          ### Downloads
+          - APK: \`app-release.apk\`
+          - SHA256: \`app-release.apk.sha256\`
+          EOF
+          )
+
           if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
-            gh release upload "${TAG_NAME}" "${APK_PATH}#VestaNGCluster-${GITHUB_SHA::7}.apk" --clobber
+            gh release upload "${TAG_NAME}" "${APK_PATH}#VestaNGCluster-${COMMIT_SHA}.apk" --clobber
+            gh release upload "${TAG_NAME}" "${SHA_PATH}#VestaNGCluster-${COMMIT_SHA}.apk.sha256" --clobber
+            gh release edit "${TAG_NAME}" --notes "${NOTES}"
           else
-            gh release create "${TAG_NAME}" "${APK_PATH}#VestaNGCluster-${GITHUB_SHA::7}.apk" \
+            gh release create "${TAG_NAME}" \
+              "${APK_PATH}#VestaNGCluster-${COMMIT_SHA}.apk" \
+              "${SHA_PATH}#VestaNGCluster-${COMMIT_SHA}.apk.sha256" \
               --title "${RELEASE_NAME}" \
-              --notes "Automatic build from commit ${GITHUB_SHA}" \
+              --notes "${NOTES}" \
               --prerelease
           fi
