@@ -74,8 +74,15 @@ $env:JAVA_HOME="C:\Program Files\Java\jdk-21"; $env:PATH="$env:JAVA_HOME/bin;$en
 ## CI / Release
 
 - GitHub Actions: сначала `CI` (`:app:testDebugUnitTest` + `lintDebug`), потом `Android Release`.
+- `CI` должен запускаться на каждый `push` в любую ветку и на каждый `pull_request` в `main`, чтобы каждый отправленный commit проходил тесты и lint.
 - `Android Release` должен собирать и публиковать APK только из того `SHA`, который уже успешно прошёл `CI` на `main`.
 - Rolling release `main-latest` должен содержать только одну актуальную пару assets (`.apk` + `.sha256`); старые rolling assets нужно удалять перед upload.
+
+## Local Git Hooks
+
+- Версионируемый hook лежит в `.githooks/pre-push`.
+- Локально должен быть подключён `core.hooksPath=.githooks`, чтобы перед каждым `git push` запускались `:app:testDebugUnitTest` и `lintDebug`.
+- Для осознанного обхода hook можно временно выставить `SKIP_LOCAL_PRE_PUSH_TESTS=1`, но по умолчанию обход не использовать.
 
 ## Установка на устройство
 
