@@ -116,6 +116,10 @@ jobs:
           ASSET_NAME="VestaNGCluster-${VERSION_NAME}-${COMMIT_SHA}.apk"
           ASSET_SHA_NAME="${ASSET_NAME}.sha256"
 
+          # Переименовываем файлы, чтобы при скачивании имя совпадало с display name
+          cp "${APK_PATH}" "${ASSET_NAME}"
+          cp "${SHA_PATH}" "${ASSET_SHA_NAME}"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -f "${TAG_NAME}" "${GITHUB_SHA}"
@@ -139,13 +143,13 @@ jobs:
           )
 
           if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
-            gh release upload "${TAG_NAME}" "${APK_PATH}#${ASSET_NAME}" --clobber
-            gh release upload "${TAG_NAME}" "${SHA_PATH}#${ASSET_SHA_NAME}" --clobber
+            gh release upload "${TAG_NAME}" "${ASSET_NAME}" --clobber
+            gh release upload "${TAG_NAME}" "${ASSET_SHA_NAME}" --clobber
             gh release edit "${TAG_NAME}" --title "${RELEASE_NAME}" --notes "${NOTES}"
           else
             gh release create "${TAG_NAME}" \
-              "${APK_PATH}#${ASSET_NAME}" \
-              "${SHA_PATH}#${ASSET_SHA_NAME}" \
+              "${ASSET_NAME}" \
+              "${ASSET_SHA_NAME}" \
               --title "${RELEASE_NAME}" \
               --notes "${NOTES}" \
               --prerelease
