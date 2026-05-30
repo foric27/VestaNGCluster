@@ -51,6 +51,7 @@ internal object AppUpdateManager {
         val channel: AppSettings.UpdateChannel,
         val versionName: String,
         val versionCode: Long,
+        val buildSha: String?,
         val apkFileName: String,
         val apkUrl: String,
         val checksumUrl: String?,
@@ -61,12 +62,14 @@ internal object AppUpdateManager {
         val checksumFile: File?,
         val versionName: String,
         val versionCode: Long,
+        val buildSha: String?,
     )
 
     fun queryUpdate(context: Context, channel: AppSettings.UpdateChannel): QueryResult {
         val currentVersionCode = getCurrentVersionCode(context)
+        val currentBuildSha = currentBuildSha()
         getCachedUpdate(context, channel)?.let { cached ->
-            if (cached.versionCode > currentVersionCode) {
+            if (isUpdateNewer(channel, cached.versionCode, cached.buildSha, currentVersionCode, currentBuildSha)) {
                 return QueryResult.DownloadedReady(cached)
             }
             clearCachedFiles(cached)
@@ -79,7 +82,7 @@ internal object AppUpdateManager {
             return QueryResult.Error(errorMessage(context, t))
         }
 
-        if (release.versionCode <= currentVersionCode) {
+        if (!isUpdateNewer(channel, release.versionCode, release.buildSha, currentVersionCode, currentBuildSha)) {
             return QueryResult.UpToDate(
                 context.getString(
                     R.string.app_update_up_to_date_fmt,
@@ -107,7 +110,7 @@ internal object AppUpdateManager {
 
             verifyChecksum(context, apkFile, checksumFile)
             val downloaded = inspectDownloadedApk(context, apkFile, checksumFile)
-            if (downloaded.versionCode <= getCurrentVersionCode(context)) {
+            if (!isUpdateNewer(release.channel, downloaded.versionCode, downloaded.buildSha, getCurrentVersionCode(context), currentBuildSha())) {
                 clearCachedFiles(downloaded)
                 return DownloadResult.Error(context.getString(R.string.app_update_error_not_newer))
             }
@@ -187,6 +190,7 @@ internal object AppUpdateManager {
         val versionName = versionMetadata.groupValues[1]
         val versionCode = versionMetadata.groupValues[2].toLongOrNull()
             ?: throw IllegalStateException(context.getString(R.string.app_update_error_release_notes_version_code_invalid))
+        val bodyBuildSha = COMMIT_LINE_REGEX.find(body)?.groupValues?.getOrNull(1)
 
         val assets = root.optJSONArray("assets")
             ?: throw IllegalStateException(context.getString(R.string.app_update_error_release_assets_missing))
@@ -207,9 +211,10 @@ internal object AppUpdateManager {
         }
         val safeApkUrl = apkUrl ?: throw IllegalStateException(context.getString(R.string.app_update_error_release_apk_missing))
         val safeApkName = apkName ?: throw IllegalStateException(context.getString(R.string.app_update_error_release_apk_name_missing))
+        val buildSha = parseBuildShaFromApkName(safeApkName) ?: bodyBuildSha
         validateHttpsUrl(context, safeApkUrl)
         checksumUrl?.let { validateHttpsUrl(context, it) }
-        return RemoteRelease(channel, versionName, versionCode, safeApkName, safeApkUrl, checksumUrl)
+        return RemoteRelease(channel, versionName, versionCode, buildSha, safeApkName, safeApkUrl, checksumUrl)
     }
 
     private fun inspectDownloadedApk(
@@ -236,7 +241,7 @@ internal object AppUpdateManager {
 
         val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         val versionName = packageInfo.versionName ?: context.getString(R.string.app_update_unknown_version)
-        return DownloadedUpdate(apkFile, checksumFile, versionName, versionCode)
+        return DownloadedUpdate(apkFile, checksumFile, versionName, versionCode, parseBuildShaFromApkName(apkFile.name))
     }
 
     private fun getCurrentVersionCode(context: Context): Long {
@@ -331,6 +336,38 @@ internal object AppUpdateManager {
             ?: context.getString(R.string.app_update_error_generic)
     }
 
+    private fun currentBuildSha(): String? {
+        return normalizeBuildSha(BuildConfig.GIT_SHA)
+    }
+
+    private fun isUpdateNewer(
+        channel: AppSettings.UpdateChannel,
+        candidateVersionCode: Long,
+        candidateBuildSha: String?,
+        currentVersionCode: Long,
+        currentBuildSha: String?,
+    ): Boolean {
+        if (candidateVersionCode > currentVersionCode) return true
+        if (candidateVersionCode < currentVersionCode) return false
+        if (channel != AppSettings.UpdateChannel.ROLLING) return false
+        val normalizedCandidateSha = normalizeBuildSha(candidateBuildSha)
+        return when {
+            normalizedCandidateSha == null -> false
+            currentBuildSha == null -> true
+            normalizedCandidateSha != currentBuildSha -> true
+            else -> false
+        }
+    }
+
+    private fun parseBuildShaFromApkName(fileName: String): String? {
+        return APK_SHA_REGEX.find(fileName)?.groupValues?.getOrNull(1)?.let(::normalizeBuildSha)
+    }
+
+    private fun normalizeBuildSha(value: String?): String? {
+        val normalized = value?.trim()?.lowercase(Locale.US)
+        return normalized?.takeIf { it.isNotEmpty() && it != "unknown" }
+    }
+
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
@@ -356,4 +393,6 @@ internal object AppUpdateManager {
     }
 
     private val VERSION_LINE_REGEX = Regex("""\*\*Version:\*\*\s*`([^`]+)`\s*\(`([^`]+)`\)""")
+    private val COMMIT_LINE_REGEX = Regex("""\*\*Commit:\*\*\s*\[([0-9a-fA-F]{7,40})]""")
+    private val APK_SHA_REGEX = Regex("""-([0-9a-fA-F]{7,40})\.apk$""")
 }

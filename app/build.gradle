@@ -16,6 +16,25 @@ def releaseStoreFile = System.getenv('ANDROID_KEYSTORE_FILE') ?: signingProps.ge
 def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: signingProps.getProperty('storePassword')
 def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS') ?: signingProps.getProperty('keyAlias')
 def releaseKeyPassword = System.getenv('ANDROID_KEY_PASSWORD') ?: signingProps.getProperty('keyPassword')
+def currentGitSha = {
+    def envSha = System.getenv('SOURCE_SHA') ?: System.getenv('GITHUB_SHA')
+    if (envSha != null && !envSha.toString().trim().isEmpty()) {
+        return envSha.toString().trim().take(7)
+    }
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short=7', 'HEAD'
+            standardOutput = stdout
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        def resolved = stdout.toString().trim()
+        return resolved.isEmpty() ? 'unknown' : resolved
+    } catch (Throwable ignored) {
+        return 'unknown'
+    }
+}()
 if (releaseStoreFile != null) {
     releaseStoreFile = releaseStoreFile.replace('\\', '/')
     def configuredStoreFile = file(releaseStoreFile)
@@ -38,6 +57,7 @@ android {
         targetSdk = 37
         versionCode = 3
         versionName = '1.0.2'
+        buildConfigField 'String', 'GIT_SHA', "\"${currentGitSha}\""
     }
 
     signingConfigs {
