@@ -41,15 +41,3 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew lintDebug
-
-      - name: Build release APK
-        run: |
-          chmod +x ./gradlew
-          ./gradlew assembleRelease
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: app-release-unsigned
-          path: app/build/outputs/apk/release/app-release.apk
-          retention-days: 7

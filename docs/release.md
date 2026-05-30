@@ -6,9 +6,10 @@ GitHub Actions автоматически собирает и публикует
 
 ### Как это работает
 
-1. Push в `main` запускает workflow `.github/workflows/android-release.yml`
-2. Workflow собирает signed release APK (если настроены secrets)
-3. APK публикуется в GitHub Releases с тегом `main-latest`
+1. Push в `main` запускает workflow `.github/workflows/ci.yml`
+2. Workflow `CI` выполняет `:app:testDebugUnitTest` и `lintDebug`
+3. Только после успешного `CI` workflow `.github/workflows/android-release.yml` собирает signed release APK (если настроены secrets)
+4. APK публикуется в GitHub Releases с тегом `main-latest`
 
 ### In-app update
 
@@ -39,6 +40,7 @@ Rolling release оформляется единообразно:
   - `VestaNGCluster-{version}-{sha}.apk.sha256`
 
 При обновлении rolling release страница полностью перезаписывается.
+Старые rolling assets удаляются перед upload, поэтому в `main-latest` всегда остаётся только одна актуальная пара файлов для самого свежего успешного `CI` на `main`.
 
 ## Ручной релиз
 

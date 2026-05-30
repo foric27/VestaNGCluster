@@ -48,6 +48,7 @@
 - Root network: авто-поиск USB iface, policy routing, route pinning.
 - Launch: `am start --display` / proxy-activity / MED overlay.
 - OTA: встроенный FTP и поиск `ICUpdate.zip`.
+- App update: self-update APK из GitHub Releases (`main-latest` / `latest`) без root через системный installer.
 
 ## Локальные AGENTS
 
@@ -65,9 +66,16 @@ $env:JAVA_HOME="C:\Program Files\Java\jdk-21"; $env:PATH="$env:JAVA_HOME/bin;$en
 ./gradlew.bat assembleDebug
 ./gradlew.bat :app:testDebugUnitTest
 ./gradlew.bat lintDebug
-# Основная целевая сборка: release, подписанная ключом foric27
+# Основная целевая сборка: release, подписанная ключом foric27.
+# Minify/shrink/proguard для app release отключены.
 ./gradlew.bat assembleRelease
 ```
+
+## CI / Release
+
+- GitHub Actions: сначала `CI` (`:app:testDebugUnitTest` + `lintDebug`), потом `Android Release`.
+- `Android Release` должен собирать и публиковать APK только из того `SHA`, который уже успешно прошёл `CI` на `main`.
+- Rolling release `main-latest` должен содержать только одну актуальную пару assets (`.apk` + `.sha256`); старые rolling assets нужно удалять перед upload.
 
 ## Установка на устройство
 
