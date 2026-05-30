@@ -214,10 +214,6 @@
     <string name="update_server_start_failed_retry">FTP update server not started: network not ready yet, retry will follow</string>
     <string name="update_server_start_failed_retry_details_fmt">FTP update server not started: %1$s. Retry will follow</string>
 
-    <string name="signature_mismatch_title">Security error</string>
-    <string name="signature_mismatch_close">Close</string>
-    <string name="signature_mismatch_message_fmt">Application signature mismatch detected.\n\nThe app was modified or signed with an unknown key.\n\nExpected: %1$s\nActual:   %2$s\n\nThe application will be closed.</string>
-
     <string name="main_read_storage_granted">Storage read permission granted</string>
     <string name="main_read_storage_missing">Storage read permission required for internal memory and USB drives</string>
 

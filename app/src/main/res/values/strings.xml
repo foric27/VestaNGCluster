@@ -214,10 +214,6 @@
     <string name="update_server_start_failed_retry">FTP-сервер обновления не запущен: сеть ещё не готова, будет повторная попытка запуска</string>
     <string name="update_server_start_failed_retry_details_fmt">FTP-сервер обновления не запущен: %1$s. Будет повторная попытка запуска</string>
 
-    <string name="signature_mismatch_title">Ошибка безопасности</string>
-    <string name="signature_mismatch_close">Закрыть</string>
-    <string name="signature_mismatch_message_fmt">Обнаружено несовпадение цифровой подписи приложения.\n\nПриложение было изменено или подписано неизвестным ключом.\n\nExpected: %1$s\nActual:   %2$s\n\nПриложение будет закрыто.</string>
-
     <string name="main_read_storage_granted">Разрешение на чтение памяти получено</string>
     <string name="main_read_storage_missing">Требуется разрешение на чтение внутренней памяти и USB-накопителей</string>
 

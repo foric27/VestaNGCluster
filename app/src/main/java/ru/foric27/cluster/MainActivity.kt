@@ -83,15 +83,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (!BuildConfig.DEBUG) {
-            val sigResult = SignatureVerifier.verify(this)
-            if (!sigResult.valid) {
-                Timber.tag(TAG).e("Несовпадение подписи APK: expected=${sigResult.expectedSha256}, actual=${sigResult.actualSha256}")
-                showSignatureMismatchDialog(sigResult.actualSha256, sigResult.expectedSha256)
-                return
-            }
-        }
-
         val currentDisplayId = try {
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 display?.displayId
@@ -219,22 +210,6 @@ class MainActivity : AppCompatActivity() {
             versionTapCount = 0
             openDeveloperScreen()
         }
-    }
-
-    private fun showSignatureMismatchDialog(actual: String, expected: String) {
-        val expectedFmt = expected.takeIf { it.isNotBlank() } ?: "not set"
-        val actualFmt = actual.takeIf { it.isNotBlank() } ?: "unavailable"
-        val message = getString(R.string.signature_mismatch_message_fmt, expectedFmt, actualFmt)
-
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.signature_mismatch_title)
-            .setMessage(message)
-            .setCancelable(false)
-            .setPositiveButton(R.string.signature_mismatch_close) { _, _ ->
-                finish()
-                android.os.Process.killProcess(android.os.Process.myPid())
-            }
-            .show()
     }
 
     private fun openDeveloperScreen() {

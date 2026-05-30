@@ -24,10 +24,6 @@
 # StreamConfig передаётся через Intent extras как Serializable.
 -keep class ru.foric27.cluster.StreamConfig { *; }
 
-# SignatureVerifier и ProductConfig.Security используются для проверки подписи APK.
--keep class ru.foric27.cluster.SignatureVerifier { *; }
--keepclassmembers class ru.foric27.cluster.ProductConfig$Security { *; }
-
 # LogSanitizer нужен для release-экспорта logcat в R8 full mode.
 -keep class ru.foric27.cluster.LogSanitizer { *; }
 
