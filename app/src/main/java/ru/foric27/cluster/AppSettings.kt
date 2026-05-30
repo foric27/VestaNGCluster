@@ -28,6 +28,7 @@ internal object AppSettings {
 
     private const val TAG = "AppSettings"
     private const val KEY_STREAM_MODE = "stream_mode"
+    private const val KEY_UPDATE_CHANNEL = "update_channel"
 
     enum class UiStreamMode(
         val clusterMode: ClusterMode,
@@ -58,6 +59,20 @@ internal object AppSettings {
                     mode.isTrip -> ABS
                     else -> NAV
                 }
+            }
+        }
+    }
+
+    enum class UpdateChannel(
+        val prefValue: String,
+    ) {
+        ROLLING("rolling"),
+        STABLE("stable"),
+        ;
+
+        companion object {
+            fun fromPref(value: String?): UpdateChannel {
+                return entries.firstOrNull { it.prefValue == value } ?: ROLLING
             }
         }
     }
@@ -99,6 +114,14 @@ internal object AppSettings {
             Timber.tag(TAG).e(t, "Не удалось сохранить режим ${mode.prefValue} в DataStore")
             false
         }
+    }
+
+    fun getSelectedUpdateChannel(context: Context): UpdateChannel {
+        return UpdateChannel.fromPref(readStringPref(context, KEY_UPDATE_CHANNEL))
+    }
+
+    fun saveSelectedUpdateChannel(context: Context, channel: UpdateChannel): Boolean {
+        return saveStringPref(context, KEY_UPDATE_CHANNEL, channel.prefValue)
     }
 
     fun applySelectedMode(context: Context, mode: UiStreamMode): ApplyModeResult {
@@ -218,9 +241,28 @@ internal object AppSettings {
     }
 
     private fun readSavedMode(context: Context): String? {
+        return readStringPref(context, KEY_STREAM_MODE)
+    }
+
+    private fun readStringPref(context: Context, key: String): String? {
         val appContext = context.applicationContext
         return runBlocking {
-            appContext.appSettingsDataStore.data.first()[stringPreferencesKey(KEY_STREAM_MODE)]
+            appContext.appSettingsDataStore.data.first()[stringPreferencesKey(key)]
+        }
+    }
+
+    private fun saveStringPref(context: Context, key: String, value: String): Boolean {
+        return try {
+            val appContext = context.applicationContext
+            runBlocking {
+                appContext.appSettingsDataStore.edit { preferences ->
+                    preferences[stringPreferencesKey(key)] = value
+                }
+            }
+            true
+        } catch (t: Throwable) {
+            Timber.tag(TAG).e(t, "Не удалось сохранить ключ $key в DataStore")
+            false
         }
     }
 
