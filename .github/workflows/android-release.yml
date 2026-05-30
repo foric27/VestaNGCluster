@@ -36,6 +36,16 @@ jobs:
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
+      - name: Extract version info
+        id: version
+        run: |
+          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle)
+          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle)
+          echo "VERSION_NAME=${VERSION_NAME}" >> "${GITHUB_ENV}"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "${GITHUB_ENV}"
+          echo "version_name=${VERSION_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
+
       - name: Prepare signing files
         shell: bash
         env:
@@ -55,10 +65,12 @@ jobs:
               echo "ANDROID_KEYSTORE_PASSWORD=${ANDROID_KEYSTORE_PASSWORD}"
               echo "ANDROID_KEY_ALIAS=${ANDROID_KEY_ALIAS}"
               echo "ANDROID_KEY_PASSWORD=${ANDROID_KEY_PASSWORD}"
+              echo "SIGNING_STATUS=SIGNED"
             } >> "${GITHUB_ENV}"
             echo "Signing configuration prepared successfully"
           else
             echo "Signing secrets are not configured; release APK will be assembled unsigned."
+            echo "SIGNING_STATUS=UNSIGNED" >> "${GITHUB_ENV}"
           fi
 
       - name: Build release APK
@@ -85,13 +97,19 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          SIGNING_STATUS: ${{ env.SIGNING_STATUS }}
         run: |
           TAG_NAME="main-latest"
-          RELEASE_NAME="Autobuild main"
+          RELEASE_NAME="Vesta NG Cluster ${VERSION_NAME} — rolling build"
           APK_PATH="app/build/outputs/apk/release/app-release.apk"
           SHA_PATH="${APK_PATH}.sha256"
           COMMIT_SHA="${GITHUB_SHA::7}"
           COMMIT_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          BUILD_DATE=$(TZ=Europe/Moscow date +"%Y-%m-%d %H:%M MSK")
+          ASSET_NAME="VestaNGCluster-${VERSION_NAME}-${COMMIT_SHA}.apk"
+          ASSET_SHA_NAME="${ASSET_NAME}.sha256"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -99,26 +117,30 @@ jobs:
           git push origin "refs/tags/${TAG_NAME}" --force
 
           NOTES=$(cat <<EOF
-          ## Vesta NG Cluster — Rolling Release
+          ## Vesta NG Cluster
 
+          Rolling prerelease from \`main\`.
+
+          ### Build Info
+          - **Version:** \`${VERSION_NAME}\` (\`${VERSION_CODE}\`)
           - **Commit:** [${COMMIT_SHA}](${COMMIT_URL})
-          - **Build Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
-          - **Status:** ${SIGNING_STATUS}
+          - **Build Date:** ${BUILD_DATE}
+          - **Signing:** ${SIGNING_STATUS}
 
           ### Downloads
-          - APK: \`app-release.apk\`
-          - SHA256: \`app-release.apk.sha256\`
+          - \`${ASSET_NAME}\`
+          - \`${ASSET_SHA_NAME}\`
           EOF
           )
 
           if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
-            gh release upload "${TAG_NAME}" "${APK_PATH}#VestaNGCluster-${COMMIT_SHA}.apk" --clobber
-            gh release upload "${TAG_NAME}" "${SHA_PATH}#VestaNGCluster-${COMMIT_SHA}.apk.sha256" --clobber
-            gh release edit "${TAG_NAME}" --notes "${NOTES}"
+            gh release upload "${TAG_NAME}" "${APK_PATH}#${ASSET_NAME}" --clobber
+            gh release upload "${TAG_NAME}" "${SHA_PATH}#${ASSET_SHA_NAME}" --clobber
+            gh release edit "${TAG_NAME}" --title "${RELEASE_NAME}" --notes "${NOTES}"
           else
             gh release create "${TAG_NAME}" \
-              "${APK_PATH}#VestaNGCluster-${COMMIT_SHA}.apk" \
-              "${SHA_PATH}#VestaNGCluster-${COMMIT_SHA}.apk.sha256" \
+              "${APK_PATH}#${ASSET_NAME}" \
+              "${SHA_PATH}#${ASSET_SHA_NAME}" \
               --title "${RELEASE_NAME}" \
               --notes "${NOTES}" \
               --prerelease
