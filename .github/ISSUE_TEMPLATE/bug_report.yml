@@ -1,0 +1,39 @@
+name: Bug Report
+about: Сообщить об ошибке
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за сообщение об ошибке!
+  - type: textarea
+    id: description
+    attributes:
+      label: Описание
+      description: Что произошло?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения
+      description: Как воспроизвести ошибку?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      placeholder: "1.0.2"
+  - type: input
+    id: device
+    attributes:
+      label: Устройство и Android
+      placeholder: "Pixel 7, Android 14"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи
+      description: Приложите релевантные логи
+      render: shell

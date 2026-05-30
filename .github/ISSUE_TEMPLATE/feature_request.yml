@@ -1,0 +1,28 @@
+name: Feature Request
+about: Предложить новую функцию
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за предложение!
+  - type: textarea
+    id: description
+    attributes:
+      label: Описание
+      description: Что вы хотите добавить?
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Мотивация
+      description: Почему это нужно?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы
+      description: Рассматривали ли вы другие варианты?
