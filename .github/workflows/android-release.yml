@@ -39,12 +39,17 @@ jobs:
       - name: Extract version info
         id: version
         run: |
-          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle)
-          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle)
+          VERSION_NAME=$(sed -n "s/.*versionName *= *['\"]\\([^'\"]*\\)['\"].*/\\1/p" app/build.gradle)
+          VERSION_CODE=$(sed -n "s/.*versionCode *= *\\([0-9]*\\).*/\\1/p" app/build.gradle)
+          if [ -z "${VERSION_NAME}" ] || [ -z "${VERSION_CODE}" ]; then
+            echo "ERROR: Failed to extract version info from app/build.gradle"
+            exit 1
+          fi
           echo "VERSION_NAME=${VERSION_NAME}" >> "${GITHUB_ENV}"
           echo "VERSION_CODE=${VERSION_CODE}" >> "${GITHUB_ENV}"
           echo "version_name=${VERSION_NAME}" >> "${GITHUB_OUTPUT}"
           echo "version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
+          echo "Extracted version: ${VERSION_NAME} (${VERSION_CODE})"
 
       - name: Prepare signing files
         shell: bash
