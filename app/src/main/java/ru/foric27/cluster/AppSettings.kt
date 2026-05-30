@@ -72,7 +72,8 @@ internal object AppSettings {
 
         companion object {
             fun fromPref(value: String?): UpdateChannel {
-                return entries.firstOrNull { it.prefValue == value } ?: ROLLING
+                val normalized = value?.trim()?.lowercase()
+                return entries.firstOrNull { it.prefValue == normalized } ?: ROLLING
             }
         }
     }
