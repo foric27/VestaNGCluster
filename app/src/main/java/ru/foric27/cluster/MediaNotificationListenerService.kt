@@ -45,6 +45,7 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
     private var lastPublishedKey: String? = null
     private var lastPublishedSnapshot: TrackSnapshot? = null
     private var mediaSessionAccessDeniedLogged = false
+    private var mediaControllerStateAccessDeniedLogged = false
 
     // Debounce: подавляем повторяющиеся события в течение 300 мс
     private var lastPublishTimeMs: Long = 0L
@@ -258,15 +259,42 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
     }
 
     private fun promoteBestController(activeControllers: List<MediaController>) {
-        val best = activeControllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        val best = activeControllers.firstOrNull {
+            safePlaybackState(it, it.packageName)?.state == PlaybackState.STATE_PLAYING
+        }
             ?: activeControllers.firstOrNull()
             ?: return
         updateFromController(best, best.packageName)
     }
 
     private fun updateFromController(controller: MediaController, packageName: String) {
-        controllers[packageName]?.isPlaying = controller.playbackState?.state == PlaybackState.STATE_PLAYING
-        updateFromMetadata(controller.metadata, packageName)
+        val playbackState = safePlaybackState(controller, packageName)
+        controllers[packageName]?.isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING
+        updateFromMetadata(safeMetadata(controller, packageName), packageName)
+    }
+
+    private fun safePlaybackState(controller: MediaController, packageName: String): PlaybackState? {
+        return try {
+            controller.playbackState
+        } catch (e: SecurityException) {
+            if (!mediaControllerStateAccessDeniedLogged) {
+                mediaControllerStateAccessDeniedLogged = true
+                Timber.tag(TAG).i(e, "Нет доступа к playbackState MediaSession, продолжаю без transport state: %s", packageName)
+            }
+            null
+        }
+    }
+
+    private fun safeMetadata(controller: MediaController, packageName: String): MediaMetadata? {
+        return try {
+            controller.metadata
+        } catch (e: SecurityException) {
+            if (!mediaControllerStateAccessDeniedLogged) {
+                mediaControllerStateAccessDeniedLogged = true
+                Timber.tag(TAG).i(e, "Нет доступа к metadata MediaSession, продолжаю только по уведомлениям: %s", packageName)
+            }
+            null
+        }
     }
 
     private fun updateFromMetadata(metadata: MediaMetadata?, packageName: String) {
@@ -489,7 +517,7 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
     private data class ControllerHolder(
         val controller: MediaController,
         val callback: MediaController.Callback,
-        var isPlaying: Boolean = controller.playbackState?.state == PlaybackState.STATE_PLAYING,
+        var isPlaying: Boolean = false,
     ) {
         fun unregister() {
             try {
@@ -499,7 +527,11 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
 
         fun currentPositionMs(): Long? {
-            val state = controller.playbackState ?: return null
+            val state = try {
+                controller.playbackState
+            } catch (_: SecurityException) {
+                return null
+            } ?: return null
             val basePosition = state.position.takeIf { it >= 0L } ?: return null
             if (state.state != PlaybackState.STATE_PLAYING) return basePosition
             val elapsedMs = SystemClock.elapsedRealtime() - state.lastPositionUpdateTime

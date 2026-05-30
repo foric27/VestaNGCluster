@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 internal data class UdpWakeRecoverySnapshot(
     val streamHealthy: Boolean,
     val requiresFullRecovery: Boolean,
+    val recoveryBlocked: Boolean = false,
 )
 
 internal class UdpWakeRecoveryController(
@@ -141,6 +142,12 @@ internal class UdpWakeRecoveryController(
             Timber.tag(TAG).i("После выхода из сна поток уже активен; лишний relaunch не нужен")
             pendingWakeAction = null
             wakeRecoveryStage = 0
+            return
+        }
+
+        if (snapshot.recoveryBlocked) {
+            Timber.tag(TAG).i("После выхода из сна восстановление отложено: сеть или root пока недоступны")
+            clearPendingState()
             return
         }
 

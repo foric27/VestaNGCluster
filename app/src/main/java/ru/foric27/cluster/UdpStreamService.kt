@@ -416,6 +416,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             )
         }
         val cfg = lastCfg ?: StreamConfig.fixedConfig(applicationContext, getCurrentStreamMode())
+        val ifaceProbeState = RootNetUtil.getIfaceProbeState(force = false)
+        val recoveryBlocked = ifaceProbeState.rootRequired ||
+            (!ifaceProbeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent)
         val currentSender = sender
         val senderSnapshot = currentSender?.snapshot()
         val recentVideoTraffic = senderSnapshot?.lastSendSuccessElapsedRealtimeMs?.let { lastSendMs ->
@@ -447,13 +450,17 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     "displayReady" to runtimeSnapshot.displayReady,
                     "recentVideoTraffic" to runtimeSnapshot.recentVideoTraffic,
                     "routeReady" to runtimeSnapshot.routeReady,
+                    "recoveryBlocked" to recoveryBlocked,
+                    "ifaceExists" to ifaceProbeState.exists,
+                    "rootRequired" to ifaceProbeState.rootRequired,
                     "targetHost" to targetHostValue,
                     "expectedBindIp" to expectedBindIp,
                 ),
         )
         return UdpWakeRecoverySnapshot(
             streamHealthy = ConnectivityHealth.isWakeStreamHealthy(runtimeSnapshot),
-            requiresFullRecovery = ConnectivityHealth.requiresWakeFullRecovery(runtimeSnapshot),
+            requiresFullRecovery = !recoveryBlocked && ConnectivityHealth.requiresWakeFullRecovery(runtimeSnapshot),
+            recoveryBlocked = recoveryBlocked,
         )
     }
 
