@@ -11,6 +11,7 @@
 - Config/sync: `RuntimeConfigTest.kt`, `SyncHandlerTest.kt`, `SyncHandlerPayloadPolicyTest.kt`
 - Video helpers: `VideoCodecOutputProcessorTest.kt`, `VideoFrameTimingControllerTest.kt`, `H264AnnexBUtilTest.kt`
 - OTA: `UpdateFileLocatorTest.kt`, `Sha256VerifierTest.kt`
+- App update: при добавлении тестов держать их pure-JVM и изолировать от реального GitHub/PackageInstaller.
 
 ## Локальные правила
 

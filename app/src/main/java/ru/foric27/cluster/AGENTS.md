@@ -13,6 +13,7 @@
 - Launch / display: `VideoDisplayLauncher.kt`, `YandexLaunchTarget.kt`, `ClusterLaunchProxyActivity.kt`, `MediaCoverActivity.kt`
 - Runtime config: `ProductConfig.kt`, `RuntimeConfig.kt`, `RuntimeConfigStore.kt`, `RuntimeConfigFieldSpecs.kt`, `DeveloperActivity.kt`
 - OTA/FTP: `UpdateServerManager.kt`, `UpdateFileLocator.kt`, `FtpServerConfig.kt`, `EmbeddedFtpServerFactory.kt`
+- App self-update: `AppUpdateManager.kt`, `AppSettings.kt`, `MainActivity.kt`, `DeveloperActivity.kt`
 
 ## Локальные правила
 
@@ -21,6 +22,9 @@
 - `VideoEncoder.kt` / `PersistentVirtualDisplay.kt`: порядок release критичен.
 - MED/NAVI overlay-логика чувствительна к theme/layout/display launch path.
 - `ProductConfig` — immutable defaults; пользовательские overrides идут через `RuntimeConfig`.
+- Все новые пользовательские настройки добавляй в `DeveloperActivity` одновременно с backend-логикой.
+- App self-update не смешивать с FTP/USB OTA: это отдельный поток, отдельные строки и отдельный UX.
+- Для self-update использовать только HTTPS, checksum и проверку package/version; без silent install и без root-зависимости.
 - Комментарии в коде — только на русском языке.
 
 ## Hotspots
@@ -29,5 +33,6 @@
 - `RootNetUtil.kt`
 - `VideoEncoder.kt`
 - `UpdateServerManager.kt`
+- `AppUpdateManager.kt`
 
 Перед правками в этих файлах сначала читай код, потом меняй минимально.

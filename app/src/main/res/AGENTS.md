@@ -15,7 +15,9 @@ XML resources, layouts, drawables, themes, strings. Локали: **RU по ум
 ## Локальные правила
 
 - Любую пользовательскую строку добавляй и в `values/strings.xml`, и в `values-en/strings.xml`.
+- Любую новую пользовательскую настройку одновременно отражай и в `DeveloperActivity`, и в его ресурсах/layout.
 - Не ломай одинаковые `id` между layout-вариантами.
 - Предпочитай существующие `@dimen/screen_*` и `@color/*` вместо hardcode.
 - MED/NAVI экраны правь осторожно: важны `visibleArea`, чёрный фон, отсутствие overlay-регрессий.
 - Если меняешь layout под один экран, проверь, нет ли квалифицированных вариантов с теми же `id`.
+- Для `activity_main.xml` изменения почти всегда нужно зеркалить во все `layout-*` варианты, иначе сломается ViewBinding/runtime.
