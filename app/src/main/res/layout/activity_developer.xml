@@ -58,6 +58,54 @@
                 android:textSize="@dimen/screen_body_size" />
 
             <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/screen_section_spacing"
+                android:background="@drawable/bg_metric_card"
+                android:orientation="vertical"
+                android:padding="@dimen/screen_card_padding">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/developer_update_channel_title"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/screen_caption_size" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/developer_update_channel_hint"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/screen_body_size" />
+
+                <RadioGroup
+                    android:id="@+id/updateChannelRadioGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/updateChannelRollingRadio"
+                        style="@style/Widget.Foric27Cluster.Radio.Mode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/app_update_channel_rolling"
+                        android:textColor="@color/text_primary" />
+
+                    <RadioButton
+                        android:id="@+id/updateChannelStableRadio"
+                        style="@style/Widget.Foric27Cluster.Radio.Mode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/app_update_channel_stable"
+                        android:textColor="@color/text_primary" />
+                </RadioGroup>
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/settingsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

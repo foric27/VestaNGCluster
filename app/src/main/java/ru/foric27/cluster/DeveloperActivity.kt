@@ -9,6 +9,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.CompoundButton
 import android.widget.LinearLayout
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -48,12 +49,44 @@ class DeveloperActivity : AppCompatActivity() {
         binding.exportLogcatBtn.setOnClickListener { exportLogcat() }
 
         renderVersionInfo()
+        bindUpdateChannelSelector()
         buildDynamicSettingsEditor()
         renderAllValues()
     }
 
     private fun renderVersionInfo() {
         binding.versionInfoText.text = getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME)
+    }
+
+    private fun bindUpdateChannelSelector() {
+        binding.updateChannelRadioGroup.setOnCheckedChangeListener(null)
+        binding.updateChannelRadioGroup.check(
+            when (AppSettings.getSelectedUpdateChannel(this)) {
+                AppSettings.UpdateChannel.ROLLING -> binding.updateChannelRollingRadio.id
+                AppSettings.UpdateChannel.STABLE -> binding.updateChannelStableRadio.id
+            },
+        )
+        binding.updateChannelRadioGroup.setOnCheckedChangeListener { _: RadioGroup, checkedId: Int ->
+            val selected = when (checkedId) {
+                binding.updateChannelStableRadio.id -> AppSettings.UpdateChannel.STABLE
+                else -> AppSettings.UpdateChannel.ROLLING
+            }
+            if (AppSettings.saveSelectedUpdateChannel(this, selected)) {
+                binding.developerStatusText.text = getString(
+                    R.string.developer_update_channel_saved_fmt,
+                    updateChannelLabel(selected),
+                )
+            } else {
+                binding.developerStatusText.text = getString(R.string.developer_update_channel_save_failed)
+            }
+        }
+    }
+
+    private fun updateChannelLabel(channel: AppSettings.UpdateChannel): String {
+        return when (channel) {
+            AppSettings.UpdateChannel.ROLLING -> getString(R.string.app_update_channel_rolling)
+            AppSettings.UpdateChannel.STABLE -> getString(R.string.app_update_channel_stable)
+        }
     }
 
     private fun renderAllValues() {

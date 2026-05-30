@@ -10,17 +10,14 @@ import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
 import timber.log.Timber
-import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import ru.foric27.cluster.AppSettings.UiStreamMode
+import ru.foric27.cluster.AppSettings.UpdateChannel
 import ru.foric27.cluster.databinding.ActivityMainBinding
 
 /**
@@ -39,6 +36,9 @@ class MainActivity : AppCompatActivity() {
     private var versionTapCount = 0
     private var lastVersionTapAt = 0L
     private var backgroundLaunchHandled = false
+    private var updateBusy = false
+    private var pendingRemoteUpdate: AppUpdateManager.RemoteRelease? = null
+    private var pendingDownloadedUpdate: AppUpdateManager.DownloadedUpdate? = null
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -125,12 +125,14 @@ class MainActivity : AppCompatActivity() {
         bindModeSelector()
         bindActions()
         bindFooterInfo()
+        renderAppUpdateIdle()
         refreshScreenState()
         noticeLog.render()
 
         accessPreflight.run()
         checkRootAndNotify()
         ensureStreamingRunning()
+        refreshAppUpdateState()
         tryMoveTaskToBackIfNeeded()
     }
 
@@ -145,6 +147,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         accessPreflight.run()
         refreshScreenState()
+        if (!updateBusy) {
+            refreshAppUpdateState(silent = true)
+        }
         tryMoveTaskToBackIfNeeded()
     }
 
@@ -189,6 +194,18 @@ class MainActivity : AppCompatActivity() {
             UdpStreamService.restartServiceCompat(this)
             noticeLog.show(getString(R.string.main_restart_stream_requested), isError = false)
             refreshScreenState(refreshFtp = false, consumeWarnings = false)
+        }
+        binding.appUpdateCheckBtn.setOnClickListener {
+            refreshAppUpdateState()
+        }
+        binding.appUpdateInstallBtn.setOnClickListener {
+            val downloaded = pendingDownloadedUpdate
+            if (downloaded != null) {
+                requestInstallUpdate(downloaded)
+            } else {
+                val release = pendingRemoteUpdate ?: return@setOnClickListener
+                downloadAppUpdate(release)
+            }
         }
     }
 
@@ -310,6 +327,163 @@ class MainActivity : AppCompatActivity() {
                     getString(R.string.ftp_file_source_fmt, location)
                 } ?: getString(R.string.ftp_file_not_found),
             )
+        }
+    }
+
+    private fun refreshAppUpdateState(silent: Boolean = false) {
+        if (updateBusy) return
+        val channel = AppSettings.getSelectedUpdateChannel(this)
+        updateBusy = true
+        renderAppUpdateChecking(channel)
+        Thread {
+            val result = AppUpdateManager.queryUpdate(this, channel)
+            runOnUiThread {
+                updateBusy = false
+                applyAppUpdateQueryResult(result, silent)
+            }
+        }.start()
+    }
+
+    private fun applyAppUpdateQueryResult(result: AppUpdateManager.QueryResult, silent: Boolean) {
+        when (result) {
+            is AppUpdateManager.QueryResult.DownloadedReady -> {
+                pendingRemoteUpdate = null
+                pendingDownloadedUpdate = result.update
+                renderAppUpdateDownloaded(result.update)
+            }
+
+            is AppUpdateManager.QueryResult.RemoteAvailable -> {
+                pendingRemoteUpdate = result.release
+                pendingDownloadedUpdate = null
+                renderAppUpdateAvailable(result.release)
+            }
+
+            is AppUpdateManager.QueryResult.UpToDate -> {
+                pendingRemoteUpdate = null
+                pendingDownloadedUpdate = null
+                renderAppUpdateUpToDate(result.message)
+            }
+
+            is AppUpdateManager.QueryResult.Error -> {
+                if (silent) return
+                pendingRemoteUpdate = null
+                pendingDownloadedUpdate = null
+                renderAppUpdateError(result.message)
+                noticeLog.show(result.message, isError = true)
+            }
+        }
+    }
+
+    private fun downloadAppUpdate(release: AppUpdateManager.RemoteRelease) {
+        if (updateBusy) return
+        updateBusy = true
+        binding.appUpdateStatusText.text = getString(
+            R.string.app_update_downloading_fmt,
+            release.versionName,
+            release.versionCode,
+        )
+        binding.appUpdateCheckBtn.isEnabled = false
+        binding.appUpdateInstallBtn.isEnabled = false
+        Thread {
+            val result = AppUpdateManager.downloadUpdate(this, release)
+            runOnUiThread {
+                updateBusy = false
+                when (result) {
+                    is AppUpdateManager.DownloadResult.Success -> {
+                        pendingRemoteUpdate = null
+                        pendingDownloadedUpdate = result.update
+                        renderAppUpdateDownloaded(result.update)
+                        noticeLog.show(getString(R.string.app_update_download_complete), isError = false)
+                    }
+
+                    is AppUpdateManager.DownloadResult.Error -> {
+                        pendingDownloadedUpdate = null
+                        pendingRemoteUpdate = release
+                        renderAppUpdateError(result.message)
+                        noticeLog.show(result.message, isError = true)
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun requestInstallUpdate(update: AppUpdateManager.DownloadedUpdate) {
+        when (val result = AppUpdateManager.requestInstall(this, update)) {
+            is AppUpdateManager.InstallResult.Started -> {
+                noticeLog.show(getString(R.string.app_update_install_started), isError = false)
+            }
+
+            is AppUpdateManager.InstallResult.PermissionRequired -> {
+                startActivity(result.intent)
+                noticeLog.show(getString(R.string.app_update_unknown_sources_required), isError = false)
+            }
+
+            is AppUpdateManager.InstallResult.Error -> {
+                renderAppUpdateError(result.message)
+                noticeLog.show(result.message, isError = true)
+            }
+        }
+    }
+
+    private fun renderAppUpdateIdle() {
+        binding.appUpdateStatusText.text = getString(R.string.app_update_idle)
+        binding.appUpdateCheckBtn.isEnabled = true
+        binding.appUpdateInstallBtn.isEnabled = false
+        binding.appUpdateInstallBtn.text = getString(R.string.app_update_download_button)
+    }
+
+    private fun renderAppUpdateChecking(channel: UpdateChannel) {
+        binding.appUpdateStatusText.text = getString(R.string.app_update_checking_fmt, updateChannelLabel(channel))
+        binding.appUpdateCheckBtn.isEnabled = false
+        binding.appUpdateInstallBtn.isEnabled = false
+        binding.appUpdateInstallBtn.text = getString(R.string.app_update_download_button)
+    }
+
+    private fun renderAppUpdateAvailable(release: AppUpdateManager.RemoteRelease) {
+        binding.appUpdateStatusText.text = getString(
+            R.string.app_update_available_fmt,
+            release.versionName,
+            release.versionCode,
+            updateChannelLabel(release.channel),
+        )
+        binding.appUpdateCheckBtn.isEnabled = true
+        binding.appUpdateInstallBtn.isEnabled = true
+        binding.appUpdateInstallBtn.text = getString(R.string.app_update_download_button)
+    }
+
+    private fun renderAppUpdateDownloaded(update: AppUpdateManager.DownloadedUpdate) {
+        binding.appUpdateStatusText.text = getString(
+            R.string.app_update_downloaded_fmt,
+            update.versionName,
+            update.versionCode,
+        )
+        binding.appUpdateCheckBtn.isEnabled = true
+        binding.appUpdateInstallBtn.isEnabled = true
+        binding.appUpdateInstallBtn.text = getString(R.string.app_update_install_button)
+    }
+
+    private fun renderAppUpdateUpToDate(message: String) {
+        binding.appUpdateStatusText.text = message
+        binding.appUpdateCheckBtn.isEnabled = true
+        binding.appUpdateInstallBtn.isEnabled = false
+        binding.appUpdateInstallBtn.text = getString(R.string.app_update_download_button)
+    }
+
+    private fun renderAppUpdateError(message: String) {
+        binding.appUpdateStatusText.text = getString(R.string.app_update_error_fmt, message)
+        binding.appUpdateCheckBtn.isEnabled = true
+        binding.appUpdateInstallBtn.isEnabled = pendingDownloadedUpdate != null || pendingRemoteUpdate != null
+        binding.appUpdateInstallBtn.text = if (pendingDownloadedUpdate != null) {
+            getString(R.string.app_update_install_button)
+        } else {
+            getString(R.string.app_update_download_button)
+        }
+    }
+
+    private fun updateChannelLabel(channel: UpdateChannel): String {
+        return when (channel) {
+            UpdateChannel.ROLLING -> getString(R.string.app_update_channel_rolling)
+            UpdateChannel.STABLE -> getString(R.string.app_update_channel_stable)
         }
     }
 
