@@ -1,78 +1,157 @@
 # Vesta NG Cluster
 
-![Иконка приложения](docs/app-icon-1024.png)
+<p align="center">
+  <img src="docs/app-icon-1024.png" width="120" height="120" alt="Vesta NG Cluster Icon">
+</p>
 
-`Vesta NG Cluster` — Android-приложение для вывода cluster/navigation UI на комбинацию приборов.  
-Основной пайплайн проекта: `VirtualDisplay` -> OpenGL-компоновка -> `MediaCodec` H.264 -> UDP-передача.
+<p align="center">
+  <a href="https://github.com/foric27/VestaNGCluster/actions/workflows/android-release.yml">
+    <img src="https://github.com/foric27/VestaNGCluster/actions/workflows/android-release.yml/badge.svg" alt="Android Release">
+  </a>
+  <a href="https://github.com/foric27/VestaNGCluster/releases">
+    <img src="https://img.shields.io/github/v/release/foric27/VestaNGCluster?include_prereleases" alt="Latest Release">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
+  </a>
+</p>
 
-## Что делает приложение
+**Vesta NG Cluster** — Android-приложение для вывода cluster/navigation UI на комбинацию приборов автомобиля.
 
-- запускает и удерживает foreground-сервис трансляции;
-- выводит навигационный интерфейс на виртуальный дисплей;
-- кодирует изображение в `H.264`;
-- отправляет видео и статусные данные по `UDP`;
-- поднимает встроенный `FTP` для выдачи `ICUpdate.zip` и `ICUpdate.zip.sig`;
-- восстанавливает трансляцию после ошибок, потери сети и части системных событий.
+Основной пайплайн: `VirtualDisplay` → OpenGL-компоновка → `MediaCodec` H.264 → UDP-передача.
 
-## Ключевые особенности
+## Возможности
 
-- фиксированное разрешение видеопотока `1920x640`;
-- root-сеть со статическим IP для целевого сценария;
-- status sync на отдельном UDP-порту;
-- режимы и runtime-настройки через экран разработчика;
-- совместимость с cluster focus broadcast заводских приложений;
-- автоматические recovery-сценарии для сервиса, стрима и FTP.
+- **Foreground-сервис трансляции** — устойчивая работа в фоне с автоматическим recovery
+- **Виртуальный дисплей** — вывод навигационного интерфейса на dedicated display
+- **H.264 видеокодирование** — аппаратное кодирование через MediaCodec
+- **UDP-стриминг** — передача видео и статусных данных по сети
+- **Встроенный FTP-сервер** — выдача обновлений `ICUpdate.zip` для IVI-клиента
+- **Root-сеть** — автоматическая настройка IP, маршрутов и policy routing
+- **Runtime-конфигурация** — настройки через экран разработчика без пересборки
+- **Recovery-сценарии** — автоматическое восстановление после ошибок и потери сети
+
+## Архитектура
+
+```
+┌─────────────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────┐
+│  Target App     │────▶│ VirtualDisplay│────▶│ OpenGL/GL   │────▶│ MediaCodec│
+│  (Navigation)   │     │  (1920x640)   │     │ Composer    │     │ H.264     │
+└─────────────────┘     └──────────────┘     └─────────────┘     └────┬─────┘
+                                                                      │
+                                                                      ▼
+┌─────────────────┐     ┌──────────────┐     ┌──────────────────────────┐
+│   FTP Server    │◀────│  UDP Status  │◀────│      UDP Sender          │
+│ (ICUpdate.zip)  │     │   Sync       │     │  (Video + Status Packets)│
+└─────────────────┘     └──────────────┘     └──────────────────────────┘
+```
+
+## Требования
+
+- Android 8.0+ (API 26)
+- Root-доступ (для настройки сети)
+- JDK 21
+- Android SDK с platform `android-37.0`
+
+## Сборка
+
+```bash
+# Убедитесь, что JAVA_HOME указывает на JDK 21
+export JAVA_HOME=/path/to/jdk-21
+
+# Сборка release APK
+./gradlew assembleRelease
+
+# Сборка debug APK
+./gradlew assembleDebug
+
+# Запуск тестов
+./gradlew :app:testDebugUnitTest
+
+# Линт
+./gradlew lintDebug
+```
+
+## Установка
+
+```bash
+# Push APK на устройство
+adb push app/build/outputs/apk/release/app-release.apk /data/local/tmp/
+
+# Установка (обновление)
+adb shell pm install -r /data/local/tmp/app-release.apk
+
+# Очистка
+adb shell rm /data/local/tmp/app-release.apk
+```
+
+## GitHub Release Signing
+
+Для подписи release APK через GitHub Actions необходимо настроить Secrets:
+
+1. Сгенерируйте release keystore:
+   ```bash
+   keytool -genkey -v -keystore release-keystore.jks -alias release \
+     -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+2. Закодируйте в base64:
+   ```bash
+   base64 -w 0 release-keystore.jks
+   ```
+
+3. Добавьте в GitHub Secrets репозитория:
+   - `ANDROID_KEYSTORE_BASE64` — base64-кодированный keystore
+   - `ANDROID_KEYSTORE_PASSWORD` — пароль keystore
+   - `ANDROID_KEY_ALIAS` — alias ключа
+   - `ANDROID_KEY_PASSWORD` — пароль ключа
+
+Подробнее см. [`docs/signing.md`](docs/signing.md).
 
 ## Структура проекта
 
-```text
+```
 .
 ├── app/
-│   ├── src/main/java/ru/foric27/cluster/
-│   ├── src/main/res/
-│   └── build.gradle
-├── docs/
-├── scripts/
-├── .github/workflows/
-├── keystore.properties.example
-└── README.md
+│   ├── src/main/java/ru/foric27/cluster/    # Основной Kotlin-код
+│   ├── src/main/res/                        # Ресурсы, layout, строки
+│   └── build.gradle                         # Конфигурация Android-модуля
+├── docs/                                    # Документация
+├── .github/workflows/                       # GitHub Actions
+├── keystore.properties.example              # Пример конфигурации подписи
+├── LICENSE                                  # Apache License 2.0
+└── README.md                                # Этот файл
 ```
-
-## Важные каталоги и файлы
-
-- [`app/src/main/java/ru/foric27/cluster`](app/src/main/java/ru/foric27/cluster) — основной Kotlin-код проекта
-- [`app/src/main/res`](app/src/main/res) — ресурсы, layout, строки, иконки
-- [`app/src/main/AndroidManifest.xml`](app/src/main/AndroidManifest.xml) — manifest приложения
-- [`app/build.gradle`](app/build.gradle) — конфигурация Android-модуля
-- [`dist`](dist) — локально сохранённые production APK
-- [`docs/app-icon.svg`](docs/app-icon.svg) — крупная SVG-версия иконки приложения
 
 ## Основные компоненты
 
-- [`UdpStreamService.kt`](app/src/main/java/ru/foric27/cluster/UdpStreamService.kt) — orchestration сервиса, restart/recovery, статус, FTP и сеть
-- [`VideoEncoder.kt`](app/src/main/java/ru/foric27/cluster/VideoEncoder.kt) — видеокодирование, `VirtualDisplay`, запуск target activity
+- [`UdpStreamService.kt`](app/src/main/java/ru/foric27/cluster/UdpStreamService.kt) — orchestration сервиса, restart/recovery, статус, FTP
+- [`VideoEncoder.kt`](app/src/main/java/ru/foric27/cluster/VideoEncoder.kt) — видеокодирование, VirtualDisplay, запуск target activity
 - [`RootNetUtil.kt`](app/src/main/java/ru/foric27/cluster/RootNetUtil.kt) — root-команды для IP и маршрутов
 - [`UpdateServerManager.kt`](app/src/main/java/ru/foric27/cluster/UpdateServerManager.kt) — update flow и FTP-сервер
 - [`MainActivity.kt`](app/src/main/java/ru/foric27/cluster/MainActivity.kt) — основной экран и пользовательский контроль
-- [`DeveloperActivity.kt`](app/src/main/java/ru/foric27/cluster/DeveloperActivity.kt) — runtime-настройки для разработчика
-- [`RuntimeConfig.kt`](app/src/main/java/ru/foric27/cluster/RuntimeConfig.kt) — runtime-переопределения поверх `ProductConfig`
-- [`ProductConfig.kt`](app/src/main/java/ru/foric27/cluster/ProductConfig.kt) — базовые дефолты и wire-контракты
+- [`DeveloperActivity.kt`](app/src/main/java/ru/foric27/cluster/DeveloperActivity.kt) — runtime-настройки
+- [`RuntimeConfig.kt`](app/src/main/java/ru/foric27/cluster/RuntimeConfig.kt) — runtime-переопределения
+- [`ProductConfig.kt`](app/src/main/java/ru/foric27/cluster/ProductConfig.kt) — базовые дефолты
 
-## Как использовать
+## Безопасность
 
-- установите приложение на устройство;
-- запустите [`MainActivity`](app/src/main/java/ru/foric27/cluster/MainActivity.kt);
-- дайте необходимые системные разрешения;
-- при необходимости откройте экран разработчика и измените runtime-настройки;
-- для production-версии используйте APK из каталога [`dist`](dist).
+- Signing secrets (keystore, пароли) **не хранятся** в репозитории
+- Используйте GitHub Secrets для CI/CD подписи
+- Локальная подпись через `keystore.properties` (не коммитьте в git)
+- Подробнее см. [`SECURITY.md`](SECURITY.md)
 
-## Что важно знать
+## Contributing
 
-- поток всегда передаётся в размере `1920x640`, даже если UI адаптирован под другой экран;
-- язык панели ограничен `ru` и `en`;
-- root-интерфейс по умолчанию — `eth0`, а его изменение доступно только через экран разработчика;
-- внешний viewer на ПК может показывать decode-ошибки при слишком большом `UDP max payload`, поэтому для такой проверки обычно используют диапазон `1200-1400`.
+Мы приветствуем вклады! См. [`CONTRIBUTING.md`](CONTRIBUTING.md) для правил и рекомендаций.
 
-## GitHub Actions
+## Лицензия
 
-В репозитории настроен workflow [`Android Release`](.github/workflows/android-release.yml), который собирает релизный APK и публикует его в GitHub Releases.
+Этот проект распространяется под лицензией Apache License 2.0.
+См. [`LICENSE`](LICENSE) для подробностей.
+
+## Благодарности
+
+- [libsu](https://github.com/topjohnwu/libsu) — root shell execution
+- [Apache MINA](https://mina.apache.org/) — FTP server core
+- [Timber](https://github.com/JakeWharton/timber) — логирование
