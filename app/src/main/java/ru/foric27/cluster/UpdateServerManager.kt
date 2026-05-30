@@ -518,12 +518,7 @@ internal object UpdateServerManager {
     }
 
     private fun buildPreparingMessage(searchPolicy: UpdateFileLocator.SearchPolicy): String {
-        val preparingResId = when (searchPolicy) {
-            UpdateFileLocator.SearchPolicy.INTERNAL_ONLY -> R.string.update_server_preparing_internal
-            UpdateFileLocator.SearchPolicy.USB_FIRST -> R.string.update_server_preparing_usb_first
-            UpdateFileLocator.SearchPolicy.USB_ONLY -> R.string.update_server_preparing_usb_only
-        }
-        return str(preparingResId)
+        return str(R.string.update_server_preparing_usb_only)
     }
 
     private fun failState(
@@ -614,8 +609,6 @@ internal object UpdateServerManager {
             R.string.update_server_not_running -> "FTP-сервер не запущен"
             R.string.update_server_stopped -> "FTP-сервер остановлен"
             R.string.update_server_context_not_initialized -> "Контекст приложения ещё не инициализирован"
-            R.string.update_server_preparing_internal -> "Подготовка FTP-сервера обновления: поиск во внутренней памяти"
-            R.string.update_server_preparing_usb_first -> "Подготовка FTP-сервера обновления: поиск на USB и во внутренней памяти"
             R.string.update_server_preparing_usb_only -> "Подготовка FTP-сервера обновления: поиск на USB"
             R.string.update_server_started_fmt -> "FTP-сервер обновления запущен: ${args[0]}:${args[1]}; источник ${args[2]}"
             R.string.update_server_poll_new_update_fmt -> "Периодический опрос обнаружил новое или изменённое обновление: ${args[0]}"

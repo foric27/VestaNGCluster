@@ -203,8 +203,6 @@
     <string name="update_server_not_running">FTP server not running</string>
     <string name="update_server_stopped">FTP server stopped</string>
     <string name="update_server_context_not_initialized">Application context not yet initialized</string>
-    <string name="update_server_preparing_internal">Preparing FTP update server: searching internal memory</string>
-    <string name="update_server_preparing_usb_first">Preparing FTP update server: searching USB and internal memory</string>
     <string name="update_server_preparing_usb_only">Preparing FTP update server: searching USB</string>
     <string name="update_server_started_fmt">FTP update server started: %1$s:%2$d; source %3$s</string>
     <string name="update_server_poll_new_update_fmt">Periodic poll detected new or changed update: %1$s</string>

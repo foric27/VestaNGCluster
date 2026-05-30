@@ -93,7 +93,7 @@ internal object ProcessRecoveryManager {
         val content = buildString {
             appendLine("=== CRASH LOG ===")
             appendLine("timestamp=$timestamp")
-            appendLine("thread=${thread.name}#${thread.id}")
+            appendLine("thread=${thread.name}#${thread.threadId()}")
             appendLine("exception=${throwable.javaClass.name}")
             appendLine("message=${throwable.message}")
             appendLine("stacktrace=")

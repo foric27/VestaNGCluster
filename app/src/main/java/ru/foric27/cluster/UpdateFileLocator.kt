@@ -22,12 +22,6 @@ import java.io.InputStream
 internal class UpdateFileLocator {
 
     enum class SearchPolicy {
-        @Deprecated("Используйте USB_ONLY для runtime поиска обновлений")
-        INTERNAL_ONLY,
-
-        @Deprecated("Используйте USB_ONLY для runtime поиска обновлений")
-        USB_FIRST,
-
         USB_ONLY,
     }
 
@@ -89,21 +83,9 @@ internal class UpdateFileLocator {
         searchPolicy: SearchPolicy,
     ): List<ScanRoot> {
         val persistedTree = resolvePersistedTree(context) ?: return emptyList()
-        when (searchPolicy) {
-            SearchPolicy.INTERNAL_ONLY -> {
-                if (persistedTree.sourceKind != SourceKind.INTERNAL) {
-                    Timber.tag(TAG).i("Persisted SAF URI не указывает на внутреннюю память; INTERNAL_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
-                    return emptyList()
-                }
-            }
-            SearchPolicy.USB_ONLY -> {
-                if (persistedTree.sourceKind != SourceKind.USB) {
-                    Timber.tag(TAG).i("Persisted SAF URI не указывает на USB; USB_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
-                    return emptyList()
-                }
-            }
-            SearchPolicy.USB_FIRST -> { /* no filter */
-            }
+        if (persistedTree.sourceKind != SourceKind.USB) {
+            Timber.tag(TAG).i("Persisted SAF URI не указывает на USB; USB_ONLY пропускает поиск: ${persistedTree.directoryLabel}")
+            return emptyList()
         }
         return listOf(persistedTree)
     }
@@ -124,11 +106,7 @@ internal class UpdateFileLocator {
                 directory = usbRoot,
             )
         }
-        return when (searchPolicy) {
-            SearchPolicy.INTERNAL_ONLY -> listOf(internalRoot)
-            SearchPolicy.USB_FIRST -> usbRoots + internalRoot
-            SearchPolicy.USB_ONLY -> usbRoots
-        }
+        return usbRoots
     }
 
     private fun resolvePersistedTree(context: Context): ScanRoot? {

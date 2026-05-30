@@ -25,7 +25,7 @@ internal class UpdateAlertActivity : Activity() {
 
         val updateLocation = intent.getStringExtra(EXTRA_UPDATE_LOCATION).orEmpty()
         val searchPolicyName = intent.getStringExtra(EXTRA_SEARCH_POLICY)
-            ?: UpdateFileLocator.SearchPolicy.USB_FIRST.name
+            ?: UpdateFileLocator.SearchPolicy.USB_ONLY.name
 
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.update_alert_title))
@@ -72,7 +72,7 @@ internal class UpdateAlertActivity : Activity() {
         val policy = try {
             UpdateFileLocator.SearchPolicy.valueOf(searchPolicyName)
         } catch (_: IllegalArgumentException) {
-            UpdateFileLocator.SearchPolicy.USB_FIRST
+            UpdateFileLocator.SearchPolicy.USB_ONLY
         }
         Thread {
             try {
