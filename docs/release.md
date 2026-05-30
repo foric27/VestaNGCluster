@@ -10,6 +10,20 @@ GitHub Actions автоматически собирает и публикует
 2. Workflow собирает signed release APK (если настроены secrets)
 3. APK публикуется в GitHub Releases с тегом `main-latest`
 
+### In-app update
+
+- Главный экран приложения использует rolling release `main-latest` как источник self-update по умолчанию.
+- Канал можно переключить на `stable` в скрытом экране разработчика.
+- Для корректной работы self-update release notes должны содержать строку формата:
+
+```md
+- **Version:** `1.0.2` (`3`)
+```
+
+- В release assets должны присутствовать оба файла:
+  - `VestaNGCluster-{version}-{sha}.apk`
+  - `VestaNGCluster-{version}-{sha}.apk.sha256`
+
 ### Формат страницы релиза
 
 Rolling release оформляется единообразно:

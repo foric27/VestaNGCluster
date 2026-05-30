@@ -33,6 +33,7 @@
 - **H.264 видеокодирование** — аппаратное кодирование через MediaCodec
 - **UDP-стриминг** — передача видео и статусных данных по сети
 - **Встроенный FTP-сервер** — выдача обновлений `ICUpdate.zip` для IVI-клиента
+- **Self-update приложения** — проверка, скачивание и установка новой APK из GitHub Releases
 - **Root-сеть** — автоматическая настройка IP, маршрутов и policy routing
 - **Runtime-конфигурация** — настройки через экран разработчика без пересборки
 - **Recovery-сценарии** — автоматическое восстановление после ошибок и потери сети
@@ -64,6 +65,14 @@
 - **Root-доступ** (обязательно для настройки сети и запуска трансляции)
 - JDK 21
 - Android SDK с platform `android-37.0`
+
+## Обновление приложения
+
+- На главном экране доступна карточка проверки и установки новой версии приложения.
+- По умолчанию используется rolling-канал `main-latest` из GitHub Releases.
+- В скрытом экране разработчика можно переключить канал обновления: `rolling` или `stable`.
+- APK скачивается в cache приложения, проверяется по `SHA-256`, после чего установка запускается через стандартный Android installer.
+- Для самого механизма установки APK root не требуется, но root по-прежнему обязателен для основной streaming-функциональности приложения.
 
 ## Сборка
 
@@ -141,6 +150,7 @@ adb shell rm /data/local/tmp/app-release.apk
 - [`VideoEncoder.kt`](app/src/main/java/ru/foric27/cluster/VideoEncoder.kt) — видеокодирование, VirtualDisplay, запуск target activity
 - [`RootNetUtil.kt`](app/src/main/java/ru/foric27/cluster/RootNetUtil.kt) — root-команды для IP и маршрутов
 - [`UpdateServerManager.kt`](app/src/main/java/ru/foric27/cluster/UpdateServerManager.kt) — update flow и FTP-сервер
+- [`AppUpdateManager.kt`](app/src/main/java/ru/foric27/cluster/AppUpdateManager.kt) — self-update приложения из GitHub Releases
 - [`MainActivity.kt`](app/src/main/java/ru/foric27/cluster/MainActivity.kt) — основной экран и пользовательский контроль
 - [`DeveloperActivity.kt`](app/src/main/java/ru/foric27/cluster/DeveloperActivity.kt) — runtime-настройки
 - [`RuntimeConfig.kt`](app/src/main/java/ru/foric27/cluster/RuntimeConfig.kt) — runtime-переопределения
