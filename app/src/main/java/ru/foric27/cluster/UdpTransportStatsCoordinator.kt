@@ -1,5 +1,6 @@
 package ru.foric27.cluster
 
+import android.content.Context
 import android.os.Process
 import android.os.SystemClock
 import timber.log.Timber
@@ -7,6 +8,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class UdpTransportStatsCoordinator(
+    private val context: Context,
     private val tag: String,
     private val senderSnapshotProvider: () -> UdpSender.StatsSnapshot?,
     private val statusSnapshotProvider: () -> UdpStatusSyncCoordinator.StatsSnapshot,
@@ -64,7 +66,7 @@ internal class UdpTransportStatsCoordinator(
                     prevStatusBytes = statusBytes
                     prevErrors = totalErrors
                     Timber.tag(tag).i(
-                        "UDP stats baseline reset: source counters were recreated after pipeline/status restart",
+                        context.getString(R.string.udp_stats_baseline_reset),
                     )
                     continue
                 }

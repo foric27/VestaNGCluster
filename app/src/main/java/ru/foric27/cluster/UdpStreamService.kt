@@ -262,6 +262,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             joinThreadQuietly = ::joinThreadQuietly,
         )
         transportStatsCoordinator = UdpTransportStatsCoordinator(
+            context = applicationContext,
             tag = TAG,
             senderSnapshotProvider = { sender?.snapshot() },
             statusSnapshotProvider = statusSyncCoordinator::snapshot,

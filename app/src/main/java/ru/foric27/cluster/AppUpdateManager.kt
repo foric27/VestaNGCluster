@@ -170,7 +170,7 @@ internal object AppUpdateManager {
             verifyChecksum(context, apkFile, checksumFile)
             inspectDownloadedApk(context, apkFile, checksumFile)
         }.getOrElse { error ->
-            Timber.tag(TAG).w(error, "Удаляю повреждённый cached update")
+            Timber.tag(TAG).w(error, context.getString(R.string.app_update_cached_update_invalid))
             apkFile.delete()
             checksumFile?.delete()
             null
