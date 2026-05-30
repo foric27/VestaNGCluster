@@ -66,8 +66,14 @@ internal class UdpSender(
                     Timber.tag(TAG).i("UDP-сокет привязан к локальному адресу $bindIp")
                 }
             } catch (be: BindException) {
-                Timber.tag(TAG).e(be, "Не удалось привязать UDP-сокет к $bindIp; fallback на 0.0.0.0 отключён")
-                throw IOException("Не удалось привязать UDP-сокет к $bindIp", be)
+                Timber.tag(TAG).w(be, "Не удалось привязать UDP-сокет к $bindIp; fallback на 0.0.0.0")
+                try {
+                    DatagramSocket().also {
+                        Timber.tag(TAG).i("UDP-сокет создан без привязки (fallback) для $host:$port")
+                    }
+                } catch (e: SocketException) {
+                    throw IOException("Не удалось создать UDP-сокет даже с fallback", e)
+                }
             }
         } else {
             DatagramSocket()
@@ -120,6 +126,29 @@ internal class UdpSender(
             }
         } catch (e: IOException) {
             val failureCount = markFrameSendFailure()
+            val isInvalidArgument = e.message?.contains("EINVAL") == true || e.cause?.message?.contains("EINVAL") == true
+            if (isInvalidArgument && failureCount >= 2) {
+                Timber.tag(TAG).w("UDP EINVAL (bind-адрес стал недоступен), пробуем fallback на не-bound сокет")
+                try {
+                    socket?.close()
+                    socket = DatagramSocket()
+                    socket?.broadcast = false
+                    Timber.tag(TAG).i("UDP-сокет пересоздан без bind для fallback")
+                    // Повторяем отправку текущего пакета
+                    val packet = DatagramPacket(data, offset, minOf(safePayloadBytes, data.size - offset), a, port)
+                    markSendAttempt()
+                    socket?.send(packet)
+                    videoPacketsSent.incrementAndGet()
+                    videoBytesSent.addAndGet(packet.length.toLong())
+                    markSendSuccess()
+                    offset += packet.length
+                    paceAfterPacket(packet.length)
+                    // Продолжаем отправку оставшихся фрагментов в while-цикле выше
+                    return
+                } catch (fallbackEx: Exception) {
+                    Timber.tag(TAG).w(fallbackEx, "UDP fallback тоже не удался")
+                }
+            }
             Timber.tag(TAG).w(e, "UDP send error, host=$host:$port, bindIp=${bindIp ?: "auto"}, отправлено $offset/${data.size} байт")
             if (failureCount >= MAX_CONSECUTIVE_FRAME_SEND_ERRORS) {
                 throw IOException("Повторяющаяся ошибка UDP-отправки ($failureCount подряд)", e)

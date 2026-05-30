@@ -97,13 +97,14 @@ internal class UdpStatusSyncCoordinator(
                         statusPacketsSent.incrementAndGet()
                         statusBytesSent.addAndGet(payload.size.toLong())
                         consecutiveErrors = 0
-                    } catch (t: Throwable) {
-                        statusSendErrors.incrementAndGet()
-                        consecutiveErrors++
-                        if (consecutiveErrors == 1 || consecutiveErrors % statusErrorLogEvery == 0) {
-                            Timber.tag(tag).w(t, "Ошибка отправки status sync (ошибок подряд=$consecutiveErrors)")
-                        }
+                } catch (t: Throwable) {
+                    statusSendErrors.incrementAndGet()
+                    consecutiveErrors++
+                    if (consecutiveErrors == 1 || consecutiveErrors % statusErrorLogEvery == 0) {
+                        val suppressed = if (consecutiveErrors > 1) " (подавлено ${consecutiveErrors - 1})" else ""
+                        Timber.tag(tag).w(t, "Ошибка отправки status sync (ошибок подряд=$consecutiveErrors)$suppressed")
                     }
+                }
 
                     try {
                         Thread.sleep(statusPeriodMs.toLong())
