@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+if [ -n "${SKIP_LOCAL_PRE_PUSH_TESTS:-}" ]; then
+  echo "[pre-push] SKIP_LOCAL_PRE_PUSH_TESTS set, skipping local checks"
+  exit 0
+fi
+
+if [ -z "${JAVA_HOME:-}" ]; then
+  if [ -d "/c/Program Files/Java/jdk-21" ]; then
+    JAVA_HOME="/c/Program Files/Java/jdk-21"
+  elif [ -d "/c/my_soft/android/VestaNGClusterFlowStudio/.tools/jdk-21.0.10" ]; then
+    JAVA_HOME="/c/my_soft/android/VestaNGClusterFlowStudio/.tools/jdk-21.0.10"
+  fi
+  export JAVA_HOME
+fi
+
+if [ -n "${JAVA_HOME:-}" ]; then
+  PATH="$JAVA_HOME/bin:$PATH"
+  export PATH
+fi
+
+echo "[pre-push] Running :app:testDebugUnitTest"
+./gradlew.bat :app:testDebugUnitTest
+
+echo "[pre-push] Running lintDebug"
+./gradlew.bat lintDebug
+
+echo "[pre-push] Local checks passed"
