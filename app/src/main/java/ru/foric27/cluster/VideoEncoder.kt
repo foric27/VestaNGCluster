@@ -620,7 +620,15 @@ internal class VideoEncoder(
                 scheduleNextFrame()
                 return
             }
-            nextFrameTimeNs += frameIntervalNs
+            // Если кадр опоздал более чем на 2 интервала, сбрасываем nextFrameTimeNs
+            // чтобы избежать накопления задержки (compounded drift)
+            val lagNs = nowNs - nextFrameTimeNs
+            if (lagNs > frameIntervalNs * 2) {
+                nextFrameTimeNs = nowNs
+                Timber.tag(TAG).d("Кадр опоздал на ${lagNs / 1_000_000L}мс, сбрасываю тайминг")
+            } else {
+                nextFrameTimeNs += frameIntervalNs
+            }
             renderFrame()
             scheduleNextFrame()
         }
@@ -655,8 +663,15 @@ internal class VideoEncoder(
             return
         }
         val fps = fpsWindowFrames * 1000.0 / elapsedMs.toDouble()
+        val fpsDeviation = fps - streamConfig.fps
+        val fpsDeviationPercent = (fpsDeviation / streamConfig.fps) * 100.0
+        val fpsStatus = when {
+            fpsDeviationPercent < -10.0 -> "LOW"
+            fpsDeviationPercent > 10.0 -> "HIGH"
+            else -> "OK"
+        }
         Timber.tag(TAG).i(
-            "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, targetFps=${streamConfig.fps}, window=${elapsedMs}ms, frames=$fpsWindowFrames",
+            "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, targetFps=${streamConfig.fps}, fpsStatus=$fpsStatus, window=${elapsedMs}ms, frames=$fpsWindowFrames",
         )
         fpsWindowStartedAtMs = nowMs
         fpsWindowFrames = 0
