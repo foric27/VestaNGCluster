@@ -96,6 +96,9 @@ internal class SyncHandler(
         return try {
             AppSettings.getSelectedClusterMode(context).streamModeValue
         } catch (t: Throwable) {
+            if (!legacyStreamModeSettingLookupEnabled) {
+                return ClusterMode.CLASSIC_NAV.streamModeValue
+            }
             try {
                 val raw = Settings.Global.getInt(context.contentResolver, STREAM_MODE_PARAM)
                 try {
@@ -108,6 +111,7 @@ internal class SyncHandler(
                     ClusterMode.CLASSIC_NAV.streamModeValue
                 }
             } catch (_: Settings.SettingNotFoundException) {
+                legacyStreamModeSettingLookupEnabled = false
                 if (!warnedMissingStreamModeSetting) {
                     warnedMissingStreamModeSetting = true
                     Timber.tag(TAG).w(context.getString(R.string.sync_missing_stream_mode_setting_fmt, STREAM_MODE_PARAM))
@@ -145,6 +149,9 @@ internal class SyncHandler(
 
         @Volatile
         private var warnedBadStreamModeValue: Boolean = false
+
+        @Volatile
+        private var legacyStreamModeSettingLookupEnabled: Boolean = true
 
         internal fun shouldIncludeTime(periodic: Boolean, timeChanged: Boolean): Boolean {
             return periodic || timeChanged

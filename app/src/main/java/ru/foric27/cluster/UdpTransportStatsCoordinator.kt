@@ -45,6 +45,30 @@ internal class UdpTransportStatsCoordinator(
                 val statusBytes = statusSnapshot.bytesSent
                 val totalErrors = snapshot.sendErrors + statusSnapshot.sendErrors
 
+                val countersReset = snapshot.videoFramesSent < prevVideoFrames ||
+                    snapshot.videoPacketsSent < prevVideoPackets ||
+                    snapshot.videoBytesSent < prevVideoBytes ||
+                    snapshot.probePacketsSent < prevProbePackets ||
+                    snapshot.probeBytesSent < prevProbeBytes ||
+                    statusPackets < prevStatusPackets ||
+                    statusBytes < prevStatusBytes ||
+                    totalErrors < prevErrors
+
+                if (countersReset) {
+                    prevVideoFrames = snapshot.videoFramesSent
+                    prevVideoPackets = snapshot.videoPacketsSent
+                    prevVideoBytes = snapshot.videoBytesSent
+                    prevProbePackets = snapshot.probePacketsSent
+                    prevProbeBytes = snapshot.probeBytesSent
+                    prevStatusPackets = statusPackets
+                    prevStatusBytes = statusBytes
+                    prevErrors = totalErrors
+                    Timber.tag(tag).i(
+                        "UDP stats baseline reset: source counters were recreated after pipeline/status restart",
+                    )
+                    continue
+                }
+
                 val deltaFrames = snapshot.videoFramesSent - prevVideoFrames
                 val deltaPackets = snapshot.videoPacketsSent - prevVideoPackets
                 val deltaBytes = snapshot.videoBytesSent - prevVideoBytes
