@@ -25,10 +25,15 @@ internal class VideoDisplayLauncher(
         val errorMessage: String?,
     )
 
-    fun launchOnDisplay(displayId: Int) {
+    fun launchOnDisplay(displayId: Int, force: Boolean = false) {
+        val component = preferredLaunchComponent
+        if (!force && shouldReuseLaunch(displayId, component)) {
+            Timber.tag(TAG).i("Пропускаю повторный root-запуск на display=$displayId, component=${component ?: "null"}")
+            return
+        }
+
         closeOwnClusterOverlays()
 
-        val component = preferredLaunchComponent
         val isOwnComponent = component != null && component.startsWith(BuildConfig.APPLICATION_ID)
 
         if (isOwnComponent) {
@@ -44,6 +49,7 @@ internal class VideoDisplayLauncher(
             val directCommand = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component!!)
             val root = rootActivityStarter.start(directCommand)
             if (root.success) {
+                markLaunchSuccess(displayId, component)
                 Timber.tag(TAG).i("Root-запуск собственной activity на display=$displayId: $component")
                 return
             }
@@ -59,6 +65,7 @@ internal class VideoDisplayLauncher(
             val shellCommand = YandexLaunchTarget.buildProxyAmStartCommand(displayId, command)
             val root = rootActivityStarter.start(shellCommand)
             if (root.success) {
+                markLaunchSuccess(displayId, command.component)
                 Timber.tag(TAG).i("Root-запуск навигатора на display=$displayId: ${command.component} (${command.note}), видимая область=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}")
                 return
             }
@@ -99,8 +106,27 @@ internal class VideoDisplayLauncher(
 
     companion object {
         private const val TAG = "VideoDisplayLauncher"
+        @Volatile private var lastLaunchedDisplayId: Int = -1
+        @Volatile private var lastLaunchedComponent: String? = null
 
         private val RootCommandActivityStarter = rootCommandActivityStarter(RootCommandRunner)
+
+        fun clearLaunchState() {
+            lastLaunchedDisplayId = -1
+            lastLaunchedComponent = null
+        }
+
+        private fun shouldReuseLaunch(displayId: Int, component: String?): Boolean {
+            return displayId >= 0 &&
+                lastLaunchedDisplayId == displayId &&
+                !lastLaunchedComponent.isNullOrBlank() &&
+                lastLaunchedComponent == component
+        }
+
+        private fun markLaunchSuccess(displayId: Int, component: String?) {
+            lastLaunchedDisplayId = displayId
+            lastLaunchedComponent = component
+        }
 
         internal fun rootCommandActivityStarter(executor: RootCommandExecutor): RootActivityStarter {
             return RootActivityStarter { command ->

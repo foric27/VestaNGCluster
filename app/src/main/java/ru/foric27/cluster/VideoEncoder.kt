@@ -264,7 +264,7 @@ internal class VideoEncoder(
         }
         runOnCodecThread {
             try {
-                displayLauncher.launchOnDisplay(displayId)
+                displayLauncher.launchOnDisplay(displayId, force = true)
                 Timber.tag(TAG).i("Повторно активирую навигатор на display=$displayId, reason=$reason")
             } catch (t: Throwable) {
                 Timber.tag(TAG).w(t, "Не удалось повторно активировать навигатор на display=$displayId, reason=$reason")
@@ -563,6 +563,7 @@ internal class VideoEncoder(
     }
 
     private fun notifyDisplayRemoved() {
+        VideoDisplayLauncher.clearLaunchState()
         try {
             context.sendBroadcast(
                 android.content.Intent(VdspState.ACTION_VDSP_STATE_CHANGED)
