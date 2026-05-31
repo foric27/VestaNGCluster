@@ -92,7 +92,7 @@ internal class UdpWakeRecoveryController(
     private fun handleScreenOff() {
         screenSleepStartedAtMs = SystemClock.elapsedRealtime()
         stopStream()
-        Timber.tag(TAG).i("Экран выключен; стрим остановлен, отслеживаю восстановление после выхода из сна")
+        Timber.tag(TAG).i("Экран выключен; сервис остановлен до явного запуска пользователем")
     }
 
     private fun handleWakeEvent(action: String) {
@@ -104,18 +104,9 @@ internal class UdpWakeRecoveryController(
             return
         }
         lastWakeRecoveryAtMs = now
-        screenSleepStartedAtMs = 0L
-        pendingWakeAction = action
-        wakeRecoveryStage = 0
-        wakeRecoveryGeneration += 1L
-
         Timber.tag(TAG).i("Устройство вышло из сна: action=$action, slept=${now - sleptAt}ms")
-        startStream()
-        wakeRecoveryJob?.cancel()
-        wakeRecoveryJob = scope.launch {
-            delay(WAKE_VERIFY_DELAY_MS)
-            launchWakeRecoveryVerification()
-        }
+        clearPendingState()
+        Timber.tag(TAG).i("Автовосстановление после сна отключено: ожидаю явный запуск пользователя")
     }
 
     private fun launchWakeRecoveryVerification() {

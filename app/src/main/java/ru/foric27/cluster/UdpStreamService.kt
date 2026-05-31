@@ -44,6 +44,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     @Volatile private var streamActive = false
     @Volatile private var startInProgress = false
     @Volatile private var restartInProgress = false
+    @Volatile private var intentionalSleepShutdown = false
 
     private var encoder: VideoEncoder? = null
     @Volatile private var sender: UdpSender? = null
@@ -80,6 +81,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         RuntimeConfig.init(applicationContext)
         RootNetUtil.attachNetworkRootShell(networkRootShell)
         val rootAvailable = networkRootShell.isAvailable()
+        intentionalSleepShutdown = false
         serviceRunning = true
         streamActiveState = false
         initWakeLock()
@@ -166,11 +168,15 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         synchronized(serviceLock) {
             restartInProgress = false
         }
-        recoveryScheduler.schedule(
-            reason = "service_destroyed",
-            delayMs = SERVICE_RECOVERY_DELAY_MS,
-            userReason = getString(R.string.app_recovery_restart_reason_service_destroyed),
-        )
+        if (!intentionalSleepShutdown) {
+            recoveryScheduler.schedule(
+                reason = "service_destroyed",
+                delayMs = SERVICE_RECOVERY_DELAY_MS,
+                userReason = getString(R.string.app_recovery_restart_reason_service_destroyed),
+            )
+        } else {
+            Timber.tag(TAG).i("Пропускаю автовосстановление: сервис был штатно остановлен при сне устройства")
+        }
         wakeRecoveryController.unregister()
         unregisterDisplayStateReceiver()
         unregisterUsbMediaReceiver()
@@ -1025,6 +1031,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun handleStartStreamAction(): Int {
         synchronized(serviceLock) {
+            intentionalSleepShutdown = false
             streamStoppedForSleep = false
             if (!streamActive && !startInProgress) {
                 attemptRestart("user_start_from_notification")
@@ -1101,6 +1108,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
 
         synchronized(serviceLock) {
+            intentionalSleepShutdown = false
             if (!forceRestart && lastCfg == cfg && (streamActive || startInProgress || sender != null)) {
                 Timber.tag(TAG).i("Игнорирую повторный startCommand: стрим уже активен или запускается")
                 launchUpdateRefreshWorker("DuplicateStartFtpRefresh", "Ошибка обновления FTP при повторном startCommand") {
@@ -1175,27 +1183,26 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun stopStreamForSleep() {
         synchronized(serviceLock) {
-            if (streamActive) {
-                streamStoppedForSleep = true
-                stopInternalKeepService()
-                PersistentVirtualDisplay.releaseAll()
-                Timber.tag(TAG).i("Экран выключен — стрим и VirtualDisplay освобождены для экономии заряда")
-                updateNotification(getString(R.string.service_notification_sleep_stopped))
-            }
+            performSleepShutdownLocked()
         }
     }
 
     private fun resumeStreamAfterSleep() {
         synchronized(serviceLock) {
+            Timber.tag(TAG).i("Автовосстановление после сна отключено; ожидаю явный запуск пользователя")
             streamStoppedForSleep = false
-            if (!streamActive && !startInProgress) {
-                startDetachedWorker("WakeResume") {
-                    attemptRestart("wake_recovery")
-                }
-            } else {
-                updateNotification(getString(R.string.service_notification_wake_started))
-            }
         }
+    }
+
+    private fun performSleepShutdownLocked() {
+        if (intentionalSleepShutdown) return
+        intentionalSleepShutdown = true
+        streamStoppedForSleep = true
+        stopInternalFull()
+        updateNotification(getString(R.string.service_notification_sleep_shutdown))
+        Timber.tag(TAG).i("Экран выключен — полностью останавливаю сервис до явного запуска пользователем")
+        stopForeground(STOP_FOREGROUND_DETACH)
+        stopSelf()
     }
 
     private fun handleMissingInterface(scheduleRestart: Boolean) {
