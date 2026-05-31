@@ -159,6 +159,8 @@ internal class VideoEncoder(
     private var fpsWindowFrames: Int = 0
     private var hasPendingSurfaceFrame: Boolean = false
     private var hasRenderedAnyFrame: Boolean = false
+    private var lastRestartErrorLogMs: Long = 0L
+    private var suppressedRestartErrorCount: Int = 0
 
     /**
      * Поднимает codec thread, настраивает MediaCodec и присоединяет к нему
@@ -293,14 +295,14 @@ internal class VideoEncoder(
             try {
                 onEncoderOutput(codec, index, info)
             } catch (t: Throwable) {
-                Timber.tag(TAG).e(t, "Ошибка обработки output buffer -> рестарт")
+                logRestartError(t, "Ошибка обработки output buffer -> рестарт")
                 releaseOutputBufferQuietly(codec, index)
                 safeRequestRestart()
             }
         }
 
         override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-            Timber.tag(TAG).e(e, "Ошибка MediaCodec -> рестарт")
+            logRestartError(e, "Ошибка MediaCodec -> рестарт")
             safeRequestRestart()
         }
 
@@ -595,7 +597,7 @@ internal class VideoEncoder(
             // Повторный вызов markFrameScheduled(System.nanoTime()) перезаписывал
             // scheduled timestamp wall-clock значением, создавая compounded drift.
         } catch (t: Throwable) {
-            Timber.tag(TAG).e(t, "Ошибка GL-композиции кадра -> рестарт")
+            logRestartError(t, "Ошибка GL-композиции кадра -> рестарт")
             safeRequestRestart()
         }
     }
@@ -670,7 +672,7 @@ internal class VideoEncoder(
             fpsDeviationPercent > 10.0 -> "HIGH"
             else -> "OK"
         }
-        Timber.tag(TAG).i(
+        Timber.tag(TAG).d(
             "Захват VDSP активен: actualFps=${String.format(Locale.US, "%.2f", fps)}, targetFps=${streamConfig.fps}, fpsStatus=$fpsStatus, window=${elapsedMs}ms, frames=$fpsWindowFrames",
         )
         fpsWindowStartedAtMs = nowMs
@@ -723,6 +725,21 @@ internal class VideoEncoder(
         frameTimingController.reset()
     }
 
+    private fun logRestartError(error: Throwable, message: String) {
+        val nowMs = SystemClock.elapsedRealtime()
+        val elapsed = nowMs - lastRestartErrorLogMs
+        if (lastRestartErrorLogMs == 0L || elapsed >= RESTART_ERROR_LOG_WINDOW_MS) {
+            if (suppressedRestartErrorCount > 0) {
+                Timber.tag(TAG).w("Ошибки рестарта видеопайплайна подавлены $suppressedRestartErrorCount раз")
+                suppressedRestartErrorCount = 0
+            }
+            Timber.tag(TAG).e(error, message)
+            lastRestartErrorLogMs = nowMs
+        } else {
+            suppressedRestartErrorCount++
+        }
+    }
+
     private fun safeRequestRestart() {
         try {
             restartCallback.requestRestart()
@@ -735,7 +752,8 @@ internal class VideoEncoder(
         private const val TAG = "VideoEncoder"
         private const val MIME_AVC = "video/avc"
         private const val CODEC_THREAD_JOIN_TIMEOUT_MS = 1_000L
-        private const val FPS_LOG_WINDOW_MS = 2_000L
+        private const val FPS_LOG_WINDOW_MS = 5_000L
+        private const val RESTART_ERROR_LOG_WINDOW_MS = 5_000L
     }
 
     private data class ConfiguredEncoder(
