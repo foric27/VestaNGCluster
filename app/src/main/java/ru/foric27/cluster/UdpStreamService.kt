@@ -36,6 +36,18 @@ import timber.log.Timber
  */
 class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
+    private val startupUpdateRefreshRunnable = Runnable {
+        if (!serviceRunning) return@Runnable
+        startDetachedWorker("StartupFtpRefresh") {
+            runCatching {
+                Timber.tag(TAG).i("Проверяю FTP обновлений после создания сервиса")
+                startOrRefreshUpdateServer()
+            }.onFailure { t ->
+                Timber.tag(TAG).e(t, "Ошибка отложенного запуска FTP обновлений")
+            }
+        }
+    }
+
     private val serviceLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -180,6 +192,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         wakeRecoveryController.unregister()
         unregisterDisplayStateReceiver()
         unregisterUsbMediaReceiver()
+        mainHandler.removeCallbacksAndMessages(null)
         stopInternalFull()
         networkRootShell.close()
         updateStreamWakeLock(held = false)
@@ -237,17 +250,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         wakeRecoveryController = UdpWakeRecoveryController(
             context = this,
             scope = serviceScope,
-            startDetachedWorker = ::startDetachedWorker,
-            postToMain = { block -> mainHandler.post { block() } },
             registerLocalReceiver = ::registerLocalReceiver,
             unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
-            snapshotProvider = ::buildWakeRecoverySnapshot,
-            logPipelineSnapshot = ::logPipelineSnapshot,
-            forceOutputFrame = { reason -> encoder?.forceOutputFrame(reason) ?: Unit },
-            relaunchTargetActivity = { reason -> encoder?.relaunchTargetActivityIfNeeded(reason) ?: Unit },
-            requestImmediateRecovery = ::requestImmediateRecovery,
             stopStream = ::stopStreamForSleep,
-            startStream = ::resumeStreamAfterSleep,
         )
     }
 
@@ -420,62 +425,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             val action = if (held) "захватить" else "освободить"
             Timber.tag(TAG).w(t, "Не удалось $action PARTIAL_WAKE_LOCK")
         }
-    }
-
-    private fun buildWakeRecoverySnapshot(): UdpWakeRecoverySnapshot {
-        if (!isVideoStreamModeSelected()) {
-            return UdpWakeRecoverySnapshot(
-                streamHealthy = true,
-                requiresFullRecovery = false,
-            )
-        }
-        val cfg = lastCfg ?: StreamConfig.fixedConfig(applicationContext, getCurrentStreamMode())
-        val ifaceProbeState = RootNetUtil.getIfaceProbeState(force = true)
-        val recoveryBlocked = ifaceProbeState.rootRequired ||
-            (!ifaceProbeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent)
-        val currentSender = sender
-        val senderSnapshot = currentSender?.snapshot()
-        val recentVideoTraffic = senderSnapshot?.lastSendSuccessElapsedRealtimeMs?.let { lastSendMs ->
-            lastSendMs > 0L && (SystemClock.elapsedRealtime() - lastSendMs) <= ROUTE_RECENT_SEND_GRACE_MS
-        } == true
-        val displayId = VdspState.getDisplayId()
-        val targetHostValue = targetHost?.takeIf { it.isNotBlank() } ?: cfg.ip
-        val expectedBindIp = cfg.bindIp?.takeIf { it.isNotBlank() } ?: cfg.localCidr?.let(::ipFromCidr)
-        val routeCheck = expectedBindIp?.takeIf { it.isNotBlank() }?.let {
-            RootNetUtil.checkRouteTo(targetHostValue, it, forceProbe = true)
-        }
-        routeCheck?.let { serviceAlerts.logRouteVerdict("wake snapshot", it) }
-        val runtimeSnapshot = RuntimeHealthSnapshot(
-            streamActive = streamActive,
-            startInProgress = startInProgress,
-            senderReady = currentSender != null,
-            displayReady = displayId >= 0,
-            recentVideoTraffic = recentVideoTraffic,
-            routeReady = routeCheck?.ok ?: true,
-
-        )
-        Timber.tag(TAG).i(
-            "Wake snapshot: ${ConnectivityHealth.describeWakeSnapshot(runtimeSnapshot)} | " +
-                ConnectivityHealth.describeWakeDecision(runtimeSnapshot) +
-                " | " + logContext(
-                    "streamActive" to runtimeSnapshot.streamActive,
-                    "startInProgress" to runtimeSnapshot.startInProgress,
-                    "senderReady" to runtimeSnapshot.senderReady,
-                    "displayReady" to runtimeSnapshot.displayReady,
-                    "recentVideoTraffic" to runtimeSnapshot.recentVideoTraffic,
-                    "routeReady" to runtimeSnapshot.routeReady,
-                    "recoveryBlocked" to recoveryBlocked,
-                    "ifaceExists" to ifaceProbeState.exists,
-                    "rootRequired" to ifaceProbeState.rootRequired,
-                    "targetHost" to targetHostValue,
-                    "expectedBindIp" to expectedBindIp,
-                ),
-        )
-        return UdpWakeRecoverySnapshot(
-            streamHealthy = ConnectivityHealth.isWakeStreamHealthy(runtimeSnapshot),
-            requiresFullRecovery = !recoveryBlocked && ConnectivityHealth.requiresWakeFullRecovery(runtimeSnapshot),
-            recoveryBlocked = recoveryBlocked,
-        )
     }
 
     private fun registerDisplayStateReceiver() {
@@ -656,20 +605,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun scheduleStartupUpdateServerRefresh() {
-        mainHandler.postDelayed(
-            {
-                if (!serviceRunning) return@postDelayed
-                startDetachedWorker("StartupFtpRefresh") {
-                    runCatching {
-                        Timber.tag(TAG).i("Проверяю FTP обновлений после создания сервиса")
-                        startOrRefreshUpdateServer()
-                    }.onFailure { t ->
-                        Timber.tag(TAG).e(t, "Ошибка отложенного запуска FTP обновлений")
-                    }
-                }
-            },
-            FTP_STARTUP_REFRESH_DELAY_MS,
-        )
+        mainHandler.removeCallbacks(startupUpdateRefreshRunnable)
+        mainHandler.postDelayed(startupUpdateRefreshRunnable, FTP_STARTUP_REFRESH_DELAY_MS)
     }
 
     private fun stopInternalKeepService() {
@@ -728,6 +665,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun stopInternalFull() {
         restartController.cancel()
+        recoveryScheduler.cancel()
         stopInternalKeepService()
         UpdateServerManager.stopServer()
         RootNetUtil.clearCaches()

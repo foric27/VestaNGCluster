@@ -16,6 +16,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.foric27.cluster.AppSettings.UiStreamMode
 import ru.foric27.cluster.AppSettings.UpdateChannel
 import ru.foric27.cluster.databinding.ActivityMainBinding
@@ -39,6 +44,8 @@ class MainActivity : AppCompatActivity() {
     private var updateBusy = false
     private var pendingRemoteUpdate: AppUpdateManager.RemoteRelease? = null
     private var pendingDownloadedUpdate: AppUpdateManager.DownloadedUpdate? = null
+    private var updateQueryJob: Job? = null
+    private var updateDownloadJob: Job? = null
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -163,6 +170,12 @@ class MainActivity : AppCompatActivity() {
         AppWarningCenter.unregisterListener(noticeLog.warningListener)
         unregisterVdspReceiverSafely()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        updateQueryJob?.cancel()
+        updateDownloadJob?.cancel()
+        super.onDestroy()
     }
 
     private fun bindModeSelector() {
@@ -335,13 +348,14 @@ class MainActivity : AppCompatActivity() {
         val channel = AppSettings.getSelectedUpdateChannel(this)
         updateBusy = true
         renderAppUpdateChecking(channel)
-        Thread {
-            val result = AppUpdateManager.queryUpdate(this, channel, force)
-            runOnUiThread {
-                updateBusy = false
-                applyAppUpdateQueryResult(result, silent)
+        updateQueryJob?.cancel()
+        updateQueryJob = lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                AppUpdateManager.queryUpdate(this@MainActivity, channel, force)
             }
-        }.start()
+            updateBusy = false
+            applyAppUpdateQueryResult(result, silent)
+        }
     }
 
     private fun applyAppUpdateQueryResult(result: AppUpdateManager.QueryResult, silent: Boolean) {
@@ -384,27 +398,28 @@ class MainActivity : AppCompatActivity() {
         )
         binding.appUpdateCheckBtn.isEnabled = false
         binding.appUpdateInstallBtn.isEnabled = false
-        Thread {
-            val result = AppUpdateManager.downloadUpdate(this, release)
-            runOnUiThread {
-                updateBusy = false
-                when (result) {
-                    is AppUpdateManager.DownloadResult.Success -> {
-                        pendingRemoteUpdate = null
-                        pendingDownloadedUpdate = result.update
-                        renderAppUpdateDownloaded(result.update)
-                        noticeLog.show(getString(R.string.app_update_download_complete), isError = false)
-                    }
+        updateDownloadJob?.cancel()
+        updateDownloadJob = lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                AppUpdateManager.downloadUpdate(this@MainActivity, release)
+            }
+            updateBusy = false
+            when (result) {
+                is AppUpdateManager.DownloadResult.Success -> {
+                    pendingRemoteUpdate = null
+                    pendingDownloadedUpdate = result.update
+                    renderAppUpdateDownloaded(result.update)
+                    noticeLog.show(getString(R.string.app_update_download_complete), isError = false)
+                }
 
-                    is AppUpdateManager.DownloadResult.Error -> {
-                        pendingDownloadedUpdate = null
-                        pendingRemoteUpdate = release
-                        renderAppUpdateError(result.message)
-                        noticeLog.show(result.message, isError = true)
-                    }
+                is AppUpdateManager.DownloadResult.Error -> {
+                    pendingDownloadedUpdate = null
+                    pendingRemoteUpdate = release
+                    renderAppUpdateError(result.message)
+                    noticeLog.show(result.message, isError = true)
                 }
             }
-        }.start()
+        }
     }
 
     private fun requestInstallUpdate(update: AppUpdateManager.DownloadedUpdate) {
