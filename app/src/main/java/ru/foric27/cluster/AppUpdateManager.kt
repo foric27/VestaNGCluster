@@ -70,7 +70,7 @@ internal object AppUpdateManager {
         val buildSha: String?,
     )
 
-    fun queryUpdate(context: Context, channel: AppSettings.UpdateChannel): QueryResult {
+    fun queryUpdate(context: Context, channel: AppSettings.UpdateChannel, force: Boolean = false): QueryResult {
         val currentVersionCode = getCurrentVersionCode(context)
         val currentBuildSha = currentBuildSha()
         getCachedUpdate(context, channel)?.let { cached ->
@@ -81,11 +81,13 @@ internal object AppUpdateManager {
         }
 
         val now = System.currentTimeMillis()
-        val backoffMs = minOf(MAX_BACKOFF_MS, MIN_QUERY_INTERVAL_MS * (1L shl consecutiveErrors.coerceAtMost(10)))
-        val elapsed = now - lastQueryAttemptMs
-        if (elapsed < backoffMs) {
-            Timber.tag(TAG).d("Пропускаю проверку обновления: cooldown ${backoffMs - elapsed}мс")
-            return QueryResult.Error(context.getString(R.string.app_update_error_rate_limited))
+        if (!force) {
+            val backoffMs = minOf(MAX_BACKOFF_MS, MIN_QUERY_INTERVAL_MS * (1L shl consecutiveErrors.coerceAtMost(10)))
+            val elapsed = now - lastQueryAttemptMs
+            if (elapsed < backoffMs) {
+                Timber.tag(TAG).d("Пропускаю проверку обновления: cooldown ${backoffMs - elapsed}мс")
+                return QueryResult.Error(context.getString(R.string.app_update_error_rate_limited))
+            }
         }
         lastQueryAttemptMs = now
 

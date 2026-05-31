@@ -196,7 +196,7 @@ class MainActivity : AppCompatActivity() {
             refreshScreenState(refreshFtp = false, consumeWarnings = false)
         }
         binding.appUpdateCheckBtn.setOnClickListener {
-            refreshAppUpdateState()
+            refreshAppUpdateState(force = true)
         }
         binding.appUpdateInstallBtn.setOnClickListener {
             val downloaded = pendingDownloadedUpdate
@@ -330,13 +330,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshAppUpdateState(silent: Boolean = false) {
+    private fun refreshAppUpdateState(silent: Boolean = false, force: Boolean = false) {
         if (updateBusy) return
         val channel = AppSettings.getSelectedUpdateChannel(this)
         updateBusy = true
         renderAppUpdateChecking(channel)
         Thread {
-            val result = AppUpdateManager.queryUpdate(this, channel)
+            val result = AppUpdateManager.queryUpdate(this, channel, force)
             runOnUiThread {
                 updateBusy = false
                 applyAppUpdateQueryResult(result, silent)
