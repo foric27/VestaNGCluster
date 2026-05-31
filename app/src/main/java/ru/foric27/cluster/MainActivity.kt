@@ -590,6 +590,7 @@ class MainActivity : AppCompatActivity() {
     private fun tryMoveTaskToBackIfNeeded() {
         if (backgroundLaunchHandled) return
         if (intent.getBooleanExtra(EXTRA_KEEP_IN_FOREGROUND, false)) return
+        if (!AppSettings.isCollapseOnLaunchEnabled(this)) return
         if (!accessPreflight.isReadyToBackground()) return
 
         backgroundLaunchHandled = true
