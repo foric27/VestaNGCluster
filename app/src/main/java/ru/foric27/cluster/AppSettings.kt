@@ -312,17 +312,23 @@ internal object AppSettings {
         val details: String,
     )
 
+    @Volatile
+    private var streamModeSettingLookupFailed = false
+
     fun getSelectedClusterMode(context: Context): ClusterMode {
         return try {
             val saved = readSavedMode(context)
             if (!saved.isNullOrBlank()) {
                 ClusterMode.fromPref(saved)
+            } else if (streamModeSettingLookupFailed) {
+                ClusterMode.CLASSIC_NAV
             } else {
                 ClusterMode.fromSetting(
                     Settings.Global.getInt(context.contentResolver, SyncHandler.STREAM_MODE_PARAM),
                 )
             }
         } catch (t: Throwable) {
+            streamModeSettingLookupFailed = true
             Timber.tag(TAG).w(t, "Не удалось прочитать cluster mode, использую CLASSIC_NAV")
             ClusterMode.CLASSIC_NAV
         }
