@@ -35,7 +35,7 @@ internal class UdpTransportStatsCoordinator(
 
             while (!statsStop.get()) {
                 try {
-                    Thread.sleep(2_000L)
+                    Thread.sleep(5_000L)
                 } catch (_: InterruptedException) {
                     break
                 }

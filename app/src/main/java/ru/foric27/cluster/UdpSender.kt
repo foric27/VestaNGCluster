@@ -47,6 +47,8 @@ internal class UdpSender(
     @Volatile private var lastProbeFailureLogElapsedRealtimeMs: Long = 0L
     @Volatile private var lastProbeFailureSignature: String? = null
     @Volatile private var suppressedProbeFailureCount: Int = 0
+    @Volatile private var lastSendErrorLogElapsedRealtimeMs: Long = 0L
+    @Volatile private var suppressedSendErrorCount: Int = 0
 
     private var pacingDebtBytes: Int = 0
     private var pacingNextSendNs: Long = 0L
@@ -149,7 +151,19 @@ internal class UdpSender(
                     Timber.tag(TAG).w(fallbackEx, "UDP fallback тоже не удался")
                 }
             }
-            Timber.tag(TAG).w(e, "UDP send error, host=$host:$port, bindIp=${bindIp ?: "auto"}, отправлено $offset/${data.size} байт")
+            val nowMs = android.os.SystemClock.elapsedRealtime()
+            val elapsedSinceLastLog = nowMs - lastSendErrorLogElapsedRealtimeMs
+            val shouldLog = lastSendErrorLogElapsedRealtimeMs == 0L || elapsedSinceLastLog >= SEND_ERROR_LOG_WINDOW_MS
+            if (shouldLog) {
+                if (suppressedSendErrorCount > 0) {
+                    Timber.tag(TAG).w("UDP send error подавлено $suppressedSendErrorCount раз; последняя: host=$host:$port, bindIp=${bindIp ?: "auto"}")
+                    suppressedSendErrorCount = 0
+                }
+                Timber.tag(TAG).w(e, "UDP send error, host=$host:$port, bindIp=${bindIp ?: "auto"}, отправлено $offset/${data.size} байт")
+                lastSendErrorLogElapsedRealtimeMs = nowMs
+            } else {
+                suppressedSendErrorCount++
+            }
             if (failureCount >= MAX_CONSECUTIVE_FRAME_SEND_ERRORS) {
                 throw IOException("Повторяющаяся ошибка UDP-отправки ($failureCount подряд)", e)
             }
@@ -232,6 +246,8 @@ internal class UdpSender(
         lastProbeFailureLogElapsedRealtimeMs = 0L
         lastProbeFailureSignature = null
         suppressedProbeFailureCount = 0
+        lastSendErrorLogElapsedRealtimeMs = 0L
+        suppressedSendErrorCount = 0
     }
 
     private fun logProbeFailure(error: Throwable) {
@@ -351,6 +367,7 @@ internal class UdpSender(
         private const val MIN_COMPAT_WAIT_NS: Long = 20_000L
         private const val MAX_CONSECUTIVE_FRAME_SEND_ERRORS: Int = 3
         private const val PROBE_FAILURE_LOG_WINDOW_MS: Long = 5_000L
+        private const val SEND_ERROR_LOG_WINDOW_MS: Long = 5_000L
         private const val TAG = "UdpSender"
     }
 }
