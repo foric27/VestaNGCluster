@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.datastore.preferences.SharedPreferencesMigration
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -29,6 +30,7 @@ internal object AppSettings {
     private const val TAG = "AppSettings"
     private const val KEY_STREAM_MODE = "stream_mode"
     private const val KEY_UPDATE_CHANNEL = "update_channel"
+    private const val KEY_COLLAPSE_ON_LAUNCH = "collapse_on_launch"
 
     enum class UiStreamMode(
         val clusterMode: ClusterMode,
@@ -123,6 +125,14 @@ internal object AppSettings {
 
     fun saveSelectedUpdateChannel(context: Context, channel: UpdateChannel): Boolean {
         return saveStringPref(context, KEY_UPDATE_CHANNEL, channel.prefValue)
+    }
+
+    fun isCollapseOnLaunchEnabled(context: Context): Boolean {
+        return readBooleanPref(context, KEY_COLLAPSE_ON_LAUNCH, false)
+    }
+
+    fun saveCollapseOnLaunchEnabled(context: Context, enabled: Boolean): Boolean {
+        return saveBooleanPref(context, KEY_COLLAPSE_ON_LAUNCH, enabled)
     }
 
     fun applySelectedMode(context: Context, mode: UiStreamMode): ApplyModeResult {
@@ -252,6 +262,13 @@ internal object AppSettings {
         }
     }
 
+    private fun readBooleanPref(context: Context, key: String, defaultValue: Boolean): Boolean {
+        val appContext = context.applicationContext
+        return runBlocking {
+            appContext.appSettingsDataStore.data.first()[booleanPreferencesKey(key)] ?: defaultValue
+        }
+    }
+
     private fun saveStringPref(context: Context, key: String, value: String): Boolean {
         return try {
             val appContext = context.applicationContext
@@ -263,6 +280,21 @@ internal object AppSettings {
             true
         } catch (t: Throwable) {
             Timber.tag(TAG).e(t, "Не удалось сохранить ключ $key в DataStore")
+            false
+        }
+    }
+
+    private fun saveBooleanPref(context: Context, key: String, value: Boolean): Boolean {
+        return try {
+            val appContext = context.applicationContext
+            runBlocking {
+                appContext.appSettingsDataStore.edit { preferences ->
+                    preferences[booleanPreferencesKey(key)] = value
+                }
+            }
+            true
+        } catch (t: Throwable) {
+            Timber.tag(TAG).e(t, "Не удалось сохранить булевый ключ $key в DataStore")
             false
         }
     }

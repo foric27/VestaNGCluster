@@ -50,6 +50,7 @@ class DeveloperActivity : AppCompatActivity() {
 
         renderVersionInfo()
         bindUpdateChannelSelector()
+        bindCollapseOnLaunchCheckbox()
         buildDynamicSettingsEditor()
         renderAllValues()
     }
@@ -86,6 +87,25 @@ class DeveloperActivity : AppCompatActivity() {
         return when (channel) {
             AppSettings.UpdateChannel.ROLLING -> getString(R.string.app_update_channel_rolling)
             AppSettings.UpdateChannel.STABLE -> getString(R.string.app_update_channel_stable)
+        }
+    }
+
+    private fun bindCollapseOnLaunchCheckbox() {
+        binding.collapseOnLaunchCheckbox.setOnCheckedChangeListener(null)
+        binding.collapseOnLaunchCheckbox.isChecked = AppSettings.isCollapseOnLaunchEnabled(this)
+        binding.collapseOnLaunchCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            if (AppSettings.saveCollapseOnLaunchEnabled(this, isChecked)) {
+                binding.developerStatusText.text = getString(
+                    R.string.developer_collapse_on_launch_saved_fmt,
+                    if (isChecked) {
+                        getString(R.string.developer_collapse_on_launch_state_enabled)
+                    } else {
+                        getString(R.string.developer_collapse_on_launch_state_disabled)
+                    },
+                )
+            } else {
+                binding.developerStatusText.text = getString(R.string.developer_collapse_on_launch_save_failed)
+            }
         }
     }
 

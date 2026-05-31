@@ -99,6 +99,13 @@
     <string name="developer_update_channel_hint">Выберите источник для проверки новой версии приложения.</string>
     <string name="developer_update_channel_saved_fmt">Канал обновления сохранён: %1$s</string>
     <string name="developer_update_channel_save_failed">Не удалось сохранить канал обновления.</string>
+    <string name="developer_collapse_on_launch_title">Режим сворачивания после запуска</string>
+    <string name="developer_collapse_on_launch_hint">Если включено, главный экран после готовности автоматически сворачивается в фон. По умолчанию режим выключен.</string>
+    <string name="developer_collapse_on_launch_checkbox">Сворачивать приложение после запуска</string>
+    <string name="developer_collapse_on_launch_state_enabled">включён</string>
+    <string name="developer_collapse_on_launch_state_disabled">выключен</string>
+    <string name="developer_collapse_on_launch_saved_fmt">Режим сворачивания сохранён: %1$s</string>
+    <string name="developer_collapse_on_launch_save_failed">Не удалось сохранить режим сворачивания.</string>
     <string name="main_open_developer_failed">Не удалось открыть экран разработчика</string>
     <string name="main_open_telegram_failed">Не удалось открыть ссылку Telegram разработчика</string>
     <string name="main_all_files_access_granted">Доступ ко всем файлам выдан</string>
@@ -121,6 +128,7 @@
     <string name="service_notification_service_recovery_fmt">Восстановление стрима через %1$dс</string>
     <string name="service_notification_sleep_stopped">Стрим остановлен при засыпании устройства</string>
     <string name="service_notification_wake_started">Стрим восстановлен после выхода из сна</string>
+    <string name="service_notification_sleep_shutdown">Сервис остановлен при засыпании устройства</string>
     <string name="service_notification_action_restart">Перезапустить стрим и сеть</string>
     <string name="service_notification_display_removed_restart">Cluster display исчез. Перезапускаю трансляцию…</string>
     <string name="main_restart_stream_button">Перезапустить трансляцию и сеть</string>
