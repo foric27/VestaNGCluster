@@ -22,6 +22,10 @@ internal class UdpUpdateServerCoordinator(
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
 
     fun startOrRefreshUpdateServer() {
+        if (!StorageAccessManager.isAllFilesAccessGranted()) {
+            Timber.tag(TAG).i("Пропускаю запуск FTP обновления: нет разрешения MANAGE_EXTERNAL_STORAGE")
+            return
+        }
         val result = runFtpOperation("startup") {
             UpdateServerManager.prepareAndStartServer(
                 context,
@@ -49,6 +53,10 @@ internal class UdpUpdateServerCoordinator(
     }
 
     fun restartUpdateServer(searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY) {
+        if (!StorageAccessManager.isAllFilesAccessGranted()) {
+            Timber.tag(TAG).i("Пропускаю перезапуск FTP обновления: нет разрешения MANAGE_EXTERNAL_STORAGE")
+            return
+        }
         val result = runFtpOperation("restart") {
             UpdateServerManager.replaceAndStartServer(context, searchPolicy)
         } ?: return
@@ -74,6 +82,10 @@ internal class UdpUpdateServerCoordinator(
     }
 
     fun refreshUsbUpdateServer() {
+        if (!StorageAccessManager.isAllFilesAccessGranted()) {
+            Timber.tag(TAG).i("Пропускаю USB-обновление FTP: нет разрешения MANAGE_EXTERNAL_STORAGE")
+            return
+        }
         val result = runFtpOperation("usb_refresh") {
             UpdateServerManager.replaceAndStartServer(
                 context,
@@ -143,6 +155,11 @@ internal class UdpUpdateServerCoordinator(
 
     private fun performFtpRetry() {
         if (!isServiceRunning()) {
+            ftpRetryScheduled = false
+            return
+        }
+        if (!StorageAccessManager.isAllFilesAccessGranted()) {
+            Timber.tag(TAG).i("Отменяю повторный запуск FTP: нет разрешения MANAGE_EXTERNAL_STORAGE")
             ftpRetryScheduled = false
             return
         }

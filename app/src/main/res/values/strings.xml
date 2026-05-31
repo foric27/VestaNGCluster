@@ -51,6 +51,7 @@
     <string name="app_update_channel_rolling">rolling</string>
     <string name="app_update_channel_stable">stable</string>
     <string name="app_update_error_generic">Не удалось выполнить обновление приложения.</string>
+    <string name="app_update_error_rate_limited">Проверка обновления временно ограничена. Повторите позже.</string>
     <string name="app_update_error_not_newer">Скачанная версия не новее текущей.</string>
     <string name="app_update_error_file_missing">Файл обновления не найден.</string>
     <string name="app_update_error_install">Не удалось открыть установщик обновления.</string>

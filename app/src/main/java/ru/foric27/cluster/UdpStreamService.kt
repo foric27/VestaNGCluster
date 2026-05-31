@@ -142,6 +142,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        val probe = RootNetUtil.getIfaceProbeState(force = true)
+        val recoveryBlocked = probe.rootRequired || (!probe.exists && !RootNetUtil.wasSelectedIfaceEverPresent)
+        if (recoveryBlocked) {
+            Timber.tag(TAG).i("Задача удалена из recents; восстановление не планируется: root или сеть недоступны")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
         Timber.tag(TAG).w("Задача приложения удалена из recents; планирую восстановление сервиса")
         recoveryScheduler.schedule(
             reason = "task_removed",
@@ -416,7 +424,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             )
         }
         val cfg = lastCfg ?: StreamConfig.fixedConfig(applicationContext, getCurrentStreamMode())
-        val ifaceProbeState = RootNetUtil.getIfaceProbeState(force = false)
+        val ifaceProbeState = RootNetUtil.getIfaceProbeState(force = true)
         val recoveryBlocked = ifaceProbeState.rootRequired ||
             (!ifaceProbeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent)
         val currentSender = sender

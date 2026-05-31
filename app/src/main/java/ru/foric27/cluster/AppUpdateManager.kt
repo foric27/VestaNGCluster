@@ -28,6 +28,11 @@ internal object AppUpdateManager {
     private const val READ_TIMEOUT_MS = 60_000
     private const val UPDATE_DIR = "app-updates"
     private const val CHANNEL_MARKER_FILE = "channel.txt"
+    private const val MIN_QUERY_INTERVAL_MS = 60_000L
+    private const val MAX_BACKOFF_MS = 3_600_000L
+
+    @Volatile private var lastQueryAttemptMs = 0L
+    @Volatile private var consecutiveErrors = 0
 
     sealed interface QueryResult {
         data class DownloadedReady(val update: DownloadedUpdate) : QueryResult
@@ -75,12 +80,24 @@ internal object AppUpdateManager {
             clearCachedFiles(cached)
         }
 
+        val now = System.currentTimeMillis()
+        val backoffMs = minOf(MAX_BACKOFF_MS, MIN_QUERY_INTERVAL_MS * (1L shl consecutiveErrors.coerceAtMost(10)))
+        val elapsed = now - lastQueryAttemptMs
+        if (elapsed < backoffMs) {
+            Timber.tag(TAG).d("Пропускаю проверку обновления: cooldown ${backoffMs - elapsed}мс")
+            return QueryResult.Error(context.getString(R.string.app_update_error_rate_limited))
+        }
+        lastQueryAttemptMs = now
+
         val release = try {
             fetchRemoteRelease(context, channel)
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось проверить GitHub release")
+            consecutiveErrors++
             return QueryResult.Error(errorMessage(context, t))
         }
+
+        consecutiveErrors = 0
 
         if (!AppUpdateVersionPolicy.isUpdateNewer(channel, release.versionCode, release.buildSha, currentVersionCode, currentBuildSha)) {
             return QueryResult.UpToDate(

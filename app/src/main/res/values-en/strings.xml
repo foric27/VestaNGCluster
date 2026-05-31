@@ -51,6 +51,7 @@
     <string name="app_update_channel_rolling">rolling</string>
     <string name="app_update_channel_stable">stable</string>
     <string name="app_update_error_generic">Failed to update the application.</string>
+    <string name="app_update_error_rate_limited">Update check temporarily rate-limited. Please try again later.</string>
     <string name="app_update_error_not_newer">The downloaded version is not newer than the installed one.</string>
     <string name="app_update_error_file_missing">Update file not found.</string>
     <string name="app_update_error_install">Failed to open the update installer.</string>
