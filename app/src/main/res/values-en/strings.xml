@@ -88,10 +88,16 @@
     <string name="developer_applied_local_fmt">%1$s saved.</string>
     <string name="developer_reset_all">Reset to defaults</string>
     <string name="developer_export_logcat">Export logcat</string>
+    <string name="developer_clear_logcat">Clear logcat</string>
     <string name="developer_logcat_export_in_progress">Saving logcat…</string>
     <string name="developer_logcat_export_ok_fmt">Logcat saved: %1$s</string>
     <string name="developer_logcat_export_error_fmt">Failed to save logcat: %1$s</string>
     <string name="developer_logcat_export_error_short">Failed to save logcat</string>
+    <string name="developer_logcat_clear_in_progress">Clearing logcat…</string>
+    <string name="developer_logcat_clear_ok_fmt">Logcat cleared. Files removed: %1$d</string>
+    <string name="developer_logcat_clear_partial_fmt">Exported logcat files were cleared (%1$d), but the system buffer was not cleared</string>
+    <string name="developer_logcat_clear_error_fmt">Failed to clear logcat: %1$s</string>
+    <string name="developer_logcat_clear_error_short">Failed to clear logcat</string>
     <string name="developer_logcat_share_subject">Vesta NG Cluster diagnostics</string>
     <string name="developer_logcat_share_title">Send logcat</string>
     <string name="developer_reset_success">Developer settings reset. Stream restarting.</string>

@@ -15,6 +15,11 @@ internal object LogcatExporter {
         val uri: android.net.Uri,
     )
 
+    data class ClearResult(
+        val deletedFiles: Int,
+        val systemCleared: Boolean,
+    )
+
     fun export(context: Context): Result {
         val appContext = context.applicationContext
         val logDir = File(appContext.cacheDir, LOG_DIR_NAME).apply { mkdirs() }
@@ -38,6 +43,17 @@ internal object LogcatExporter {
         runCatching {
             file.writeText(buildExportPayload(appContext), Charsets.UTF_8)
         }
+    }
+
+    fun clear(context: Context): ClearResult {
+        val appContext = context.applicationContext
+        val logDir = File(appContext.cacheDir, LOG_DIR_NAME).apply { mkdirs() }
+        val deletedFiles = clearExportedLogs(logDir)
+        val systemCleared = clearSystemLogcat()
+        return ClearResult(
+            deletedFiles = deletedFiles,
+            systemCleared = systemCleared,
+        )
     }
 
     private fun buildExportPayload(context: Context): String {
@@ -129,6 +145,23 @@ internal object LogcatExporter {
             ?.sortedByDescending { it.lastModified() }
             ?.drop(MAX_FILES - 1)
             ?.forEach { it.delete() }
+    }
+
+    private fun clearExportedLogs(logDir: File): Int {
+        return logDir.listFiles { file ->
+            file.isFile && (file.name.startsWith("logcat-") || file.name.startsWith("crash-logcat-"))
+        }?.count { it.delete() } ?: 0
+    }
+
+    private fun clearSystemLogcat(): Boolean {
+        return try {
+            val process = ProcessBuilder("logcat", "-c")
+                .redirectErrorStream(true)
+                .start()
+            process.waitFor() == 0
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     private fun timestamp(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())

@@ -47,6 +47,7 @@ class DeveloperActivity : AppCompatActivity() {
         binding.backButton.setOnClickListener { finish() }
         binding.resetAllBtn.setOnClickListener { resetAllSettings() }
         binding.exportLogcatBtn.setOnClickListener { exportLogcat() }
+        binding.clearLogcatBtn.setOnClickListener { clearLogcat() }
 
         renderVersionInfo()
         bindUpdateChannelSelector()
@@ -434,6 +435,27 @@ class DeveloperActivity : AppCompatActivity() {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(intent, getString(R.string.developer_logcat_share_title)))
+    }
+
+    private fun clearLogcat() {
+        binding.clearLogcatBtn.isEnabled = false
+        binding.developerStatusText.text = getString(R.string.developer_logcat_clear_in_progress)
+        binding.root.post {
+            val result = runCatching { LogcatExporter.clear(this) }
+            binding.clearLogcatBtn.isEnabled = true
+            result.onSuccess { cleared ->
+                val messageRes = if (cleared.systemCleared) {
+                    R.string.developer_logcat_clear_ok_fmt
+                } else {
+                    R.string.developer_logcat_clear_partial_fmt
+                }
+                binding.developerStatusText.text = getString(messageRes, cleared.deletedFiles)
+            }.onFailure { error ->
+                val message = error.message ?: error.javaClass.simpleName
+                binding.developerStatusText.text = getString(R.string.developer_logcat_clear_error_fmt, message)
+                Toast.makeText(this, R.string.developer_logcat_clear_error_short, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     /**

@@ -88,10 +88,16 @@
     <string name="developer_applied_local_fmt">%1$s сохранено.</string>
     <string name="developer_reset_all">Сбросить по умолчанию</string>
     <string name="developer_export_logcat">Экспорт logcat</string>
+    <string name="developer_clear_logcat">Очистить logcat</string>
     <string name="developer_logcat_export_in_progress">Сохраняю logcat…</string>
     <string name="developer_logcat_export_ok_fmt">Logcat сохранён: %1$s</string>
     <string name="developer_logcat_export_error_fmt">Не удалось сохранить logcat: %1$s</string>
     <string name="developer_logcat_export_error_short">Не удалось сохранить logcat</string>
+    <string name="developer_logcat_clear_in_progress">Очищаю logcat…</string>
+    <string name="developer_logcat_clear_ok_fmt">Logcat очищен. Удалено файлов: %1$d</string>
+    <string name="developer_logcat_clear_partial_fmt">Экспортированные logcat-файлы очищены (%1$d), но системный буфер не очищен</string>
+    <string name="developer_logcat_clear_error_fmt">Не удалось очистить logcat: %1$s</string>
+    <string name="developer_logcat_clear_error_short">Не удалось очистить logcat</string>
     <string name="developer_logcat_share_subject">Диагностика Vesta NG Cluster</string>
     <string name="developer_logcat_share_title">Отправить logcat</string>
     <string name="developer_reset_success">Настройки разработчика сброшены. Поток перезапускается.</string>
