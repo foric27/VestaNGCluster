@@ -2,26 +2,42 @@
 
 ## Автоматический релиз (рекомендуется)
 
-GitHub Actions автоматически собирает и публикует release APK при каждом push в `main`.
+GitHub Actions публикует rolling release только после того, как текущий commit успешно проходит локальные проверки в CI.
 
 ### Как это работает
 
-1. Push в `main` запускает workflow `.github/workflows/ci.yml`
-2. Workflow `CI` выполняет `:app:testDebugUnitTest` и `lintDebug`
-3. Только после успешного `CI` workflow `.github/workflows/android-release.yml` собирает signed release APK (если настроены secrets)
-4. APK публикуется в GitHub Releases с тегом `main-latest`
+1. Push в любую ветку запускает workflow `.github/workflows/ci.yml`.
+2. Для `main` workflow `CI` выполняет:
+   - `:app:testDebugUnitTest`
+   - `lintDebug`
+3. Только после успешного `CI` на `main` workflow `.github/workflows/android-release.yml` собирает release APK.
+4. Release workflow публикует rolling release с тегом `main-latest`.
+5. Перед upload старые rolling assets удаляются, поэтому в `main-latest` всегда остаётся только одна актуальная пара файлов.
+
+### Что попадает в rolling release
+
+- APK с именем `VestaNGCluster-{version}-{sha}.apk`
+- checksum-файл `VestaNGCluster-{version}-{sha}.apk.sha256`
+- release notes с:
+  - `Version`
+  - `Commit`
+  - `Build Date` (MSK)
+  - `Signing`
 
 ### In-app update
 
-- Главный экран приложения использует rolling release `main-latest` как источник self-update по умолчанию.
-- Канал можно переключить на `stable` в скрытом экране разработчика.
-- Для корректной работы self-update release notes должны содержать строку формата:
+Встроенный self-update приложения использует GitHub Releases как backend и ожидает от release фиксированный формат.
+
+- По умолчанию приложение проверяет rolling release `main-latest`.
+- В developer screen можно переключить канал на `stable`.
+- Для корректного определения новой версии release notes должны содержать строку формата:
 
 ```md
 - **Version:** `1.0.2` (`3`)
 ```
 
-- В release assets должны присутствовать оба файла:
+- Для rolling build приложение также использует commit SHA из release notes / имени APK, чтобы различать сборки с одинаковым `versionCode`.
+- В assets релиза обязательно должны присутствовать оба файла:
   - `VestaNGCluster-{version}-{sha}.apk`
   - `VestaNGCluster-{version}-{sha}.apk.sha256`
 
@@ -39,16 +55,13 @@ Rolling release оформляется единообразно:
   - `VestaNGCluster-{version}-{sha}.apk`
   - `VestaNGCluster-{version}-{sha}.apk.sha256`
 
-При обновлении rolling release страница полностью перезаписывается.
-Старые rolling assets удаляются перед upload, поэтому в `main-latest` всегда остаётся только одна актуальная пара файлов для самого свежего успешного `CI` на `main`.
-
 ## Ручной релиз
 
 ### Предварительные требования
 
 - JDK 21
 - Android SDK
-- Настроенный `keystore.properties` (см. [signing.md](signing.md))
+- Настроенный `keystore.properties` или env secrets (см. [signing.md](signing.md))
 
 ### Сборка
 
@@ -66,7 +79,7 @@ APK будет доступен по пути:
 # Проверить, что APK подписан
 jarsigner -verify -verbose app/build/outputs/apk/release/app-release.apk
 
-# Проверить SHA256 сертификата
+# Проверить сертификат APK
 keytool -printcert -jarfile app/build/outputs/apk/release/app-release.apk
 ```
 
@@ -78,10 +91,18 @@ adb shell pm install -r /data/local/tmp/app-release.apk
 adb shell rm /data/local/tmp/app-release.apk
 ```
 
+## Замечания по архитектуре релизов
+
+- FTP OTA (`ICUpdate.zip`) и app self-update APK из GitHub Releases - это разные подсистемы.
+- FTP OTA не обновляет APK самого приложения.
+- App self-update использует `.apk` + `.apk.sha256`, GitHub API и стандартный Android installer через `FileProvider`.
+- Root нужен для основного streaming/runtime-сценария, но не для самой установки APK self-update.
+
 ## Версионирование
 
-Проект использует Semantic Versioning:
-- `versionCode` — в `app/build.gradle`
-- `versionName` — в `app/build.gradle`
+Проект использует пару `versionName` / `versionCode` из `app/build.gradle`.
 
-При значительных изменениях обновите оба значения.
+- `versionCode` нужен для обычного update path и Android installer.
+- Для rolling release дополнительно важен commit SHA, потому что несколько rolling-сборок могут иметь один и тот же `versionCode`.
+
+При значимых изменениях обновляйте `versionName` и `versionCode` осознанно.
