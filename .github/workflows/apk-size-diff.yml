@@ -33,7 +33,8 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease
-          mv app/build/outputs/apk/release/app-release.apk app-release-pr.apk
+          APK_PATH=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          cp "$APK_PATH" app-release-pr.apk
 
       - name: Checkout base
         uses: actions/checkout@v6
@@ -45,7 +46,8 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease
-          mv app/build/outputs/apk/release/app-release.apk app-release-base.apk
+          APK_PATH=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          cp "$APK_PATH" app-release-base.apk
 
       - name: Compare APK sizes
         id: compare
