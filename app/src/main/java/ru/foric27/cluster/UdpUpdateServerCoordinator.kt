@@ -208,7 +208,10 @@ internal class UdpUpdateServerCoordinator(
                 }
 
                 val result = runFtpOperation("retry") { UpdateServerManager.restartServer() }
-                    ?: return@startDetachedWorker
+                if (result == null) {
+                    scheduleFtpRetry("retry_busy")
+                    return@startDetachedWorker
+                }
                 val report = (if (result.success) "ok:" else "fail:") + result.message
                 if (report != lastFtpRetryReport) {
                     lastFtpRetryReport = report

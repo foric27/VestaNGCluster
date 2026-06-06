@@ -129,7 +129,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         wakeRecoveryController.register()
         registerDisplayStateReceiver()
         registerUsbMediaReceiver()
-        scheduleStartupUpdateServerRefresh()
         initOomProtection()
         scheduleHeartbeat()
         scheduleWakeLockReacquire()
@@ -617,6 +616,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         launchComponent = cfg.launchComponent,
                         restartLog = true,
                     )
+                    startOrRefreshUpdateServer()
                 }
             } catch (t: Throwable) {
                 mainHandler.post {
@@ -1140,6 +1140,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         launchComponent = cfg.launchComponent,
                         restartLog = false,
                     )
+                    startOrRefreshUpdateServer()
                 }
             } catch (t: Throwable) {
                 mainHandler.post {

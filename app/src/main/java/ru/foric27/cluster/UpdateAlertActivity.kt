@@ -24,6 +24,7 @@ internal class UpdateAlertActivity : Activity() {
         registerFinishReceiver()
 
         val updateLocation = intent.getStringExtra(EXTRA_UPDATE_LOCATION).orEmpty()
+        Timber.tag(TAG).i("UpdateAlertActivity создан: location=$updateLocation")
         val searchPolicyName = intent.getStringExtra(EXTRA_SEARCH_POLICY)
             ?: UpdateFileLocator.SearchPolicy.USB_ONLY.name
 

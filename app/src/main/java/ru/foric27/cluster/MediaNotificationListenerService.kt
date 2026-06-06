@@ -45,6 +45,7 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
     private var notificationScanJob: Job? = null
     private var lastPublishedKey: String? = null
     private var lastPublishedSnapshot: TrackSnapshot? = null
+    private var lastScannedContentKey: String? = null
     private var mediaSessionAccessDeniedLogged = false
     private var mediaControllerStateAccessDeniedLogged = false
 
@@ -140,7 +141,24 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
             ?.filter { it.hasContent }
             ?.maxWithOrNull(compareBy<TrackSnapshot> { it.isPlaying }.thenBy { it.postTime })
             ?: return
+
+        // Дедупликация по контенту (без позиции) — не спамим UI одним и тем же треком
+        val contentKey = buildContentKey(best)
+        if (contentKey == lastScannedContentKey) return
+        lastScannedContentKey = contentKey
+
         publishSnapshot(best, source = "active-notification")
+    }
+
+    private fun buildContentKey(snapshot: TrackSnapshot): String {
+        return listOf(
+            snapshot.packageName,
+            snapshot.title.orEmpty(),
+            snapshot.artist.orEmpty(),
+            snapshot.album.orEmpty(),
+            snapshot.coverBitmap?.width?.toString().orEmpty(),
+            snapshot.coverBitmap?.height?.toString().orEmpty(),
+        ).joinToString("|")
     }
 
     private fun isMediaNotification(sbn: StatusBarNotification): Boolean {
@@ -552,7 +570,7 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
 
     companion object {
         private const val TAG = "MediaNotifListener"
-        private const val ACTIVE_NOTIFICATION_SCAN_MS = 500L
+        private const val ACTIVE_NOTIFICATION_SCAN_MS = 1_000L
         private const val ICON_FALLBACK_SIZE = 256
         private const val EXTRA_MEDIA_SESSION_LEGACY = "android.mediaSession"
         private const val EXTRA_LARGE_ICON_BIG = "android.largeIcon.big"
