@@ -96,7 +96,7 @@ internal object RootNetworkRoutePlanner {
 
     private fun isHostInCidr(ip: String, cidr: Ipv4Cidr): Boolean {
         val mask = maskForPrefix(cidr.prefix)
-        return (toIpv4Int(ip) and mask) == (toIpv4Int(cidr.ip) and mask)
+        return toIpv4Int(ip) and mask == toIpv4Int(cidr.ip) and mask
     }
 
     private fun isReservedSubnetAddress(ip: String, cidr: Ipv4Cidr): Boolean {

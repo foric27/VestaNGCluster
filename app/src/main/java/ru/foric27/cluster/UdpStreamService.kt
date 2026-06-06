@@ -225,11 +225,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         restartController.schedule("udp_error", null)
     }
 
+    @Suppress("DEPRECATION")
     private fun readConfig(intent: Intent): StreamConfig {
         return if (Build.VERSION.SDK_INT >= 33) {
             intent.getSerializableExtra(EXTRA_CONFIG, StreamConfig::class.java)
         } else {
-            @Suppress("DEPRECATION")
             intent.getSerializableExtra(EXTRA_CONFIG) as? StreamConfig
         } ?: StreamConfig.fixedConfig(this, getCurrentStreamMode())
     }
@@ -923,7 +923,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
-            MainActivity.createLaunchIntent(this, keepInForeground = true),
+            MainActivity.createLaunchIntent(this, keepInForeground = true).apply {
+                setPackage(packageName)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -949,7 +951,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         return PendingIntent.getService(
             this,
             requestCode,
-            Intent(this, UdpStreamService::class.java).apply { this.action = action },
+            Intent(this, UdpStreamService::class.java).apply {
+                setAction(action)
+                setPackage(packageName)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
@@ -1199,17 +1204,15 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             return
         }
 
-        val retryDelaySeconds = if (scheduleRestart) {
+        if (scheduleRestart) {
             val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
                 .coerceAtMost(4_000L) // Кап для missing iface: не больше 4с
             Timber.tag(TAG).w("$ifaceName отсутствует на устройстве; повторю позже. backoff=${backoffMs}ms")
             serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, backoffMs / 1000))
             restartController.schedule(RuntimeConfig.Root.MISSING_REASON, null)
-            backoffMs / 1000
         } else {
             Timber.tag(TAG).w("$ifaceName отсутствует; запуск отложен до появления интерфейса")
             serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
-            0L
         }
     }
 

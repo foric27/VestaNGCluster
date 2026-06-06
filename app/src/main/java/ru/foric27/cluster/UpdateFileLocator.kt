@@ -94,19 +94,13 @@ internal class UpdateFileLocator {
         context: Context,
         searchPolicy: SearchPolicy,
     ): List<FileScanRoot> {
-        val internalRoot = FileScanRoot(
-            sourceKind = SourceKind.INTERNAL,
-            directoryLabel = INTERNAL_STORAGE_ROOT,
-            directory = File(INTERNAL_STORAGE_ROOT),
-        )
-        val usbRoots = discoverUsbRoots(context).map { usbRoot ->
+        return discoverUsbRoots(context).map { usbRoot ->
             FileScanRoot(
                 sourceKind = SourceKind.USB,
                 directoryLabel = usbRoot.absolutePath,
                 directory = usbRoot,
             )
         }
-        return usbRoots
     }
 
     private fun resolvePersistedTree(context: Context): ScanRoot? {

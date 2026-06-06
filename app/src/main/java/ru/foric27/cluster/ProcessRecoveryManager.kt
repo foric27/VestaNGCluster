@@ -87,6 +87,7 @@ internal object ProcessRecoveryManager {
     }
 
     @android.annotation.SuppressLint("NewApi")
+    @Suppress("DEPRECATION")
     private fun writeCrashLog(context: Context, thread: Thread, throwable: Throwable) {
         val crashFile = java.io.File(context.cacheDir, "logs/crash-log.txt")
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())

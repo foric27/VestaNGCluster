@@ -54,6 +54,7 @@ internal class MediaCoverActivity : ComponentActivity() {
 
     private var trackStateJob: kotlinx.coroutines.Job? = null
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -61,7 +62,6 @@ internal class MediaCoverActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= 30) {
                 display?.displayId
             } else {
-                @Suppress("DEPRECATION")
                 windowManager.defaultDisplay.displayId
             }
         } catch (_: Throwable) { null } ?: 0
@@ -113,13 +113,13 @@ internal class MediaCoverActivity : ComponentActivity() {
         Timber.tag(TAG).i("MED UI вписан в visibleArea=%s", RuntimeConfig.VisibleArea.SHORT)
     }
 
+    @Suppress("DEPRECATION")
     override fun onResume() {
         super.onResume()
         val currentDisplayId = try {
             if (Build.VERSION.SDK_INT >= 30) {
                 display?.displayId
             } else {
-                @Suppress("DEPRECATION")
                 windowManager.defaultDisplay.displayId
             }
         } catch (_: Throwable) { null } ?: 0

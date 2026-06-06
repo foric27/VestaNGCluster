@@ -158,6 +158,17 @@ internal object AppUpdateManager {
         if (!update.apkFile.exists()) {
             return InstallResult.Error(context.getString(R.string.app_update_error_file_missing))
         }
+
+        try {
+            verifyApkFileSignature(context, update.apkFile)
+        } catch (t: SecurityException) {
+            Timber.tag(TAG).w(t, "Подпись APK не совпадает с текущим приложением")
+            return InstallResult.Error(
+                t.message?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.app_update_error_signature_mismatch),
+            )
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
             val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                 data = Uri.parse("package:${context.packageName}")
@@ -289,6 +300,26 @@ internal object AppUpdateManager {
             versionCode,
             AppUpdateReleaseParsing.parseBuildShaFromApkName(apkFile.name),
         )
+    }
+
+    private fun verifyApkFileSignature(context: Context, apkFile: File) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
+        } ?: throw SecurityException(context.getString(R.string.app_update_error_apk_metadata))
+
+        verifyApkSignature(context, packageInfo)
     }
 
     private fun verifyApkSignature(context: Context, packageInfo: android.content.pm.PackageInfo) {

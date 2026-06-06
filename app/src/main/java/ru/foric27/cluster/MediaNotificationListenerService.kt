@@ -235,13 +235,13 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun extractMediaSessionToken(notification: Notification): MediaSession.Token? {
         val extras = notification.extras ?: return null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             extras.getParcelable(NotificationCompat.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)?.let { return it }
             return extras.getParcelable(EXTRA_MEDIA_SESSION_LEGACY, MediaSession.Token::class.java)
         }
-        @Suppress("DEPRECATION")
         return extras.getParcelable(NotificationCompat.EXTRA_MEDIA_SESSION) as? MediaSession.Token
             ?: extras.getParcelable(EXTRA_MEDIA_SESSION_LEGACY) as? MediaSession.Token
     }

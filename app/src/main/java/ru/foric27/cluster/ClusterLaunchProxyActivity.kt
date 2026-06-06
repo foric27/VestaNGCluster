@@ -25,6 +25,7 @@ class ClusterLaunchProxyActivity : Activity() {
         launchTargetAndFinish()
     }
 
+    @Suppress("DEPRECATION")
     private fun launchTargetAndFinish() {
         val targetComponent = YandexLaunchTarget.describeTargetComponentFromProxyIntent(intent)
         val action = intent?.getStringExtra(YandexLaunchTarget.EXTRA_TARGET_ACTION)?.trim().orEmpty()
@@ -63,12 +64,12 @@ class ClusterLaunchProxyActivity : Activity() {
             AppWarningCenter.publish(getString(R.string.msg_output_app_launch_failed_fmt, targetComponent))
         } finally {
             finish()
-            @Suppress("DEPRECATION")
             overridePendingTransition(0, 0)
         }
     }
 
 
+    @Suppress("DEPRECATION")
     private fun resolveCurrentDisplayId(): Int {
         val persistentDisplayId = VdspState.getDisplayId()
         if (persistentDisplayId >= 0) {
@@ -79,7 +80,6 @@ class ClusterLaunchProxyActivity : Activity() {
             when {
                 Build.VERSION.SDK_INT >= 30 -> display?.displayId ?: -1
                 else -> {
-                    @Suppress("DEPRECATION")
                     windowManager.defaultDisplay?.displayId ?: -1
                 }
             }

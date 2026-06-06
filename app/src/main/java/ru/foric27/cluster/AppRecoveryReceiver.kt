@@ -69,6 +69,7 @@ class AppRecoveryReceiver : BroadcastReceiver() {
         ): PendingIntent {
             val intent = Intent(context, AppRecoveryReceiver::class.java).apply {
                 action = ACTION_RECOVER_APP
+                setPackage(context.packageName)
                 putExtra(EXTRA_REASON, reason)
                 putExtra(EXTRA_LAUNCH_UI, launchUi)
                 putExtra(EXTRA_KEEP_IN_FOREGROUND, keepInForeground)

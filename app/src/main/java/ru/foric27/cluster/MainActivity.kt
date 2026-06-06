@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -94,7 +95,6 @@ class MainActivity : AppCompatActivity() {
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 display?.displayId
             } else {
-                @Suppress("DEPRECATION")
                 windowManager.defaultDisplay.displayId
             }
         } catch (_: Throwable) { null } ?: 0
@@ -627,6 +627,7 @@ class MainActivity : AppCompatActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(EXTRA_KEEP_IN_FOREGROUND, keepInForeground)
+                setPackage(context.packageName)
             }
         }
     }
