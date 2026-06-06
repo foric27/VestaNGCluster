@@ -36,6 +36,11 @@ internal class UdpUpdateServerCoordinator(
             Timber.tag(TAG).i("FTP обновление активно: ${result.boundAddress?.host}:${result.boundAddress?.port}")
             lastFtpFailureReport = null
             cancelFtpRetry()
+            if (lastKnownUpdateSha256 != null) {
+                UpdateServerManager.stopServer()
+                Timber.tag(TAG).i("Обновление уже обнаружено ранее, FTP остановлен для предотвращения цикла")
+                return
+            }
             checkAndShowUpdateAlert(result)
             return
         }
@@ -65,6 +70,11 @@ internal class UdpUpdateServerCoordinator(
             Timber.tag(TAG).i("FTP перезапущен: $address")
             lastFtpFailureReport = null
             cancelFtpRetry()
+            if (lastKnownUpdateSha256 != null) {
+                UpdateServerManager.stopServer()
+                Timber.tag(TAG).i("Обновление уже обнаружено ранее, FTP остановлен для предотвращения цикла")
+                return
+            }
             checkAndShowUpdateAlert(result)
             return
         }
@@ -97,6 +107,11 @@ internal class UdpUpdateServerCoordinator(
             Timber.tag(TAG).i("FTP обновлён по USB-aware пути: $address")
             lastFtpFailureReport = null
             cancelFtpRetry()
+            if (lastKnownUpdateSha256 != null) {
+                UpdateServerManager.stopServer()
+                Timber.tag(TAG).i("Обновление уже обнаружено ранее, FTP остановлен для предотвращения цикла")
+                return
+            }
             checkAndShowUpdateAlert(result)
             return
         }
@@ -125,6 +140,11 @@ internal class UdpUpdateServerCoordinator(
             val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
             Timber.tag(TAG).i("FTP обновлён после извлечения USB: $address")
             cancelFtpRetry()
+            if (lastKnownUpdateSha256 != null) {
+                UpdateServerManager.stopServer()
+                Timber.tag(TAG).i("Обновление уже обнаружено ранее, FTP остановлен для предотвращения цикла")
+                return
+            }
             checkAndShowUpdateAlert(result)
             return
         }
@@ -213,7 +233,8 @@ internal class UdpUpdateServerCoordinator(
         }
 
         val location = result.sourceFilePath ?: result.detectedLocation ?: fileInfo.path
-        Timber.tag(TAG).i("Новое обновление обнаружено: $location, показываю диалог")
+        Timber.tag(TAG).i("Новое обновление обнаружено: $location, останавливаю FTP перед показом диалога")
+        UpdateServerManager.stopServer()
         try {
             val intent = UpdateAlertActivity.createIntent(
                 context,
