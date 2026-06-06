@@ -1,6 +1,7 @@
 package ru.foric27.cluster
 
 import android.os.Process
+import com.topjohnwu.superuser.Shell
 import timber.log.Timber
 
 /**
@@ -18,11 +19,13 @@ internal class OomScoreAdjuster(private val rootShell: NetworkRootShell) {
         }
         try {
             val pid = Process.myPid()
-            val result = rootShell.execScript(listOf("echo -1000 > /proc/$pid/oom_score_adj"))
+            // Обходим NetworkRootShell для записи в /proc — это не network-команда,
+            // и NetworkRootShell блокирует shell-перенаправление (>)
+            val result = Shell.cmd("echo -1000 > /proc/$pid/oom_score_adj").exec()
             if (result.isSuccess) {
                 Timber.tag(TAG).i("OOM score установлен в -1000 для PID=$pid")
             } else {
-                Timber.tag(TAG).w("Не удалось установить oom_score_adj: ${result.exceptionOrNull()?.message}")
+                Timber.tag(TAG).w("Не удалось установить oom_score_adj: код=${result.code}")
             }
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Ошибка при установке oom_score_adj")

@@ -38,6 +38,7 @@ internal object RootNetUtil {
 
     @Volatile private var cachedIfaceName: String? = null
     @Volatile private var cachedIfaceExists: Boolean? = null
+    @Volatile private var cachedIfaceLinkUp: Boolean? = null
     @Volatile private var cachedIfaceCheckAtMs: Long = 0L
 
     /**
@@ -332,15 +333,16 @@ internal object RootNetUtil {
         val now = SystemClock.elapsedRealtime()
         if (!force && cachedIfaceName == iface && cachedIfaceExists != null && (now - cachedIfaceCheckAtMs) < ifaceCacheTtlMs) {
             val exists = cachedIfaceExists ?: false
+            val linkUp = cachedIfaceLinkUp ?: exists
             return ProbeState(
                 iface = iface,
                 exists = exists,
-                linkUp = exists,
+                linkUp = linkUp,
                 rootRequired = false,
                 details = buildString {
                     append("iface=").append(iface).append('\n')
                     append(buildIfaceExistsLabel(iface)).append('=').append(exists).append('\n')
-                    append(buildIfaceLinkLabel(iface)).append('=').append(exists).append('\n')
+                    append(buildIfaceLinkLabel(iface)).append('=').append(linkUp).append('\n')
                     append("selection=").append(selection.summary())
                 },
             )
@@ -385,6 +387,7 @@ internal object RootNetUtil {
         val linkUp = exists && isIfaceLinkUp(result.output)
         cachedIfaceName = iface
         cachedIfaceExists = exists
+        cachedIfaceLinkUp = linkUp
         if (exists) wasSelectedIfaceEverPresent = true
         cachedIfaceCheckAtMs = now
         return ProbeState(
@@ -556,7 +559,18 @@ internal object RootNetUtil {
     }
 
     private fun setupInterface(context: ApplyStaticContext): NetworkScriptResult {
-        return runNetworkScript(buildInterfaceSetupBatch(context.iface, context.cidr))
+        val result = runNetworkScript(buildInterfaceSetupBatch(context.iface, context.cidr))
+        if (result.ok) {
+            // Даём ядру время применить изменения интерфейса перед настройкой маршрутов.
+            // Без этой паузы route-check может не увидеть свежий link-state и выдать
+            // ROUTE_NOT_APPLIED на первой попытке, что порождает лишние warning’и в логе.
+            try {
+                Thread.sleep(100)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
+        return result
     }
 
     private fun applyRouting(context: ApplyStaticContext, interfaceResult: NetworkScriptResult): Any {

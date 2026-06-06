@@ -12,6 +12,7 @@ import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
 import android.service.notification.NotificationListenerService
@@ -67,17 +68,27 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
 
         val manager = getSystemService(MediaSessionManager::class.java)
         mediaSessionManager = manager
-        try {
-            manager?.addOnActiveSessionsChangedListener(activeSessionsChangedListener, null)
-            manager?.getActiveSessions(null).orEmpty().forEach { controller ->
-                attachToMediaController(controller)
+        val hasMediaControl = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            checkSelfPermission("android.permission.MEDIA_CONTENT_CONTROL") == PackageManager.PERMISSION_GRANTED
+        } else {
+            false
+        }
+        if (hasMediaControl) {
+            try {
+                manager?.addOnActiveSessionsChangedListener(activeSessionsChangedListener, null)
+                manager?.getActiveSessions(null).orEmpty().forEach { controller ->
+                    attachToMediaController(controller)
+                }
+            } catch (e: SecurityException) {
+                if (!mediaSessionAccessDeniedLogged) {
+                    mediaSessionAccessDeniedLogged = true
+                    Timber.tag(TAG).i(e, "Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
+                }
             }
-        } catch (e: SecurityException) {
+        } else {
             if (!mediaSessionAccessDeniedLogged) {
                 mediaSessionAccessDeniedLogged = true
-                Timber.tag(TAG).i(e, "Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
-            } else {
-                Timber.tag(TAG).i("Нет доступа к MediaSession, продолжаю работу только по медиа-уведомлениям")
+                Timber.tag(TAG).i("Нет разрешения MEDIA_CONTENT_CONTROL, продолжаю работу только по медиа-уведомлениям")
             }
         }
 

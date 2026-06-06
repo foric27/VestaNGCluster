@@ -2,6 +2,7 @@ package ru.foric27.cluster
 
 import android.content.Context
 import android.os.Handler
+import android.os.SystemClock
 import timber.log.Timber
 
 internal class UdpUpdateServerCoordinator(
@@ -18,6 +19,7 @@ internal class UdpUpdateServerCoordinator(
     @Volatile private var ftpOperationInProgress = false
     @Volatile private var lastKnownUpdateSha256: String? = null
     @Volatile private var lastAlertShownTime: Long = 0L
+    @Volatile private var lastUsbRefreshTime: Long = 0L
 
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
 
@@ -96,6 +98,12 @@ internal class UdpUpdateServerCoordinator(
             Timber.tag(TAG).i("Пропускаю USB-обновление FTP: нет разрешения MANAGE_EXTERNAL_STORAGE")
             return
         }
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastUsbRefreshTime < USB_REFRESH_THROTTLE_MS) {
+            Timber.tag(TAG).i("Пропускаю USB-refresh: предыдущий вызов был ${now - lastUsbRefreshTime}мс назад")
+            return
+        }
+        lastUsbRefreshTime = now
         val result = runFtpOperation("usb_refresh") {
             UpdateServerManager.replaceAndStartServer(
                 context,
@@ -129,6 +137,12 @@ internal class UdpUpdateServerCoordinator(
     }
 
     fun refreshAfterUsbRemoved() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastUsbRefreshTime < USB_REFRESH_THROTTLE_MS) {
+            Timber.tag(TAG).i("Пропускаю USB-removed-refresh: предыдущий вызов был ${now - lastUsbRefreshTime}мс назад")
+            return
+        }
+        lastUsbRefreshTime = now
         val result = runFtpOperation("usb_removed") {
             UpdateServerManager.replaceAndStartServer(
                 context = context,
@@ -283,5 +297,6 @@ internal class UdpUpdateServerCoordinator(
     private companion object {
         private const val TAG = "UdpUpdateServerCoord"
         private const val ALERT_THROTTLE_MS = 5 * 60 * 1000L // 5 минут
+        private const val USB_REFRESH_THROTTLE_MS = 2_000L
     }
 }
