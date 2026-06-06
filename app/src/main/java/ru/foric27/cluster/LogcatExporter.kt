@@ -119,7 +119,7 @@ internal object LogcatExporter {
 
     private fun readLogcat(): String {
         return try {
-            val process = ProcessBuilder("logcat", "-d", "-t", MAX_LINES.toString())
+            val process = ProcessBuilder("/system/bin/logcat", "-d", "-t", MAX_LINES.toString())
                 .redirectErrorStream(true)
                 .start()
             val text = process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -145,7 +145,7 @@ internal object LogcatExporter {
 
     private fun clearSystemLogcat(): Boolean {
         return try {
-            val process = ProcessBuilder("logcat", "-c")
+            val process = ProcessBuilder("/system/bin/logcat", "-c")
                 .redirectErrorStream(true)
                 .start()
             process.waitFor() == 0

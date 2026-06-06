@@ -924,7 +924,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             this,
             0,
             MainActivity.createLaunchIntent(this, keepInForeground = true),
-            PendingIntent.FLAG_UPDATE_CURRENT or pendingIntentImmutableFlag(),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
@@ -950,7 +950,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             this,
             requestCode,
             Intent(this, UdpStreamService::class.java).apply { this.action = action },
-            PendingIntent.FLAG_UPDATE_CURRENT or pendingIntentImmutableFlag(),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
 
@@ -986,10 +986,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось закрыть локальный UdpSender")
         }
-    }
-
-    private fun pendingIntentImmutableFlag(): Int {
-        return PendingIntent.FLAG_IMMUTABLE
     }
 
     private fun handleStopStreamAction(): Int {

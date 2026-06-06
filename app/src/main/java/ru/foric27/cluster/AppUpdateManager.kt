@@ -12,8 +12,6 @@ import org.json.JSONObject
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 import java.util.Locale
 
@@ -30,6 +28,22 @@ internal object AppUpdateManager {
     private const val CHANNEL_MARKER_FILE = "channel.txt"
     private const val MIN_QUERY_INTERVAL_MS = 60_000L
     private const val MAX_BACKOFF_MS = 3_600_000L
+
+    private val certificatePinner by lazy {
+        okhttp3.CertificatePinner.Builder()
+            .add("api.github.com", "sha256/gOozyh5IUJeg0PBJFZEzPwjDQK/K2A62DvU/wBVKfbI=")
+            .add("github.com", "sha256/gOozyh5IUJeg0PBJFZEzPwjDQK/K2A62DvU/wBVKfbI=")
+            .add("*.githubusercontent.com", "sha256/dJjHWyyYpXk55crpJPIvDlM/Jfjd29MQ6M+rHmFVN1I=")
+            .build()
+    }
+
+    private val okHttpClient by lazy {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .certificatePinner(certificatePinner)
+            .build()
+    }
 
     @Volatile private var lastQueryAttemptMs = 0L
     @Volatile private var consecutiveErrors = 0
@@ -241,14 +255,20 @@ internal object AppUpdateManager {
         apkFile: File,
         checksumFile: File?,
     ): DownloadedUpdate {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
         val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.packageManager.getPackageArchiveInfo(
                 apkFile.absolutePath,
-                PackageManager.PackageInfoFlags.of(0),
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
             )
         } else {
             @Suppress("DEPRECATION")
-            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
         } ?: throw IllegalStateException(context.getString(R.string.app_update_error_apk_metadata))
 
         val packageName = packageInfo.packageName
@@ -257,6 +277,8 @@ internal object AppUpdateManager {
                 context.getString(R.string.app_update_error_package_mismatch_fmt, packageName),
             )
         }
+
+        verifyApkSignature(context, packageInfo)
 
         val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         val versionName = packageInfo.versionName ?: context.getString(R.string.app_update_unknown_version)
@@ -267,6 +289,53 @@ internal object AppUpdateManager {
             versionCode,
             AppUpdateReleaseParsing.parseBuildShaFromApkName(apkFile.name),
         )
+    }
+
+    private fun verifyApkSignature(context: Context, packageInfo: android.content.pm.PackageInfo) {
+        val apkSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.apkContentsSigners
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.signatures
+        }
+
+        if (apkSignatures.isNullOrEmpty()) {
+            throw SecurityException(context.getString(R.string.app_update_error_no_signature))
+        }
+
+        val currentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val currentPackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(currentFlags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, currentFlags)
+        }
+
+        val currentSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            currentPackageInfo.signingInfo?.apkContentsSigners
+        } else {
+            @Suppress("DEPRECATION")
+            currentPackageInfo.signatures
+        }
+
+        if (currentSignatures.isNullOrEmpty()) {
+            throw SecurityException(context.getString(R.string.app_update_error_current_no_signature))
+        }
+
+        val apkHash = apkSignatures.first().hashCode()
+        val currentHash = currentSignatures.first().hashCode()
+
+        if (apkHash != currentHash) {
+            throw SecurityException(context.getString(R.string.app_update_error_signature_mismatch))
+        }
     }
 
     private fun getCurrentVersionCode(context: Context): Long {
@@ -281,56 +350,48 @@ internal object AppUpdateManager {
 
     private fun downloadToFile(context: Context, url: String, targetFile: File) {
         validateHttpsUrl(context, url)
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            setRequestProperty("Accept", "application/octet-stream")
-            setRequestProperty("User-Agent", "$REPO_NAME-app-update")
-            instanceFollowRedirects = true
-        }
-        connection.connect()
-        try {
-            if (connection.responseCode !in 200..299) {
+        val request = okhttp3.Request.Builder()
+            .url(url)
+            .addHeader("Accept", "application/octet-stream")
+            .addHeader("User-Agent", "$REPO_NAME-app-update")
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
                 throw IllegalStateException(
                     context.getString(
                         R.string.app_update_error_download_http_fmt,
-                        connection.responseCode,
+                        response.code,
                     ),
                 )
             }
-            connection.inputStream.use { input ->
+            response.body?.byteStream()?.use { input ->
                 FileOutputStream(targetFile).use { output ->
                     input.copyTo(output)
                 }
-            }
-        } finally {
-            connection.disconnect()
+            } ?: throw IllegalStateException(context.getString(R.string.app_update_error_empty_response))
         }
     }
 
     private fun readTextFromUrl(context: Context, url: String): String {
         validateHttpsUrl(context, url)
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "$REPO_NAME-app-update")
-        }
-        connection.connect()
-        try {
-            if (connection.responseCode !in 200..299) {
+        val request = okhttp3.Request.Builder()
+            .url(url)
+            .addHeader("Accept", "application/vnd.github+json")
+            .addHeader("User-Agent", "$REPO_NAME-app-update")
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
                 throw IllegalStateException(
                     context.getString(
                         R.string.app_update_error_release_http_fmt,
-                        connection.responseCode,
+                        response.code,
                     ),
                 )
             }
-            return connection.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            connection.disconnect()
+            return response.body?.string()
+                ?: throw IllegalStateException(context.getString(R.string.app_update_error_empty_response))
         }
     }
 

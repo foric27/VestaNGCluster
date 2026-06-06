@@ -68,6 +68,10 @@
     <string name="app_update_error_https_only">Only HTTPS URLs are allowed.</string>
     <string name="app_update_error_checksum_missing">SHA256 checksum is missing in the release.</string>
     <string name="app_update_error_checksum_mismatch">Downloaded APK SHA256 does not match.</string>
+    <string name="app_update_error_empty_response">Empty server response.</string>
+    <string name="app_update_error_no_signature">The downloaded APK has no digital signature.</string>
+    <string name="app_update_error_current_no_signature">Failed to get the current app signature.</string>
+    <string name="app_update_error_signature_mismatch">The downloaded APK signature does not match the current app.</string>
     <string name="sha256_verified">SHA-256 verified</string>
     <string name="sha256_mismatch">SHA-256 mismatch</string>
     <string name="app_update_cached_update_invalid">Removing corrupted cached update.</string>

@@ -68,6 +68,10 @@
     <string name="app_update_error_https_only">Разрешены только HTTPS-ссылки.</string>
     <string name="app_update_error_checksum_missing">В релизе отсутствует файл SHA256.</string>
     <string name="app_update_error_checksum_mismatch">SHA256 скачанного APK не совпадает.</string>
+    <string name="app_update_error_empty_response">Пустой ответ от сервера.</string>
+    <string name="app_update_error_no_signature">Скачанный APK не имеет цифровой подписи.</string>
+    <string name="app_update_error_current_no_signature">Не удалось получить подпись текущего приложения.</string>
+    <string name="app_update_error_signature_mismatch">Цифровая подпись скачанного APK не совпадает с текущим приложением.</string>
     <string name="sha256_verified">SHA-256 подтверждён</string>
     <string name="sha256_mismatch">SHA-256 не совпадает</string>
     <string name="app_update_cached_update_invalid">Удаляю повреждённое кэшированное обновление.</string>
