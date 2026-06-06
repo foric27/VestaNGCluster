@@ -121,7 +121,7 @@ dependencies {
     implementation 'androidx.datastore:datastore-preferences:1.2.1'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'org.apache.ftpserver:ftpserver-core:1.2.1'
-    implementation 'org.apache.mina:mina-core:2.2.7'
+    implementation 'org.apache.mina:mina-core:2.2.8'
     implementation 'com.github.topjohnwu.libsu:core:6.0.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0'
