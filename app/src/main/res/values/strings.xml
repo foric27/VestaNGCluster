@@ -135,6 +135,7 @@
     <string name="service_notification_sleep_stopped">Стрим остановлен при засыпании устройства</string>
     <string name="service_notification_wake_started">Стрим восстановлен после выхода из сна</string>
     <string name="service_notification_sleep_shutdown">Сервис остановлен при засыпании устройства</string>
+    <string name="service_notification_sleep_waiting">Ожидание пробуждения устройства</string>
     <string name="service_notification_action_restart">Перезапустить стрим и сеть</string>
     <string name="service_notification_display_removed_restart">Cluster display исчез. Перезапускаю трансляцию…</string>
     <string name="main_restart_stream_button">Перезапустить трансляцию и сеть</string>

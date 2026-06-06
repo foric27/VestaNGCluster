@@ -83,6 +83,24 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     private lateinit var startupProbeCoordinator: UdpStartupProbeCoordinator
     private lateinit var startupFlowCoordinator: UdpStartupFlowCoordinator
     private lateinit var networkPreparationCoordinator: UdpNetworkPreparationCoordinator
+    private lateinit var oomScoreAdjuster: OomScoreAdjuster
+
+    private val wakeLockReacquireRunnable: Runnable = Runnable {
+        if (!serviceRunning) return@Runnable
+        if (streamActive || streamStoppedForSleep) {
+            updateStreamWakeLock(held = false)
+            updateStreamWakeLock(held = true)
+            Timber.tag(TAG).i("Wake lock перезахвачен (периодический)")
+        }
+        mainHandler.postDelayed(wakeLockReacquireRunnable, WAKE_LOCK_REACQUIRE_MS)
+    }
+
+    private val heartbeatRunnable: Runnable = Runnable {
+        if (!serviceRunning) return@Runnable
+        startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
+        Timber.tag(TAG).i("Heartbeat: foreground service обновлён")
+        mainHandler.postDelayed(heartbeatRunnable, HEARTBEAT_INTERVAL_MS)
+    }
 
     /**
      * Готовит сервисный runtime: wake lock, coordinators, receivers и канал
@@ -112,6 +130,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         registerDisplayStateReceiver()
         registerUsbMediaReceiver()
         scheduleStartupUpdateServerRefresh()
+        initOomProtection()
+        scheduleHeartbeat()
+        scheduleWakeLockReacquire()
+        ServiceKeepAliveWorker.schedule(applicationContext)
     }
 
     /**
@@ -425,6 +447,19 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             val action = if (held) "захватить" else "освободить"
             Timber.tag(TAG).w(t, "Не удалось $action PARTIAL_WAKE_LOCK")
         }
+    }
+
+    private fun initOomProtection() {
+        oomScoreAdjuster = OomScoreAdjuster(networkRootShell)
+        oomScoreAdjuster.protectProcess()
+    }
+
+    private fun scheduleHeartbeat() {
+        mainHandler.postDelayed(heartbeatRunnable, HEARTBEAT_INTERVAL_MS)
+    }
+
+    private fun scheduleWakeLockReacquire() {
+        mainHandler.postDelayed(wakeLockReacquireRunnable, WAKE_LOCK_REACQUIRE_MS)
     }
 
     private fun registerDisplayStateReceiver() {
@@ -1148,11 +1183,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         if (intentionalSleepShutdown) return
         intentionalSleepShutdown = true
         streamStoppedForSleep = true
-        stopInternalFull()
-        updateNotification(getString(R.string.service_notification_sleep_shutdown))
-        Timber.tag(TAG).i("Экран выключен — полностью останавливаю сервис до явного запуска пользователем")
-        stopForeground(STOP_FOREGROUND_DETACH)
-        stopSelf()
+        stopInternalKeepService()
+        updateNotification(getString(R.string.service_notification_sleep_waiting))
+        Timber.tag(TAG).i("Экран выключен — останавливаю стрим, но оставляю сервис в foreground для восстановления")
     }
 
     private fun handleMissingInterface(scheduleRestart: Boolean) {
@@ -1255,6 +1288,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2
         private const val FTP_STARTUP_REFRESH_DELAY_MS = 1_500L
         private const val STREAM_WAKE_LOCK_TIMEOUT_MS = 60_000L
+        private const val WAKE_LOCK_REACQUIRE_MS = 600_000L // 10 мин
+        private const val HEARTBEAT_INTERVAL_MS = 300_000L // 5 мин
         private val CHANNEL_ID: String
             get() = RuntimeConfig.Service.NOTIFICATION_CHANNEL_ID
 

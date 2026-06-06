@@ -37,6 +37,9 @@ internal class UdpWakeRecoveryController(
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+            addAction("android.intent.action.DREAMING_STOPPED")
         }
 
         try {

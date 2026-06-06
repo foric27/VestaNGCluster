@@ -135,6 +135,7 @@
     <string name="service_notification_sleep_stopped">Stream stopped when device went to sleep</string>
     <string name="service_notification_wake_started">Stream resumed after wake</string>
     <string name="service_notification_sleep_shutdown">Service stopped when device went to sleep</string>
+    <string name="service_notification_sleep_waiting">Waiting for device to wake up</string>
     <string name="service_notification_action_restart">Restart stream and network</string>
     <string name="service_notification_display_removed_restart">Cluster display disappeared. Restarting stream…</string>
     <string name="main_restart_stream_button">Restart stream and network</string>

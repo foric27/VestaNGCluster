@@ -60,6 +60,7 @@ class BootReceiver : BroadcastReceiver() {
 
         try {
             UdpStreamService.startServiceCompat(context)
+            ServiceKeepAliveWorker.schedule(context)
             Timber.tag(TAG).i("$action: foreground-сервис запущен")
         } catch (t: Throwable) {
             if (isForegroundStartRestricted(t)) {
