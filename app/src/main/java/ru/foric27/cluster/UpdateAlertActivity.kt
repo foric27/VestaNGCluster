@@ -35,9 +35,13 @@ internal class UpdateAlertActivity : Activity() {
                 finish()
             }
             .setNegativeButton(getString(R.string.update_alert_cancel)) { _, _ ->
+                UpdateServerManager.stopServer()
                 finish()
             }
-            .setOnDismissListener { finish() }
+            .setOnDismissListener {
+                UpdateServerManager.stopServer()
+                finish()
+            }
             .setCancelable(false)
             .show()
     }

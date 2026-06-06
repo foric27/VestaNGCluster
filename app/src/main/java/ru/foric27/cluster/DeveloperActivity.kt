@@ -444,18 +444,30 @@ class DeveloperActivity : AppCompatActivity() {
             val result = runCatching { LogcatExporter.clear(this) }
             binding.clearLogcatBtn.isEnabled = true
             result.onSuccess { cleared ->
+                val memoryCleared = InMemoryLogBuffer.size()
+                InMemoryLogBuffer.clear()
+                val persistentCleared = clearPersistentLogFiles()
+                val totalCleared = cleared.deletedFiles + persistentCleared
                 val messageRes = if (cleared.systemCleared) {
                     R.string.developer_logcat_clear_ok_fmt
                 } else {
                     R.string.developer_logcat_clear_partial_fmt
                 }
-                binding.developerStatusText.text = getString(messageRes, cleared.deletedFiles)
+                binding.developerStatusText.text = getString(messageRes, totalCleared) +
+                        " (RAM: $memoryCleared, disk: ${cleared.deletedFiles + persistentCleared})"
             }.onFailure { error ->
                 val message = error.message ?: error.javaClass.simpleName
                 binding.developerStatusText.text = getString(R.string.developer_logcat_clear_error_fmt, message)
                 Toast.makeText(this, R.string.developer_logcat_clear_error_short, Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun clearPersistentLogFiles(): Int {
+        val logDir = java.io.File(cacheDir, "logs")
+        if (!logDir.exists()) return 0
+        return logDir.listFiles { file -> file.isFile }
+            ?.count { it.delete() } ?: 0
     }
 
     /**

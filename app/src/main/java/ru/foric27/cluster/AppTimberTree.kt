@@ -9,10 +9,11 @@ import timber.log.Timber
  * В debug-сборке сохраняет подробные теги Timber. В release-сборке пропускает
  * только безопасные диагностические сообщения уровня info/warn/error, а
  * расширенный вывод можно временно включить через экран разработчика.
+ *
+ * Ошибки (ERROR/ASSERT) сохраняются в RAM-буфер [InMemoryLogBuffer]
+ * для последующего экспорта без постоянной записи во flash.
  */
-internal class AppTimberTree(
-    private val persistentLogWriter: PersistentLogWriter? = null,
-) : Timber.Tree() {
+internal class AppTimberTree : Timber.Tree() {
 
     override fun isLoggable(tag: String?, priority: Int): Boolean {
         if (BuildConfig.DEBUG) return true
@@ -23,7 +24,7 @@ internal class AppTimberTree(
         if (!isLoggable(tag, priority)) return
         val safeMessage = LogSanitizer.sanitize(message)
         val safeTag = tag ?: DEFAULT_TAG
-        val persistedMessage = if (t == null) {
+        val fullMessage = if (t == null) {
             safeMessage
         } else {
             "$safeMessage\n${LogSanitizer.sanitize(Log.getStackTraceString(t))}"
@@ -33,7 +34,7 @@ internal class AppTimberTree(
         } else {
             Log.println(priority, safeTag, "$safeMessage\n${Log.getStackTraceString(t)}")
         }
-        persistentLogWriter?.write(priority, safeTag, persistedMessage)
+        InMemoryLogBuffer.append(priority, safeTag, fullMessage)
     }
 
     private companion object {

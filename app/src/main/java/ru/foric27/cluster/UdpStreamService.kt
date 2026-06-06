@@ -657,13 +657,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             activeRootIface = null
             updateStreamWakeLock(held = false)
 
-            runCatching { encoder?.stop() }
-                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
-            encoder = null
-
             runCatching { sender?.close() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
+
+            runCatching { encoder?.stop() }
+                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
+            encoder = null
 
             notifyMediaCoverFinish()
         }

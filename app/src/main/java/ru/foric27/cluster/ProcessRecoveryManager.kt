@@ -30,7 +30,6 @@ internal object ProcessRecoveryManager {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
                 RuntimeConfig.init(appContext)
-                ClusterApp.persistedLogWriter()?.flushAndShutdown()
                 writeCrashLog(appContext, thread, throwable)
                 LogcatExporter.exportOnCrash(appContext)
                 if (shouldScheduleRecovery(appContext)) {
@@ -88,7 +87,7 @@ internal object ProcessRecoveryManager {
     }
 
     private fun writeCrashLog(context: Context, thread: Thread, throwable: Throwable) {
-        val crashFile = PersistentLogWriter.crashLogFile(context)
+        val crashFile = java.io.File(context.cacheDir, "logs/crash-log.txt")
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
         val content = buildString {
             appendLine("=== CRASH LOG ===")
@@ -100,6 +99,16 @@ internal object ProcessRecoveryManager {
             appendLine("message=${throwable.message}")
             appendLine("stacktrace=")
             appendLine(LogSanitizer.sanitize(Log.getStackTraceString(throwable)))
+            appendLine()
+            appendLine("=== IN-MEMORY ERROR LOG ===")
+            val memoryLogs = InMemoryLogBuffer.toList()
+            if (memoryLogs.isEmpty()) {
+                appendLine("<empty>")
+            } else {
+                memoryLogs.forEach { line ->
+                    appendLine(line.toString())
+                }
+            }
             appendLine("=== END CRASH LOG ===")
         }
         runCatching {

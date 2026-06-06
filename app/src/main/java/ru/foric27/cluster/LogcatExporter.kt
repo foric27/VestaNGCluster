@@ -95,24 +95,14 @@ internal object LogcatExporter {
             appendLine("timestamps=${recoveryState.timestamps.joinToString(",")}")
             appendLine()
 
-            appendLine("=== PERSISTENT LOG ===")
-            val persistedFiles = PersistentLogWriter.orderedLogFiles(context)
-            if (persistedFiles.isEmpty()) {
+            appendLine("=== IN-MEMORY ERROR LOG ===")
+            val memoryLogs = InMemoryLogBuffer.toList()
+            if (memoryLogs.isEmpty()) {
                 appendLine("<empty>")
             } else {
-                persistedFiles.forEach { persistedFile ->
-                    appendLine("--- ${persistedFile.name} ---")
-                    val persistedText = runCatching { persistedFile.readText(Charsets.UTF_8) }
-                        .getOrElse { "<read_failed:${it.message ?: it.javaClass.simpleName}>" }
-                    appendLine(LogSanitizer.sanitize(persistedText))
+                memoryLogs.forEach { line ->
+                    appendLine(LogSanitizer.sanitize(line.toString()))
                 }
-            }
-            val crashFile = PersistentLogWriter.crashLogFile(context)
-            if (crashFile.exists()) {
-                appendLine("--- ${crashFile.name} ---")
-                val crashText = runCatching { crashFile.readText(Charsets.UTF_8) }
-                    .getOrElse { "<read_failed:${it.message ?: it.javaClass.simpleName}>" }
-                appendLine(LogSanitizer.sanitize(crashText))
             }
             appendLine()
 

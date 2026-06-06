@@ -241,6 +241,8 @@ internal class VideoEncoder(
         transitionLifecycle(VideoCaptureLifecycleEvent.STOP_REQUESTED)
         stopping = true
         running = false
+        // Очищаем очередь handler'а от pending frame runnable'ов
+        codecHandler?.removeCallbacksAndMessages(null)
         safeStopInternal(releasePersistentDisplay = false)
         stopping = false
         transitionLifecycle(VideoCaptureLifecycleEvent.STOP_COMPLETED)
