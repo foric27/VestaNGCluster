@@ -1,0 +1,17 @@
+# Global code owners
+* @foric27
+
+# Android source code
+/app/src/main/java/ @foric27
+/app/src/main/res/ @foric27
+
+# Tests
+/app/src/test/ @foric27
+/app/src/androidTest/ @foric27
+
+# CI/CD
+/.github/workflows/ @foric27
+/.github/dependabot.yml @foric27
+
+# Documentation
+*.md @foric27

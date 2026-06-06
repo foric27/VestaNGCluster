@@ -1,0 +1,38 @@
+name: Close stale issues and PRs
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Issues
+          stale-issue-message: 'Этот issue неактивен более 60 дней. Он будет автоматически закрыт через 7 дней, если не появится активность.'
+          close-issue-message: 'Issue закрыт из-за отсутствия активности. Если проблема актуальна — пожалуйста, создайте новый issue или переоткройте этот.'
+          days-before-issue-stale: 60
+          days-before-issue-close: 7
+          stale-issue-label: 'stale'
+          exempt-issue-labels: 'pinned,security,bug,wontfix'
+          
+          # PRs
+          stale-pr-message: 'Этот PR неактивен более 30 дней. Он будет автоматически закрыт через 7 дней, если не появится активность.'
+          close-pr-message: 'PR закрыт из-за отсутствия активности. Если изменения всё ещё актуальны — пожалуйста, создайте новый PR.'
+          days-before-pr-stale: 30
+          days-before-pr-close: 7
+          stale-pr-label: 'stale'
+          exempt-pr-labels: 'pinned,work-in-progress'
+          
+          # General
+          remove-stale-when-updated: true
+          operations-per-run: 100

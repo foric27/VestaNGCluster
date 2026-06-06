@@ -1,0 +1,32 @@
+name: Lock closed issues and PRs
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dessant/lock-threads@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Issues
+          issue-inactive-days: 180
+          issue-lock-reason: 'resolved'
+          issue-comment: >
+            Этот issue был автоматически заблокирован из-за отсутствия активности.
+            Если у вас похожая проблема — пожалуйста, создайте новый issue.
+          
+          # PRs
+          pr-inactive-days: 60
+          pr-lock-reason: 'resolved'
+          pr-comment: >
+            Этот PR был автоматически заблокирован из-за отсутствия активности.
+            Если изменения всё ещё актуальны — пожалуйста, создайте новый PR.

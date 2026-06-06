@@ -1,0 +1,28 @@
+android:
+  - changed-files:
+      - any-glob-to-any-file: ['app/src/main/java/**', 'app/src/main/res/**']
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ['gradle/**', '**/build.gradle*', 'gradle.properties', 'settings.gradle*']
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md', 'docs/**']
+
+github-actions:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/workflows/**', '.github/dependabot.yml']
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['app/src/test/**', 'app/src/androidTest/**']
+
+bugfix:
+  - head-branch: ['^fix/', '^bugfix/']
+
+feature:
+  - head-branch: ['^feat/', '^feature/']
+
+chore:
+  - head-branch: ['^chore/', '^refactor/', '^docs/']
