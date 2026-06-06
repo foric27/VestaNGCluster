@@ -249,10 +249,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         )
         wakeRecoveryController = UdpWakeRecoveryController(
             context = this,
-            scope = serviceScope,
             registerLocalReceiver = ::registerLocalReceiver,
             unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
             stopStream = ::stopStreamForSleep,
+            restartStream = ::restartStreamAfterSleep,
         )
     }
 
@@ -693,6 +693,8 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
+
+
     private fun startPipelineAsync(
         cfg: StreamConfig,
         targetHostValue: String,
@@ -1056,6 +1058,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                 return START_STICKY
             }
 
+            if (forceRestart) {
+                Timber.tag(TAG).i("Force restart: освобождаю PersistentVirtualDisplay перед остановкой")
+                PersistentVirtualDisplay.releaseAll()
+            }
             stopInternalKeepService()
             restartController.cancel()
 
@@ -1125,10 +1131,16 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
-    private fun resumeStreamAfterSleep() {
+    private fun restartStreamAfterSleep() {
         synchronized(serviceLock) {
-            Timber.tag(TAG).i("Автовосстановление после сна отключено; ожидаю явный запуск пользователя")
+            if (!serviceRunning) {
+                Timber.tag(TAG).w("Автовосстановление после сна отменено: сервис не запущен")
+                return
+            }
+            intentionalSleepShutdown = false
             streamStoppedForSleep = false
+            Timber.tag(TAG).i("Автовосстановление после сна: запускаю рестарт сервиса")
+            startServiceCompat(applicationContext)
         }
     }
 
@@ -1159,6 +1171,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         val retryDelaySeconds = if (scheduleRestart) {
             val backoffMs = restartController.increaseBackoff(IFACE_MISSING_RESTART_BACKOFF_MIN_MS)
+                .coerceAtMost(4_000L) // Кап для missing iface: не больше 4с
             Timber.tag(TAG).w("$ifaceName отсутствует на устройстве; повторю позже. backoff=${backoffMs}ms")
             serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, backoffMs / 1000))
             restartController.schedule(RuntimeConfig.Root.MISSING_REASON, null)

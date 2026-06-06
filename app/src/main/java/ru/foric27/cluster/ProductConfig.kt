@@ -228,7 +228,7 @@ object ProductConfig {
         const val NO_ROUTE_RESTART_BACKOFF_MIN_MS: Long = 2_500L
 
         /** Минимальная задержка повторного запуска, если не найден сетевой интерфейс. */
-        const val IFACE_MISSING_RESTART_BACKOFF_MIN_MS: Long = 4_000L
+        const val IFACE_MISSING_RESTART_BACKOFF_MIN_MS: Long = 1_000L
 
         /** Период работы watchdog проверки связности. */
         const val CONNECTIVITY_WATCHDOG_PERIOD_MS: Long = 1_500L

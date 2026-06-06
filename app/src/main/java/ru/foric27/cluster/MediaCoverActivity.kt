@@ -48,6 +48,10 @@ internal class MediaCoverActivity : ComponentActivity() {
     private var lastProgressPositionMs: Long? = null
     private var lastProgressDurationMs: Long? = null
 
+    private var lastTrackTitle: String? = null
+    private var lastTrackArtist: String? = null
+    private var lastCoverBitmap: android.graphics.Bitmap? = null
+
     private var trackStateJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -133,31 +137,60 @@ internal class MediaCoverActivity : ComponentActivity() {
     }
 
     private fun updateUI(track: MediaCoverState.TrackInfo?) {
-        Timber.tag(TAG).i("updateUI: track=%s, hasContent=%b", track?.title, track?.hasContent)
         if (track == null || !track.hasContent) {
-            coverImage.setImageResource(android.R.drawable.ic_media_play)
-            sourceLabel.text = getString(R.string.stream_mode_med)
-            trackTitle.text = getString(R.string.media_cover_no_media_title)
-            trackArtist.text = getString(R.string.media_cover_no_media_subtitle)
-            applySeekbarColor(getColor(R.color.oem_cluster_accent))
-            updateProgress(null, null, null)
+            if (lastTrackTitle != null) {
+                Timber.tag(TAG).i("updateUI: сброс — нет медиа")
+                lastTrackTitle = null
+                lastTrackArtist = null
+                lastCoverBitmap = null
+                coverImage.setImageResource(android.R.drawable.ic_media_play)
+                sourceLabel.text = getString(R.string.stream_mode_med)
+                trackTitle.text = getString(R.string.media_cover_no_media_title)
+                trackArtist.text = getString(R.string.media_cover_no_media_subtitle)
+                applySeekbarColor(getColor(R.color.oem_cluster_accent))
+                updateProgress(null, null, null)
+            }
             return
         }
 
-        if (track.coverBitmap != null) {
-            val dominantColor = extractDominantColor(track.coverBitmap)
-            val resized = resizeBitmap(track.coverBitmap, 960, 640)
-            Timber.tag(TAG).i("Устанавливаю обложку %dx%d (ресайз с %dx%d)", resized.width, resized.height, track.coverBitmap.width, track.coverBitmap.height)
-            coverImage.setImageBitmap(resized)
-            applySeekbarColor(dominantColor)
-        } else {
-            coverImage.setImageResource(android.R.drawable.ic_media_play)
-            applySeekbarColor(getColor(R.color.oem_cluster_accent))
+        val title = track.title ?: ""
+        val artist = track.artist ?: ""
+        val coverBitmap = track.coverBitmap
+
+        // Проверяем, изменились ли метаданные или обложка
+        val metadataChanged = title != lastTrackTitle || artist != lastTrackArtist
+        val coverChanged = coverBitmap !== lastCoverBitmap
+
+        if (!metadataChanged && !coverChanged) {
+            // Обновляем только прогресс, если метаданные не изменились
+            updateProgress(track.progressKey(), track.positionMs, track.durationMs)
+            return
         }
 
-        sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
-        trackTitle.text = track.title ?: ""
-        trackArtist.text = track.artist ?: ""
+        Timber.tag(TAG).i("updateUI: track=%s, metadataChanged=%b, coverChanged=%b", title, metadataChanged, coverChanged)
+
+        if (coverChanged) {
+            lastCoverBitmap = coverBitmap
+            if (coverBitmap != null) {
+                val dominantColor = extractDominantColor(coverBitmap)
+                val resized = resizeBitmap(coverBitmap, 960, 640)
+                Timber.tag(TAG).i("Устанавливаю обложку %dx%d (ресайз с %dx%d)", resized.width, resized.height, coverBitmap.width, coverBitmap.height)
+                coverImage.setImageBitmap(resized)
+                applySeekbarColor(dominantColor)
+            } else {
+                coverImage.setImageResource(android.R.drawable.ic_media_play)
+                applySeekbarColor(getColor(R.color.oem_cluster_accent))
+            }
+        }
+
+        if (metadataChanged) {
+            lastTrackTitle = title
+            lastTrackArtist = artist
+            sourceLabel.text = track.sourceLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.stream_mode_med)
+            trackTitle.text = title
+            trackArtist.text = artist
+        }
+
         updateProgress(track.progressKey(), track.positionMs, track.durationMs)
     }
 

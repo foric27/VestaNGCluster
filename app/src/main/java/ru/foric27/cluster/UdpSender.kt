@@ -128,14 +128,26 @@ internal class UdpSender(
             }
         } catch (e: IOException) {
             val failureCount = markFrameSendFailure()
-            val isInvalidArgument = e.message?.contains("EINVAL") == true || e.cause?.message?.contains("EINVAL") == true
-            if (isInvalidArgument && failureCount >= 2) {
-                Timber.tag(TAG).w("UDP EINVAL (bind-адрес стал недоступен), пробуем fallback на не-bound сокет")
+            val errorMsg = e.message?.lowercase() ?: ""
+            val causeMsg = e.cause?.message?.lowercase() ?: ""
+            val isInvalidArgument = errorMsg.contains("einval") || causeMsg.contains("einval")
+            val isNetworkUnreachable = errorMsg.contains("enetunreach") || causeMsg.contains("enetunreach") || errorMsg.contains("unreachable")
+            
+            if (isInvalidArgument || isNetworkUnreachable) {
+                // Сетевые ошибки: пробуем пересоздать сокет и продолжить
+                // Не прокидываем ошибку в VideoEncoder — это transient network issue
+                Timber.tag(TAG).w("UDP сетевая ошибка (${if (isInvalidArgument) "EINVAL" else "ENETUNREACH"}), пробуем пересоздать сокет")
                 try {
                     socket?.close()
-                    socket = DatagramSocket()
+                    socket = if (bindIp != null && !isInvalidArgument) {
+                        // Для ENETUNREACH пробуем без bind, т.к. bind-адрес может быть временно недоступен
+                        DatagramSocket()
+                    } else {
+                        DatagramSocket()
+                    }
                     socket?.broadcast = false
-                    Timber.tag(TAG).i("UDP-сокет пересоздан без bind для fallback")
+                    Timber.tag(TAG).i("UDP-сокет пересоздан для recovery от сетевой ошибки")
+                    
                     // Повторяем отправку текущего пакета
                     val packet = DatagramPacket(data, offset, minOf(safePayloadBytes, data.size - offset), a, port)
                     markSendAttempt()
@@ -151,6 +163,7 @@ internal class UdpSender(
                     Timber.tag(TAG).w(fallbackEx, "UDP fallback тоже не удался")
                 }
             }
+            
             val nowMs = android.os.SystemClock.elapsedRealtime()
             val elapsedSinceLastLog = nowMs - lastSendErrorLogElapsedRealtimeMs
             val shouldLog = lastSendErrorLogElapsedRealtimeMs == 0L || elapsedSinceLastLog >= SEND_ERROR_LOG_WINDOW_MS
@@ -164,7 +177,10 @@ internal class UdpSender(
             } else {
                 suppressedSendErrorCount++
             }
-            if (failureCount >= MAX_CONSECUTIVE_FRAME_SEND_ERRORS) {
+            
+            // Для сетевых ошибок увеличиваем порог перед throw — это transient проблемы
+            val maxErrors = if (isNetworkUnreachable) MAX_CONSECUTIVE_FRAME_SEND_ERRORS * 3 else MAX_CONSECUTIVE_FRAME_SEND_ERRORS
+            if (failureCount >= maxErrors) {
                 throw IOException("Повторяющаяся ошибка UDP-отправки ($failureCount подряд)", e)
             }
         } catch (e: RuntimeException) {

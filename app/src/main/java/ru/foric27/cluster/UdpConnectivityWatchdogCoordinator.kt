@@ -30,7 +30,6 @@ internal class UdpConnectivityWatchdogCoordinator(
     private val watchdogStop = AtomicBoolean(false)
     @Volatile private var routeFailureStreak = 0
     @Volatile private var ifaceMissingGraceLogged = false
-
     fun start() {
         stop()
         ifaceMissingGraceLogged = false

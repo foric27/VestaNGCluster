@@ -446,6 +446,33 @@ internal object RootNetUtil {
         ).getOrThrow().commands
     }
 
+    /**
+     * Добавляет host-specific маршрут до целевого IP через указанный интерфейс.
+     * Используется для принудительной привязки трафика к конкретному интерфейсу,
+     * когда target IP отличается от gateway IP.
+     */
+    fun applyHostRoute(targetIp: String, iface: String, srcIp: String): Boolean {
+        if (!isNetworkRootAvailable()) return false
+        val cleanTarget = targetIp.trim()
+        val cleanIface = iface.trim()
+        val cleanSrc = srcIp.trim()
+        if (!isValidIpv4(cleanTarget) || cleanIface.isEmpty() || !isValidIpv4(cleanSrc)) {
+            Timber.tag(TAG).w("applyHostRoute: некорректные параметры target=$cleanTarget iface=$cleanIface src=$cleanSrc")
+            return false
+        }
+        val commands = listOf(
+            "ip route del $cleanTarget/32",
+            "ip route add $cleanTarget/32 dev $cleanIface src $cleanSrc metric 1",
+        )
+        val result = runNetworkScript(commands)
+        if (result.ok) {
+            Timber.tag(TAG).i("Host route применён: $cleanTarget via $cleanIface src $cleanSrc")
+        } else {
+            Timber.tag(TAG).w("Не удалось применить host route: $cleanTarget via $cleanIface src $cleanSrc\n${result.renderOutput()}")
+        }
+        return result.ok
+    }
+
     internal fun buildIptablesBatch(gatewayIp: String): List<String> {
         return listOf(
             "iptables -t mangle -D OUTPUT -d $gatewayIp -j MARK --set-mark ${Constants.FWMARK_VALUE}",

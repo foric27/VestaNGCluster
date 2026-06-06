@@ -119,6 +119,13 @@ internal class UdpNetworkPreparationCoordinator(
             return emitResult(classifyApplyFailure(applyResult, bindIp))
         }
 
+        // Принудительно привязываем маршрут до целевого IP к выбранному интерфейсу
+        // Это предотвращает уход трафика на другие интерфейсы (например, LTE)
+        val targetIp = cfg.ip?.trim()?.takeIf { it.isNotBlank() }
+        if (!targetIp.isNullOrBlank() && !bindIp.isNullOrBlank() && probeState.iface.isNotBlank()) {
+            RootNetUtil.applyHostRoute(targetIp, probeState.iface, bindIp)
+        }
+
         return emitResult(RoutePreparationResult.Success(bindIp, probeState.iface))
     }
 
