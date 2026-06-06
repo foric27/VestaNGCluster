@@ -68,6 +68,8 @@
     <string name="app_update_error_https_only">Разрешены только HTTPS-ссылки.</string>
     <string name="app_update_error_checksum_missing">В релизе отсутствует файл SHA256.</string>
     <string name="app_update_error_checksum_mismatch">SHA256 скачанного APK не совпадает.</string>
+    <string name="sha256_verified">SHA-256 подтверждён</string>
+    <string name="sha256_mismatch">SHA-256 не совпадает</string>
     <string name="app_update_cached_update_invalid">Удаляю повреждённое кэшированное обновление.</string>
     <string name="udp_stats_baseline_reset">Сбрасываю базовую линию UDP-статистики после перезапуска пайплайна или синхронизации статуса.</string>
     <string name="app_version_fmt">Версия: %1$s</string>
@@ -211,6 +213,7 @@
     <string name="runtime_field_logging_verbose_enabled">Подробные release-логи</string>
     <string name="runtime_field_service_notification_id">Идентификатор уведомления</string>
     <string name="runtime_field_service_notification_channel_id">Идентификатор канала уведомлений</string>
+    <string name="service_notification_channel_name">Трансляция кластера</string>
     <string name="runtime_field_service_notification_channel_name">Имя канала уведомлений</string>
     <string name="runtime_field_service_restart_backoff_start_ms">Начальный backoff, мс</string>
     <string name="runtime_field_service_restart_backoff_max_ms">Максимальный backoff, мс</string>

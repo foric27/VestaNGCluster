@@ -68,6 +68,8 @@
     <string name="app_update_error_https_only">Only HTTPS URLs are allowed.</string>
     <string name="app_update_error_checksum_missing">SHA256 checksum is missing in the release.</string>
     <string name="app_update_error_checksum_mismatch">Downloaded APK SHA256 does not match.</string>
+    <string name="sha256_verified">SHA-256 verified</string>
+    <string name="sha256_mismatch">SHA-256 mismatch</string>
     <string name="app_update_cached_update_invalid">Removing corrupted cached update.</string>
     <string name="udp_stats_baseline_reset">Resetting the UDP stats baseline after a pipeline or status sync restart.</string>
     <string name="app_version_fmt">Version: %1$s</string>
@@ -211,6 +213,7 @@
     <string name="runtime_field_logging_verbose_enabled">Verbose release logs</string>
     <string name="runtime_field_service_notification_id">Notification ID</string>
     <string name="runtime_field_service_notification_channel_id">Notification channel ID</string>
+    <string name="service_notification_channel_name">Cluster Stream</string>
     <string name="runtime_field_service_notification_channel_name">Notification channel name</string>
     <string name="runtime_field_service_restart_backoff_start_ms">Initial backoff, ms</string>
     <string name="runtime_field_service_restart_backoff_max_ms">Max backoff, ms</string>

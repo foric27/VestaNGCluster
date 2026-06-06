@@ -10,7 +10,7 @@ import timber.log.Timber
  * только безопасные диагностические сообщения уровня info/warn/error, а
  * расширенный вывод можно временно включить через экран разработчика.
  *
- * Ошибки (ERROR/ASSERT) сохраняются в RAM-буфер [InMemoryLogBuffer]
+ * Сообщения уровня INFO и выше (INFO/WARN/ERROR/ASSERT) сохраняются в RAM-буфер [InMemoryLogBuffer]
  * для последующего экспорта без постоянной записи во flash.
  */
 internal class AppTimberTree : Timber.Tree() {

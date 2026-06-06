@@ -914,7 +914,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         NotificationChannel(
             CHANNEL_ID,
-            RuntimeConfig.Service.NOTIFICATION_CHANNEL_NAME,
+            getString(R.string.service_notification_channel_name),
             NotificationManager.IMPORTANCE_LOW,
         ).also(notificationManager::createNotificationChannel)
     }

@@ -6,14 +6,14 @@ import java.util.Collections
 /**
  * Кольцевой буфер логов в RAM.
  *
- * Хранит только сообщения уровня ERROR и выше (включая ASSERT).
- * Используется для сохранения контекста ошибок без постоянной записи во flash.
+ * Хранит сообщения уровня INFO и выше (INFO/WARN/ERROR/ASSERT).
+ * Используется для сохранения контекста работы приложения без постоянной записи во flash.
  *
  * Thread-safe.
  */
 internal object InMemoryLogBuffer {
 
-    private const val MAX_LINES = 1_000
+    private const val MAX_LINES = 5_000
     private const val TAG = "InMemoryLogBuffer"
 
     private val buffer = Collections.synchronizedList(ArrayList<LogLine>())
@@ -28,10 +28,10 @@ internal object InMemoryLogBuffer {
     }
 
     /**
-     * Добавляет строку если priority >= ERROR.
+     * Добавляет строку если priority >= INFO.
      */
     fun append(priority: Int, tag: String, message: String) {
-        if (priority < Log.ERROR) return
+        if (priority < Log.INFO) return
         val line = LogLine(
             timestamp = buildTimestamp(),
             priority = priorityLetter(priority),

@@ -29,9 +29,9 @@ internal class Sha256Verifier {
             val expectedSha256 = readSignature(context, sigFile)
             val valid = actualSha256.length == SHA256_HEX_LENGTH && actualSha256 == expectedSha256
             val details = if (valid) {
-                "SHA-256 подтверждён"
+                runCatching { context.getString(R.string.sha256_verified) }.getOrDefault("SHA-256 подтверждён")
             } else {
-                "SHA-256 не совпадает"
+                runCatching { context.getString(R.string.sha256_mismatch) }.getOrDefault("SHA-256 не совпадает")
             }
             VerificationResult(
                 valid = valid,
