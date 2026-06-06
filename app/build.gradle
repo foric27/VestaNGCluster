@@ -51,11 +51,11 @@ configurations.all {
     resolutionStrategy {
         // Security fixes: bump transitive dependencies with known CVEs
         force 'io.netty:netty-all:4.1.115.Final'
-        force 'org.bouncycastle:bcprov-jdk18on:1.79'
-        force 'org.bouncycastle:bcpkix-jdk18on:1.79'
+        force 'org.bouncycastle:bcprov-jdk18on:1.84'
+        force 'org.bouncycastle:bcpkix-jdk18on:1.84'
         force 'org.bitbucket.b_c:jose4j:0.9.6'
         force 'org.jdom:jdom2:2.0.6.1'
-        force 'org.apache.commons:commons-lang3:3.17.0'
+        force 'org.apache.commons:commons-lang3:3.18.0'
         force 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
     }
 }
