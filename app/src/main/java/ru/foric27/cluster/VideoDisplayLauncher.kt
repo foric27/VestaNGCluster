@@ -1,5 +1,6 @@
 package ru.foric27.cluster
 
+import android.os.SystemClock
 import timber.log.Timber
 
 // Импорт BuildConfig для проверки принадлежности компонента к пакету приложения
@@ -25,9 +26,19 @@ internal class VideoDisplayLauncher(
         val errorMessage: String?,
     )
 
+    @Volatile private var lastForceLaunchMs = 0L
+
     fun launchOnDisplay(displayId: Int, force: Boolean = false) {
         val component = preferredLaunchComponent
-        if (!force && shouldReuseLaunch(displayId, component)) {
+        if (force) {
+            val now = SystemClock.elapsedRealtime()
+            val sinceLast = now - lastForceLaunchMs
+            if (lastForceLaunchMs != 0L && sinceLast < FORCE_RELAUNCH_THROTTLE_MS) {
+                Timber.tag(TAG).i("Пропускаю принудительный перезапуск на display=$displayId — прошло ${sinceLast}мс с прошлого force=true (throttle=${FORCE_RELAUNCH_THROTTLE_MS}мс)")
+                return
+            }
+            lastForceLaunchMs = now
+        } else if (shouldReuseLaunch(displayId, component)) {
             Timber.tag(TAG).i("Пропускаю повторный root-запуск на display=$displayId, component=${component ?: "null"}")
             return
         }
@@ -105,6 +116,7 @@ internal class VideoDisplayLauncher(
 
     companion object {
         private const val TAG = "VideoDisplayLauncher"
+        private const val FORCE_RELAUNCH_THROTTLE_MS = 1_500L
         @Volatile private var lastLaunchedDisplayId: Int = -1
         @Volatile private var lastLaunchedComponent: String? = null
 
