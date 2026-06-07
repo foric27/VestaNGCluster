@@ -80,12 +80,13 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(9)
 
-        assertEquals(3, rootStarter.commands.size)
+        assertEquals(5, rootStarter.commands.size)
         assertOverlayCloseCommands(rootStarter.commands)
-        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[1])
-        assertTrue(rootStarter.commands[2].contains("am start"))
-        assertTrue(rootStarter.commands[2].contains("--display 9"))
-        assertTrue(rootStarter.commands[2].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
+        assertBlackScreenCommand(rootStarter.commands[2], 9)
+        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[3])
+        assertTrue(rootStarter.commands[4].contains("am start"))
+        assertTrue(rootStarter.commands[4].contains("--display 9"))
+        assertTrue(rootStarter.commands[4].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
     }
 
     @Test
@@ -98,12 +99,13 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(11)
 
-        assertEquals(3, rootStarter.commands.size)
+        assertEquals(5, rootStarter.commands.size)
         assertOverlayCloseCommands(rootStarter.commands)
-        assertTrue(rootStarter.commands[1].startsWith("am force-stop "))
+        assertBlackScreenCommand(rootStarter.commands[2], 11)
+        assertTrue(rootStarter.commands[3].startsWith("am force-stop "))
         assertEquals(
             "am start --display 11 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[2],
+            rootStarter.commands[4],
         )
     }
 
@@ -117,12 +119,13 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(13)
 
-        assertEquals(3, rootStarter.commands.size)
+        assertEquals(5, rootStarter.commands.size)
         assertOverlayCloseCommands(rootStarter.commands)
-        assertTrue(rootStarter.commands[1].startsWith("am force-stop "))
+        assertBlackScreenCommand(rootStarter.commands[2], 13)
+        assertTrue(rootStarter.commands[3].startsWith("am force-stop "))
         assertEquals(
             "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[2],
+            rootStarter.commands[4],
         )
     }
 
@@ -140,8 +143,34 @@ class VideoDisplayLauncherTest {
         assertTrue(rootStarter.commands.last().contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
     }
 
+    @Test
+    fun `launch always emits black screen before target launch on own component`() {
+        val rootStarter = RecordingRootActivityStarter(success = true)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            rootActivityStarter = rootStarter,
+        )
+
+        launcher.launchOnDisplay(21)
+
+        val blackScreenIndex = rootStarter.commands.indexOfFirst { it.contains(ClusterBlackScreenActivity::class.java.simpleName) }
+        assertTrue("Ожидался запуск ClusterBlackScreenActivity, получили: ${rootStarter.commands}", blackScreenIndex >= 0)
+        assertTrue(rootStarter.commands[blackScreenIndex].contains("--display 21"))
+    }
+
     private fun assertOverlayCloseCommands(commands: List<String>) {
         assertEquals(YandexLaunchTarget.buildBroadcastCommand(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER), commands[0])
+        assertEquals(
+            YandexLaunchTarget.buildBroadcastCommand(ClusterBlackScreenActivity.ACTION_FINISH_CLUSTER_BLACK_SCREEN),
+            commands[1],
+        )
+    }
+
+    private fun assertBlackScreenCommand(command: String, displayId: Int) {
+        assertEquals(
+            "am start --display $displayId -n ${BuildConfig.APPLICATION_ID}/.${ClusterBlackScreenActivity::class.java.simpleName} -f 0x14000000",
+            command,
+        )
     }
 
     private class FakeRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {

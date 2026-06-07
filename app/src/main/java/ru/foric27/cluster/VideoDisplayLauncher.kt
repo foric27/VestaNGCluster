@@ -33,6 +33,7 @@ internal class VideoDisplayLauncher(
         }
 
         closeOwnClusterOverlays()
+        launchBlackScreen(displayId)
 
         val isOwnComponent = component != null && component.startsWith(BuildConfig.APPLICATION_ID)
 
@@ -81,12 +82,24 @@ internal class VideoDisplayLauncher(
     private fun closeOwnClusterOverlays() {
         val actions = listOf(
             MediaCoverActivity.ACTION_FINISH_MEDIA_COVER,
+            ClusterBlackScreenActivity.ACTION_FINISH_CLUSTER_BLACK_SCREEN,
         )
         for (action in actions) {
             val root = rootActivityStarter.start(YandexLaunchTarget.buildBroadcastCommand(action))
             if (!root.success) {
                 Timber.tag(TAG).w("Не удалось закрыть overlay action=$action. RootError=${root.errorMessage ?: "null"}")
             }
+        }
+    }
+
+    private fun launchBlackScreen(displayId: Int) {
+        val component = BuildConfig.APPLICATION_ID + "/." + ClusterBlackScreenActivity::class.java.simpleName
+        val command = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component)
+        val root = rootActivityStarter.start(command)
+        if (root.success) {
+            Timber.tag(TAG).i("Запущен кратковременный чёрный экран на display=$displayId")
+        } else {
+            Timber.tag(TAG).w("Не удалось запустить чёрный экран на display=$displayId. RootError=${root.errorMessage ?: "null"}")
         }
     }
 
