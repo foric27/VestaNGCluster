@@ -188,6 +188,11 @@ internal object RootNetUtil {
             }
             iptablesResult as NetworkScriptResult
 
+            // After interface/IP/routing/iptables changes, flush the kernel routing
+            // cache so that stale entries (e.g. via wlan0 from a previous session)
+            // do not cause "route not applied" failures on the first retry.
+            networkRootShell?.execScript(listOf("ip route flush cache"))
+
             val result = verifyApplied(
                 context = context,
                 interfaceResult = interfaceResult,
