@@ -55,10 +55,10 @@ class AppRecoveryReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "AppRecoveryReceiver"
-        private const val ACTION_RECOVER_APP = "ru.foric27.cluster.action.RECOVER_APP"
-        private const val EXTRA_REASON = "ru.foric27.cluster.extra.RECOVERY_REASON"
-        private const val EXTRA_LAUNCH_UI = "ru.foric27.cluster.extra.RECOVERY_LAUNCH_UI"
-        private const val EXTRA_KEEP_IN_FOREGROUND = "ru.foric27.cluster.extra.RECOVERY_KEEP_IN_FOREGROUND"
+        internal const val ACTION_RECOVER_APP = "ru.foric27.cluster.action.RECOVER_APP"
+        internal const val EXTRA_REASON = "ru.foric27.cluster.extra.RECOVERY_REASON"
+        internal const val EXTRA_LAUNCH_UI = "ru.foric27.cluster.extra.RECOVERY_LAUNCH_UI"
+        internal const val EXTRA_KEEP_IN_FOREGROUND = "ru.foric27.cluster.extra.RECOVERY_KEEP_IN_FOREGROUND"
 
         fun createPendingIntent(
             context: Context,

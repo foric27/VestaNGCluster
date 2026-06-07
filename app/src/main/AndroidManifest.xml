@@ -144,6 +144,15 @@
             android:enabled="true"
             android:exported="false" />
 
+        <receiver
+            android:name=".AppUpdateInstallReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.foric27.cluster.action.APP_UPDATE_INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

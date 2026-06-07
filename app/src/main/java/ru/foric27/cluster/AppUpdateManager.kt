@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import org.json.JSONObject
 import timber.log.Timber
@@ -28,6 +27,7 @@ internal object AppUpdateManager {
     private const val CHANNEL_MARKER_FILE = "channel.txt"
     private const val MIN_QUERY_INTERVAL_MS = 60_000L
     private const val MAX_BACKOFF_MS = 3_600_000L
+    private const val SESSION_STATUS_REQUEST_CODE = 71_092
 
     private val certificatePinner by lazy {
         okhttp3.CertificatePinner.Builder()
@@ -159,14 +159,8 @@ internal object AppUpdateManager {
             return InstallResult.Error(context.getString(R.string.app_update_error_file_missing))
         }
 
-        try {
-            verifyApkFileSignature(context, update.apkFile)
-        } catch (t: SecurityException) {
-            Timber.tag(TAG).w(t, "Подпись APK не совпадает с текущим приложением")
-            return InstallResult.Error(
-                t.message?.takeIf { it.isNotBlank() }
-                    ?: context.getString(R.string.app_update_error_signature_mismatch),
-            )
+        if (!isApkSignatureValid(context, update.apkFile)) {
+            return InstallResult.Error(context.getString(R.string.app_update_error_signature_mismatch))
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
@@ -178,22 +172,57 @@ internal object AppUpdateManager {
         }
 
         return try {
-            val apkUri = FileProvider.getUriForFile(
-                context,
-                "${BuildConfig.APPLICATION_ID}.fileprovider",
-                update.apkFile,
-            )
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(installIntent)
+            installWithPackageInstaller(context, update.apkFile)
             InstallResult.Started
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось запустить установщик APK")
             InstallResult.Error(errorMessage(context, t))
         }
+    }
+
+    private fun installWithPackageInstaller(context: Context, apkFile: File) {
+        val packageInstaller = context.packageManager.packageInstaller
+        val sessionParams = android.content.pm.PackageInstaller.SessionParams(
+            android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL,
+        )
+        val sessionId = packageInstaller.createSession(sessionParams)
+        val session = packageInstaller.openSession(sessionId)
+        try {
+            val inputLength = apkFile.length()
+            session.openWrite("app-update", 0, inputLength).use { outputStream ->
+                apkFile.inputStream().use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        outputStream.write(buffer, 0, read)
+                    }
+                    outputStream.flush()
+                }
+            }
+
+            val statusIntent = Intent(context, AppUpdateInstallReceiver::class.java).apply {
+                action = AppUpdateInstallReceiver.ACTION_INSTALL_STATUS
+                setPackage(context.packageName)
+            }
+            val statusFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+            } else {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val statusPendingIntent = android.app.PendingIntent.getBroadcast(
+                context,
+                SESSION_STATUS_REQUEST_CODE,
+                statusIntent,
+                statusFlags,
+            )
+
+            session.commit(statusPendingIntent.intentSender)
+        } catch (t: Throwable) {
+            runCatching { session.abandon() }
+            throw t
+        }
+        session.close()
     }
 
     fun getCachedUpdate(context: Context, channel: AppSettings.UpdateChannel): DownloadedUpdate? {
@@ -289,7 +318,9 @@ internal object AppUpdateManager {
             )
         }
 
-        verifyApkSignature(context, packageInfo)
+        if (!isApkSignatureMatching(context, packageInfo)) {
+            throw SecurityException(context.getString(R.string.app_update_error_signature_mismatch))
+        }
 
         val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         val versionName = packageInfo.versionName ?: context.getString(R.string.app_update_unknown_version)
@@ -302,27 +333,32 @@ internal object AppUpdateManager {
         )
     }
 
-    private fun verifyApkFileSignature(context: Context, apkFile: File) {
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageArchiveInfo(
-                apkFile.absolutePath,
-                PackageManager.PackageInfoFlags.of(flags.toLong()),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
-        } ?: throw SecurityException(context.getString(R.string.app_update_error_apk_metadata))
+    private fun isApkSignatureValid(context: Context, apkFile: File): Boolean {
+        return try {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNATURES
+            }
+            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageArchiveInfo(
+                    apkFile.absolutePath,
+                    PackageManager.PackageInfoFlags.of(flags.toLong()),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
+            } ?: return false
 
-        verifyApkSignature(context, packageInfo)
+            isApkSignatureMatching(context, packageInfo)
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "Не удалось проверить подпись APK")
+            false
+        }
     }
 
-    private fun verifyApkSignature(context: Context, packageInfo: android.content.pm.PackageInfo) {
+    private fun isApkSignatureMatching(context: Context, packageInfo: android.content.pm.PackageInfo): Boolean {
         val apkSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             packageInfo.signingInfo?.apkContentsSigners
         } else {
@@ -331,7 +367,7 @@ internal object AppUpdateManager {
         }
 
         if (apkSignatures.isNullOrEmpty()) {
-            throw SecurityException(context.getString(R.string.app_update_error_no_signature))
+            return false
         }
 
         val currentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -358,15 +394,13 @@ internal object AppUpdateManager {
         }
 
         if (currentSignatures.isNullOrEmpty()) {
-            throw SecurityException(context.getString(R.string.app_update_error_current_no_signature))
+            return false
         }
 
         val apkHash = apkSignatures.first().hashCode()
         val currentHash = currentSignatures.first().hashCode()
 
-        if (apkHash != currentHash) {
-            throw SecurityException(context.getString(R.string.app_update_error_signature_mismatch))
-        }
+        return apkHash == currentHash
     }
 
     private fun getCurrentVersionCode(context: Context): Long {

@@ -1,7 +1,9 @@
 package ru.foric27.cluster
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -125,11 +127,18 @@ internal object ProcessRecoveryManager {
             Timber.tag(TAG).w("SCHEDULE_EXACT_ALARM не выдано, пропускаю восстановление после падения")
             return
         }
-        val pendingIntent = AppRecoveryReceiver.createPendingIntent(
-            context = context,
-            requestCode = REQUEST_CODE,
-            reason = "process_crash:$reason",
-            launchUi = false,
+        val intent = Intent(context, AppRecoveryReceiver::class.java).apply {
+            action = AppRecoveryReceiver.ACTION_RECOVER_APP
+            setPackage(context.packageName)
+            putExtra(AppRecoveryReceiver.EXTRA_REASON, "process_crash:$reason")
+            putExtra(AppRecoveryReceiver.EXTRA_LAUNCH_UI, false)
+            putExtra(AppRecoveryReceiver.EXTRA_KEEP_IN_FOREGROUND, false)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val triggerAtMillis = SystemClock.elapsedRealtime() + RuntimeConfig.Service.PROCESS_CRASH_RECOVERY_DELAY_MS
         if (Build.VERSION.SDK_INT >= 23) {

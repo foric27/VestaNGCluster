@@ -3,6 +3,7 @@ package ru.foric27.cluster
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 import timber.log.Timber
@@ -23,7 +24,19 @@ internal class UdpServiceRecoveryScheduler(
                 return
             }
             val triggerAtMillis = SystemClock.elapsedRealtime() + delayMs
-            val pendingIntent = buildPendingIntent(reason = userReason, launchUi = launchUi)
+            val intent = Intent(context, AppRecoveryReceiver::class.java).apply {
+                action = AppRecoveryReceiver.ACTION_RECOVER_APP
+                setPackage(context.packageName)
+                putExtra(AppRecoveryReceiver.EXTRA_REASON, userReason)
+                putExtra(AppRecoveryReceiver.EXTRA_LAUNCH_UI, launchUi)
+                putExtra(AppRecoveryReceiver.EXTRA_KEEP_IN_FOREGROUND, false)
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
             if (Build.VERSION.SDK_INT >= 23) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent)
             } else {
@@ -43,19 +56,26 @@ internal class UdpServiceRecoveryScheduler(
     fun cancel() {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(buildPendingIntent(reason = "", launchUi = false))
-            alarmManager.cancel(buildPendingIntent(reason = "", launchUi = true))
+            alarmManager.cancel(makePendingIntent(reason = "", launchUi = false))
+            alarmManager.cancel(makePendingIntent(reason = "", launchUi = true))
         } catch (t: Throwable) {
             Timber.tag(tag).w(t, "Не удалось снять pending alarm восстановления")
         }
     }
 
-    private fun buildPendingIntent(reason: String, launchUi: Boolean): PendingIntent {
-        return AppRecoveryReceiver.createPendingIntent(
-            context = context,
-            requestCode = requestCode,
-            reason = reason,
-            launchUi = launchUi,
+    private fun makePendingIntent(reason: String, launchUi: Boolean): PendingIntent {
+        val intent = Intent(context, AppRecoveryReceiver::class.java).apply {
+            action = AppRecoveryReceiver.ACTION_RECOVER_APP
+            setPackage(context.packageName)
+            putExtra(AppRecoveryReceiver.EXTRA_REASON, reason)
+            putExtra(AppRecoveryReceiver.EXTRA_LAUNCH_UI, launchUi)
+            putExtra(AppRecoveryReceiver.EXTRA_KEEP_IN_FOREGROUND, false)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
 }

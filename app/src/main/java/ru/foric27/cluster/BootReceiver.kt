@@ -1,6 +1,7 @@
 package ru.foric27.cluster
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -88,11 +89,18 @@ class BootReceiver : BroadcastReceiver() {
                 Timber.tag(TAG).w("$action: SCHEDULE_EXACT_ALARM не выдано, отложенное восстановление невозможно")
                 return
             }
-            val pendingIntent = AppRecoveryReceiver.createPendingIntent(
-                context = context.applicationContext,
-                requestCode = RuntimeConfig.Service.SERVICE_RECOVERY_REQUEST_CODE,
-                reason = action,
-                launchUi = false,
+            val intent = Intent(context.applicationContext, AppRecoveryReceiver::class.java).apply {
+                setAction(AppRecoveryReceiver.ACTION_RECOVER_APP)
+                setPackage(context.applicationContext.packageName)
+                putExtra(AppRecoveryReceiver.EXTRA_REASON, action)
+                putExtra(AppRecoveryReceiver.EXTRA_LAUNCH_UI, false)
+                putExtra(AppRecoveryReceiver.EXTRA_KEEP_IN_FOREGROUND, false)
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context.applicationContext,
+                RuntimeConfig.Service.SERVICE_RECOVERY_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val triggerAtMillis = SystemClock.elapsedRealtime() + RECOVERY_DELAY_MS
             if (Build.VERSION.SDK_INT >= 23) {
