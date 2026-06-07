@@ -286,21 +286,8 @@ internal object AppUpdateManager {
         apkFile: File,
         checksumFile: File?,
     ): DownloadedUpdate {
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageArchiveInfo(
-                apkFile.absolutePath,
-                PackageManager.PackageInfoFlags.of(flags.toLong()),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
-        } ?: throw IllegalStateException(context.getString(R.string.app_update_error_apk_metadata))
+        val packageInfo = loadArchivePackageInfo(context, apkFile)
+            ?: throw IllegalStateException(context.getString(R.string.app_update_error_apk_metadata))
 
         val packageName = packageInfo.packageName
         if (packageName != context.packageName) {
@@ -309,7 +296,7 @@ internal object AppUpdateManager {
             )
         }
 
-        if (!isApkSignatureMatching(context, packageInfo)) {
+        if (!isApkSignatureValid(context, packageInfo)) {
             throw SecurityException(context.getString(R.string.app_update_error_signature_mismatch))
         }
 
@@ -326,73 +313,67 @@ internal object AppUpdateManager {
 
     private fun isApkSignatureValid(context: Context, apkFile: File): Boolean {
         return try {
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageManager.GET_SIGNING_CERTIFICATES
-            } else {
-                @Suppress("DEPRECATION")
-                PackageManager.GET_SIGNATURES
-            }
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageArchiveInfo(
-                    apkFile.absolutePath,
-                    PackageManager.PackageInfoFlags.of(flags.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
-            } ?: return false
-
-            isApkSignatureMatching(context, packageInfo)
+            val packageInfo = loadArchivePackageInfo(context, apkFile) ?: return false
+            isApkSignatureValid(context, packageInfo)
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось проверить подпись APK")
             false
         }
     }
 
-    private fun isApkSignatureMatching(context: Context, packageInfo: android.content.pm.PackageInfo): Boolean {
-        val apkSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+    private fun isApkSignatureValid(context: Context, packageInfo: android.content.pm.PackageInfo): Boolean {
+        val apkSignatures = extractSigners(packageInfo)
+            ?: return false
+        val currentSignatures = loadInstalledPackageInfo(context)
+            ?.let(::extractSigners)
+            ?: return false
+
+        val apkDigest = MessageDigest.getInstance("SHA-256").digest(apkSignatures.first().toByteArray())
+        val currentDigest = MessageDigest.getInstance("SHA-256").digest(currentSignatures.first().toByteArray())
+        return MessageDigest.isEqual(apkDigest, currentDigest)
+    }
+
+    private fun loadArchivePackageInfo(context: Context, apkFile: File): android.content.pm.PackageInfo? {
+        val flags = signingFlags()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
+        }
+    }
+
+    private fun loadInstalledPackageInfo(context: Context): android.content.pm.PackageInfo? {
+        val flags = signingFlags()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, flags)
+        }
+    }
+
+    private fun signingFlags(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        PackageManager.GET_SIGNING_CERTIFICATES
+    } else {
+        @Suppress("DEPRECATION")
+        PackageManager.GET_SIGNATURES
+    }
+
+    private fun extractSigners(packageInfo: android.content.pm.PackageInfo): Array<android.content.pm.Signature>? {
+        val signers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             packageInfo.signingInfo?.apkContentsSigners
         } else {
             @Suppress("DEPRECATION")
             packageInfo.signatures
         }
-
-        if (apkSignatures.isNullOrEmpty()) {
-            return false
-        }
-
-        val currentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-        val currentPackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(
-                context.packageName,
-                PackageManager.PackageInfoFlags.of(currentFlags.toLong()),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, currentFlags)
-        }
-
-        val currentSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            currentPackageInfo.signingInfo?.apkContentsSigners
-        } else {
-            @Suppress("DEPRECATION")
-            currentPackageInfo.signatures
-        }
-
-        if (currentSignatures.isNullOrEmpty()) {
-            return false
-        }
-
-        val apkBytes = apkSignatures.first().toByteArray()
-        val currentBytes = currentSignatures.first().toByteArray()
-        val apkDigest = MessageDigest.getInstance("SHA-256").digest(apkBytes)
-        val currentDigest = MessageDigest.getInstance("SHA-256").digest(currentBytes)
-        return MessageDigest.isEqual(apkDigest, currentDigest)
+        return signers?.takeIf { it.isNotEmpty() }
     }
 
     private fun getCurrentVersionCode(context: Context): Long {
