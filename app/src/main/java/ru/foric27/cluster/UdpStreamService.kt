@@ -36,18 +36,6 @@ import timber.log.Timber
  */
 class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
-    private val startupUpdateRefreshRunnable = Runnable {
-        if (!serviceRunning) return@Runnable
-        startDetachedWorker("StartupFtpRefresh") {
-            runCatching {
-                Timber.tag(TAG).i("Проверяю FTP обновлений после создания сервиса")
-                startOrRefreshUpdateServer()
-            }.onFailure { t ->
-                Timber.tag(TAG).e(t, "Ошибка отложенного запуска FTP обновлений")
-            }
-        }
-    }
-
     private val serviceLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -639,11 +627,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         updateCoordinator.startOrRefreshUpdateServer()
     }
 
-    private fun scheduleStartupUpdateServerRefresh() {
-        mainHandler.removeCallbacks(startupUpdateRefreshRunnable)
-        mainHandler.postDelayed(startupUpdateRefreshRunnable, FTP_STARTUP_REFRESH_DELAY_MS)
-    }
-
     private fun stopInternalKeepService() {
         synchronized(serviceLock) {
             streamActive = false
@@ -1117,9 +1100,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     }
                     return@startDetachedWorker
                 }
-                if (forceRestart) {
-                    updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_ONLY)
-                }
                 if (!networkPrep.ifacePresent) {
                     handleMissingInterface(scheduleRestart = false)
                     return@startDetachedWorker
@@ -1140,7 +1120,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                         launchComponent = cfg.launchComponent,
                         restartLog = false,
                     )
-                    startOrRefreshUpdateServer()
+                    if (forceRestart) {
+                        updateCoordinator.restartUpdateServer(UpdateFileLocator.SearchPolicy.USB_ONLY)
+                    } else {
+                        startOrRefreshUpdateServer()
+                    }
                 }
             } catch (t: Throwable) {
                 mainHandler.post {
@@ -1286,7 +1270,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
         private const val TAG = "UdpStreamService"
         private const val FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2
-        private const val FTP_STARTUP_REFRESH_DELAY_MS = 1_500L
         private const val STREAM_WAKE_LOCK_TIMEOUT_MS = 60_000L
         private const val WAKE_LOCK_REACQUIRE_MS = 600_000L // 10 мин
         private const val HEARTBEAT_INTERVAL_MS = 300_000L // 5 мин
