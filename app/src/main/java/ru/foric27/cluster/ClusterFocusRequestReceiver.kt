@@ -26,7 +26,11 @@ class ClusterFocusRequestReceiver : BroadcastReceiver() {
     private fun handleRequestFocus(context: Context, action: String) {
         Timber.tag(TAG).i("Получен внешний запрос cluster focus: action=$action")
 
-        val activityIntent = MainActivity.createLaunchIntent(context, keepInForeground = false)
+        val activityIntent = Intent(context, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra(MainActivity.EXTRA_KEEP_IN_FOREGROUND, false)
+            setPackage(context.packageName)
+        }
         try {
             context.startActivity(activityIntent)
             UdpStreamService.startServiceCompat(context)

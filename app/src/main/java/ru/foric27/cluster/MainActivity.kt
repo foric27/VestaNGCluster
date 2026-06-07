@@ -620,15 +620,5 @@ class MainActivity : AppCompatActivity() {
         private const val DEVELOPER_TAP_COUNT = 7
         private const val VERSION_TAP_TIMEOUT_MS = 1_500L
         const val EXTRA_KEEP_IN_FOREGROUND = "ru.foric27.cluster.extra.KEEP_IN_FOREGROUND"
-
-        fun createLaunchIntent(context: Context, keepInForeground: Boolean): Intent {
-            return Intent(context, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                putExtra(EXTRA_KEEP_IN_FOREGROUND, keepInForeground)
-                setPackage(context.packageName)
-            }
-        }
     }
 }

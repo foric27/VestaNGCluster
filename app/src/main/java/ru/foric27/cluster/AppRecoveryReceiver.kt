@@ -31,12 +31,12 @@ class AppRecoveryReceiver : BroadcastReceiver() {
 
         try {
             if (launchUi) {
-                context.startActivity(
-                    MainActivity.createLaunchIntent(
-                        context = context,
-                        keepInForeground = keepInForeground,
-                    ),
-                )
+                val activityIntent = Intent(context, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra(MainActivity.EXTRA_KEEP_IN_FOREGROUND, keepInForeground)
+                    setPackage(context.packageName)
+                }
+                context.startActivity(activityIntent)
                 Timber.tag(TAG).i("Восстановлены сервис и UI, reason=$reason, keepInForeground=$keepInForeground")
             } else {
                 Timber.tag(TAG).i("Восстановлен только сервис, reason=$reason")

@@ -64,7 +64,7 @@ internal class UpdateFileLocator {
         searchPolicy: SearchPolicy,
     ): List<LocatedUpdatePair> {
         val candidates = ArrayList<LocatedUpdatePair>()
-        candidates += findCandidatesInFileRoots(buildFileRoots(context, searchPolicy))
+        candidates += findCandidatesInFileRoots(buildFileRoots(context))
         buildSafRoots(context, searchPolicy).forEach { root ->
             inspectSafRoot(root)?.let { candidates += it }
         }
@@ -92,7 +92,6 @@ internal class UpdateFileLocator {
 
     private fun buildFileRoots(
         context: Context,
-        searchPolicy: SearchPolicy,
     ): List<FileScanRoot> {
         return discoverUsbRoots(context).map { usbRoot ->
             FileScanRoot(

@@ -96,7 +96,6 @@ internal object ProcessRecoveryManager {
         val content = buildString {
             appendLine("=== CRASH LOG ===")
             appendLine("timestamp=$timestamp")
-            @Suppress("DEPRECATION")
             val threadId = thread.id
             appendLine("thread=${thread.name}#$threadId")
             appendLine("exception=${throwable.javaClass.name}")

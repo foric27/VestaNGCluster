@@ -923,7 +923,9 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
-            MainActivity.createLaunchIntent(this, keepInForeground = true).apply {
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(MainActivity.EXTRA_KEEP_IN_FOREGROUND, true)
                 setPackage(packageName)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -940,22 +942,19 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun addNotificationActions(builder: NotificationCompat.Builder) {
-        builder.addAction(
-            0,
-            getString(R.string.service_notification_action_restart),
-            buildServicePendingIntent(ACTION_RESTART_SERVICE_NOW, 1),
-        )
-    }
-
-    private fun buildServicePendingIntent(action: String, requestCode: Int): PendingIntent {
-        return PendingIntent.getService(
+        val restartIntent = PendingIntent.getService(
             this,
-            requestCode,
+            1,
             Intent(this, UdpStreamService::class.java).apply {
-                setAction(action)
+                setAction(ACTION_RESTART_SERVICE_NOW)
                 setPackage(packageName)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        builder.addAction(
+            0,
+            getString(R.string.service_notification_action_restart),
+            restartIntent,
         )
     }
 
@@ -1194,12 +1193,13 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         startInProgress = false
         val ifaceName = RootNetUtil.getSelectedIfaceName(force = true) ?: RuntimeConfig.Root.IFACE
         if (!RootNetUtil.wasSelectedIfaceEverPresent) {
-            val logMessage = if (scheduleRestart) {
-                "$ifaceName отсутствует на устройстве; повторный запуск отменён — интерфейс никогда не поднимался"
-            } else {
-                "$ifaceName отсутствует; запуск стрима отменён — интерфейс никогда не поднимался"
-            }
-            Timber.tag(TAG).i(logMessage)
+            Timber.tag(TAG).i(
+                if (scheduleRestart) {
+                    "$ifaceName отсутствует на устройстве; повторный запуск отменён — интерфейс никогда не поднимался"
+                } else {
+                    "$ifaceName отсутствует; запуск стрима отменён — интерфейс никогда не поднимался"
+                },
+            )
             serviceAlerts.notifyNoLinkOnce(getString(R.string.service_notification_iface_missing_fmt, ifaceName, 0))
             return
         }
