@@ -1146,21 +1146,37 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun stopStreamForSleep() {
-        synchronized(serviceLock) {
-            performSleepShutdownLocked()
+        try {
+            synchronized(serviceLock) {
+                performSleepShutdownLocked()
+            }
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "stopStreamForSleep: непредвиденная ошибка при остановке стрима на сон")
         }
     }
 
     private fun restartStreamAfterSleep() {
-        synchronized(serviceLock) {
-            if (!serviceRunning) {
-                Timber.tag(TAG).w("Автовосстановление после сна отменено: сервис не запущен")
-                return
+        val shouldRestart = try {
+            synchronized(serviceLock) {
+                if (!serviceRunning) {
+                    Timber.tag(TAG).w("Автовосстановление после сна отменено: сервис не запущен")
+                    return
+                }
+                intentionalSleepShutdown = false
+                streamStoppedForSleep = false
+                true
             }
-            intentionalSleepShutdown = false
-            streamStoppedForSleep = false
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "restartStreamAfterSleep: непредвиденная ошибка при подготовке автоперезапуска")
+            return
+        }
+        if (shouldRestart) {
             Timber.tag(TAG).i("Автовосстановление после сна: запускаю рестарт сервиса")
-            startServiceCompat(applicationContext)
+            try {
+                startServiceCompat(applicationContext)
+            } catch (t: Throwable) {
+                Timber.tag(TAG).w(t, "restartStreamAfterSleep: не удалось запустить сервис")
+            }
         }
     }
 
