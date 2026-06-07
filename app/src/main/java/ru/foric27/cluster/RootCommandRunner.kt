@@ -46,6 +46,9 @@ internal object RootCommandRunner : RootCommandExecutor {
         }
     }
 
+    private val runnerLock = Any()
+    @Volatile private var shellAlive: Boolean = true
+
     override fun run(
         cmds: List<String>,
         logOnFailure: Boolean,
@@ -53,44 +56,54 @@ internal object RootCommandRunner : RootCommandExecutor {
     ): Result {
         if (cmds.isEmpty()) return Result(code = 0, out = "", err = "")
 
-        val executor = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "libsu-root-command").apply { isDaemon = true }
-        }
-        val future = executor.submit<Result> { runViaLibSu(cmds) }
+        synchronized(runnerLock) {
+            if (!shellAlive) {
+                Timber.tag(TAG).i("libsu shell был закрыт после прошлого таймаута, пересоздаю")
+                runCatching { Shell.getShell()?.close() }
+                shellAlive = true
+            }
 
-        return try {
-            val result = future.get(timeoutMs, TimeUnit.MILLISECONDS)
-            if (!result.ok() && logOnFailure) {
-                Timber.tag(TAG).w("libsu command failed: code=${result.code}, timedOut=${result.timedOut}\nSTDOUT:\n${result.out}\nSTDERR:\n${result.err}")
+            val executor = Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "libsu-root-command").apply { isDaemon = true }
             }
-            if (result.isRootDeniedOrMissing()) {
-                publishRootRequiredWarning()
+            val future = executor.submit<Result> { runViaLibSu(cmds) }
+
+            return try {
+                val result = future.get(timeoutMs, TimeUnit.MILLISECONDS)
+                if (!result.ok() && logOnFailure) {
+                    Timber.tag(TAG).w("libsu command failed: code=${result.code}, timedOut=${result.timedOut}\nSTDOUT:\n${result.out}\nSTDERR:\n${result.err}")
+                }
+                if (result.isRootDeniedOrMissing()) {
+                    publishRootRequiredWarning()
+                }
+                result
+            } catch (_: TimeoutException) {
+                future.cancel(true)
+                runCatching { Shell.getShell()?.close() }
+                shellAlive = false
+                val result = Result(
+                    code = EXIT_CODE_TIMEOUT,
+                    out = "",
+                    err = "Истек таймаут выполнения libsu-команды ($timeoutMs мс)",
+                    timedOut = true,
+                )
+                if (logOnFailure) {
+                    Timber.tag(TAG).w("libsu command timed out after ${timeoutMs}ms — закрываю мёртвый shell")
+                }
+                result
+            } catch (t: Throwable) {
+                val cause = t.cause ?: t
+                val result = Result(code = -1, out = "", err = cause.toString())
+                if (result.isRootDeniedOrMissing()) {
+                    publishRootRequiredWarning()
+                    Timber.tag(TAG).w("libsu root недоступен для приложения: ${cause.message}")
+                } else {
+                    Timber.tag(TAG).e(cause, "Ошибка выполнения libsu-команды")
+                }
+                result
+            } finally {
+                executor.shutdownNow()
             }
-            result
-        } catch (_: TimeoutException) {
-            future.cancel(true)
-            val result = Result(
-                code = EXIT_CODE_TIMEOUT,
-                out = "",
-                err = "Истек таймаут выполнения libsu-команды ($timeoutMs мс)",
-                timedOut = true,
-            )
-            if (logOnFailure) {
-                Timber.tag(TAG).w("libsu command timed out after ${timeoutMs}ms")
-            }
-            result
-        } catch (t: Throwable) {
-            val cause = t.cause ?: t
-            val result = Result(code = -1, out = "", err = cause.toString())
-            if (result.isRootDeniedOrMissing()) {
-                publishRootRequiredWarning()
-                Timber.tag(TAG).w("libsu root недоступен для приложения: ${cause.message}")
-            } else {
-                Timber.tag(TAG).e(cause, "Ошибка выполнения libsu-команды")
-            }
-            result
-        } finally {
-            executor.shutdownNow()
         }
     }
 
