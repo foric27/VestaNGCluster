@@ -67,8 +67,8 @@ class YandexLaunchTargetTest {
     @Test
     fun `broadcast command is package scoped for exported dynamic receivers`() {
         assertEquals(
-            "am broadcast -a 'ru.foric27.cluster.action.DISMISS_STREAM_PLACEHOLDER' -p ru.foric27.cluster",
-            YandexLaunchTarget.buildBroadcastCommand(StreamPlaceholderActivity.ACTION_DISMISS_STREAM_PLACEHOLDER),
+            "am broadcast -a 'ru.foric27.cluster.action.FINISH_MEDIA_COVER' -p ru.foric27.cluster",
+            YandexLaunchTarget.buildBroadcastCommand(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER),
         )
     }
 

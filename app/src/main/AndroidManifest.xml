@@ -83,15 +83,6 @@
             android:taskAffinity="ru.foric27.cluster.med"
             android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
-        <activity
-            android:name=".StreamPlaceholderActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:finishOnTaskLaunch="true"
-            android:noHistory="true"
-            android:taskAffinity="ru.foric27.cluster.cluster"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
-
         <service
             android:name=".UdpStreamService"
             android:exported="false"

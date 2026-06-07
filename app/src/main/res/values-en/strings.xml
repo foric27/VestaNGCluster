@@ -285,9 +285,6 @@
     <string name="media_cover_desc">Album cover</string>
     <string name="media_cover_no_media_title">No media stream</string>
     <string name="media_cover_no_media_subtitle">Start music playback</string>
-    <string name="stream_placeholder_source">Navigation</string>
-    <string name="stream_placeholder_title">Cluster output unavailable</string>
-    <string name="stream_placeholder_subtitle">Waiting for navigation launch</string>
     <string name="runtime_field_video_encoder_profile">H.264 Profile</string>
     <string name="runtime_field_video_encoder_level">H.264 Level</string>
 </resources>

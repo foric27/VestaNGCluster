@@ -54,7 +54,6 @@ internal class VideoDisplayLauncher(
                 return
             }
             Timber.tag(TAG).w("Не удалось запустить собственную activity на display=$displayId. RootError=${root.errorMessage ?: "null"}")
-            launchPlaceholder(displayId)
             return
         }
 
@@ -77,30 +76,17 @@ internal class VideoDisplayLauncher(
                 "Последняя попытка: ${lastCommand?.component ?: "не задана"}. " +
                 "RootError=${lastRootError ?: "null"}",
         )
-        launchPlaceholder(displayId)
     }
 
     private fun closeOwnClusterOverlays() {
         val actions = listOf(
             MediaCoverActivity.ACTION_FINISH_MEDIA_COVER,
-            StreamPlaceholderActivity.ACTION_DISMISS_STREAM_PLACEHOLDER,
         )
         for (action in actions) {
             val root = rootActivityStarter.start(YandexLaunchTarget.buildBroadcastCommand(action))
             if (!root.success) {
                 Timber.tag(TAG).w("Не удалось закрыть overlay action=$action. RootError=${root.errorMessage ?: "null"}")
             }
-        }
-    }
-
-    private fun launchPlaceholder(displayId: Int) {
-        val component = BuildConfig.APPLICATION_ID + "/." + StreamPlaceholderActivity::class.java.simpleName
-        val command = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component)
-        val root = rootActivityStarter.start(command)
-        if (root.success) {
-            Timber.tag(TAG).i("Root-запуск заглушки потока на display=$displayId")
-        } else {
-            Timber.tag(TAG).w("Не удалось запустить заглушку потока на display=$displayId. RootError=${root.errorMessage ?: "null"}")
         }
     }
 

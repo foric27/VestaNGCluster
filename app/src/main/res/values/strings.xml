@@ -285,9 +285,6 @@
     <string name="media_cover_desc">Обложка альбома</string>
     <string name="media_cover_no_media_title">Нет медиапотока</string>
     <string name="media_cover_no_media_subtitle">Запустите воспроизведение музыки</string>
-    <string name="stream_placeholder_source">Навигация</string>
-    <string name="stream_placeholder_title">Кластерный вывод недоступен</string>
-    <string name="stream_placeholder_subtitle">Ожидаю запуск навигации</string>
     <string name="runtime_field_video_encoder_profile">Профиль H.264</string>
     <string name="runtime_field_video_encoder_level">Уровень H.264</string>
 </resources>

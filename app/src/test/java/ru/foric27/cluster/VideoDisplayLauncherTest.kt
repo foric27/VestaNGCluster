@@ -1,7 +1,6 @@
 package ru.foric27.cluster
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -81,12 +80,12 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(9)
 
-        assertEquals(4, rootStarter.commands.size)
+        assertEquals(3, rootStarter.commands.size)
         assertOverlayCloseCommands(rootStarter.commands)
-        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[2])
-        assertTrue(rootStarter.commands[3].contains("am start"))
-        assertTrue(rootStarter.commands[3].contains("--display 9"))
-        assertTrue(rootStarter.commands[3].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
+        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[1])
+        assertTrue(rootStarter.commands[2].contains("am start"))
+        assertTrue(rootStarter.commands[2].contains("--display 9"))
+        assertTrue(rootStarter.commands[2].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
     }
 
     @Test
@@ -99,17 +98,17 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(11)
 
-        assertEquals(4, rootStarter.commands.size)
+        assertEquals(3, rootStarter.commands.size)
         assertOverlayCloseCommands(rootStarter.commands)
-        assertTrue(rootStarter.commands[2].startsWith("am force-stop "))
+        assertTrue(rootStarter.commands[1].startsWith("am force-stop "))
         assertEquals(
             "am start --display 11 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[3],
+            rootStarter.commands[2],
         )
     }
 
     @Test
-    fun `own component failure falls back to placeholder after direct start`() {
+    fun `own component failure does not launch any fallback`() {
         val rootStarter = RecordingRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
@@ -118,21 +117,17 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(13)
 
-        assertEquals(5, rootStarter.commands.size)
+        assertEquals(3, rootStarter.commands.size)
         assertOverlayCloseCommands(rootStarter.commands)
-        assertTrue(rootStarter.commands[2].startsWith("am force-stop "))
+        assertTrue(rootStarter.commands[1].startsWith("am force-stop "))
         assertEquals(
             "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[3],
-        )
-        assertEquals(
-            "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.${StreamPlaceholderActivity::class.java.simpleName} -f 0x14000000",
-            rootStarter.commands[4],
+            rootStarter.commands[2],
         )
     }
 
     @Test
-    fun `external launch failure falls back to placeholder`() {
+    fun `external launch failure does not launch any fallback`() {
         val rootStarter = RecordingRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
@@ -141,19 +136,14 @@ class VideoDisplayLauncherTest {
 
         launcher.launchOnDisplay(17)
 
-        assertEquals(4, rootStarter.commands.size)
-        assertOverlayCloseCommands(rootStarter.commands)
-        assertTrue(rootStarter.commands[2].contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
-        assertEquals(
-            "am start --display 17 -n ${BuildConfig.APPLICATION_ID}/.${StreamPlaceholderActivity::class.java.simpleName} -f 0x14000000",
-            rootStarter.commands[3],
-        )
+        assertTrue(rootStarter.commands.isNotEmpty())
+        assertTrue(rootStarter.commands.last().contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
     }
 
     private fun assertOverlayCloseCommands(commands: List<String>) {
         assertEquals(YandexLaunchTarget.buildBroadcastCommand(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER), commands[0])
-        assertEquals(YandexLaunchTarget.buildBroadcastCommand(StreamPlaceholderActivity.ACTION_DISMISS_STREAM_PLACEHOLDER), commands[1])
     }
+
     private class FakeRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
         var called = false
         var lastCommand: String? = null
