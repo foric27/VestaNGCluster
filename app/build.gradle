@@ -58,14 +58,6 @@ android {
         versionCode = 3
         versionName = '1.0.2'
         buildConfigField 'String', 'GIT_SHA', "\"${currentGitSha}\""
-        // GitHub SPKI pins: leaf (CN=*.github.com) + intermediate (Sectigo Public Server
-        // Authentication CA DV E36). Leaf rotates when GitHub re-issues — update both
-        // and verify via: openssl s_client -connect api.github.com:443 -showcerts
-        buildConfigField "String[]", "GITHUB_CERT_PINS",
-                "new String[]{" +
-                "\"sha256/QVnLDkTvhX8bfBbaP6XeqWLC0ja893s79IYfjQc/hWI=\"," +
-                "\"sha256/p8dKALOEdjJLYz6/rfL5hF+mEu9Y/y0Zj+B1R0Fmn3c=\"" +
-                "}"
     }
 
     signingConfigs {

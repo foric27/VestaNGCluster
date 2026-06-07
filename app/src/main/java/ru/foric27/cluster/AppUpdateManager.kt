@@ -13,7 +13,6 @@ import timber.log.Timber
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
-import javax.net.ssl.SSLPeerUnverifiedException
 
 internal object AppUpdateManager {
 
@@ -30,21 +29,10 @@ internal object AppUpdateManager {
     private const val MAX_BACKOFF_MS = 3_600_000L
     private const val SESSION_STATUS_REQUEST_CODE = 71_092
 
-    private val certificatePinner by lazy {
-        okhttp3.CertificatePinner.Builder().apply {
-            BuildConfig.GITHUB_CERT_PINS.forEach { pin ->
-                add("api.github.com", pin)
-                add("github.com", pin)
-                add("objects.githubusercontent.com", pin)
-            }
-        }.build()
-    }
-
     private val okHttpClient by lazy {
         okhttp3.OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
             .readTimeout(READ_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
-            .certificatePinner(certificatePinner)
             .build()
     }
 
@@ -458,14 +446,7 @@ internal object AppUpdateManager {
     }
 
     private fun executeRequest(context: Context, request: okhttp3.Request): Response {
-        return try {
-            okHttpClient.newCall(request).execute()
-        } catch (e: SSLPeerUnverifiedException) {
-            throw SecurityException(
-                context.getString(R.string.app_update_error_cert_pin_failed),
-                e,
-            )
-        }
+        return okHttpClient.newCall(request).execute()
     }
 
     private fun validateHttpsUrl(context: Context, url: String) {
@@ -491,16 +472,6 @@ internal object AppUpdateManager {
     }
 
     private fun errorMessage(context: Context, error: Throwable): String {
-        if (error is SSLPeerUnverifiedException) {
-            return context.getString(R.string.app_update_error_cert_pin_failed)
-        }
-        var cause: Throwable? = error
-        while (cause != null) {
-            if (cause is SSLPeerUnverifiedException) {
-                return context.getString(R.string.app_update_error_cert_pin_failed)
-            }
-            cause = cause.cause
-        }
         return error.message?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.app_update_error_generic)
     }
