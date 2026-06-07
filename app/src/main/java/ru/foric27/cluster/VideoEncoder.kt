@@ -313,7 +313,7 @@ internal class VideoEncoder(
             val csd1 = format.getByteBuffer("csd-1")
             val built = H264AnnexBUtil.buildConfigAnnexB(csd0, csd1)
             configAnnexB = built
-            Timber.tag(TAG).w("onOutputFormatChanged: csd0=%s, csd1=%s, configAnnexB=%s",
+            Timber.tag(TAG).i("onOutputFormatChanged: csd0=%s, csd1=%s, configAnnexB=%s",
                 csd0?.remaining()?.toString() ?: "null",
                 csd1?.remaining()?.toString() ?: "null",
                 built?.size?.toString() ?: "null")

@@ -72,6 +72,7 @@
     <string name="app_update_error_no_signature">The downloaded APK has no digital signature.</string>
     <string name="app_update_error_current_no_signature">Failed to get the current app signature.</string>
     <string name="app_update_error_signature_mismatch">The downloaded APK signature does not match the current app.</string>
+    <string name="app_update_error_cert_pin_failed">Failed to verify GitHub certificate. Update is not possible.</string>
     <string name="sha256_verified">SHA-256 verified</string>
     <string name="sha256_mismatch">SHA-256 mismatch</string>
     <string name="app_update_cached_update_invalid">Removing corrupted cached update.</string>

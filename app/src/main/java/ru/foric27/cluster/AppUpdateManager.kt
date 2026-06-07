@@ -7,12 +7,13 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.pm.PackageInfoCompat
+import okhttp3.Response
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.File
-import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.Locale
+import javax.net.ssl.SSLPeerUnverifiedException
 
 internal object AppUpdateManager {
 
@@ -30,11 +31,13 @@ internal object AppUpdateManager {
     private const val SESSION_STATUS_REQUEST_CODE = 71_092
 
     private val certificatePinner by lazy {
-        okhttp3.CertificatePinner.Builder()
-            .add("api.github.com", "sha256/gOozyh5IUJeg0PBJFZEzPwjDQK/K2A62DvU/wBVKfbI=")
-            .add("github.com", "sha256/gOozyh5IUJeg0PBJFZEzPwjDQK/K2A62DvU/wBVKfbI=")
-            .add("*.githubusercontent.com", "sha256/dJjHWyyYpXk55crpJPIvDlM/Jfjd29MQ6M+rHmFVN1I=")
-            .build()
+        okhttp3.CertificatePinner.Builder().apply {
+            BuildConfig.GITHUB_CERT_PINS.forEach { pin ->
+                add("api.github.com", pin)
+                add("github.com", pin)
+                add("objects.githubusercontent.com", pin)
+            }
+        }.build()
     }
 
     private val okHttpClient by lazy {
@@ -397,10 +400,11 @@ internal object AppUpdateManager {
             return false
         }
 
-        val apkHash = apkSignatures.first().hashCode()
-        val currentHash = currentSignatures.first().hashCode()
-
-        return apkHash == currentHash
+        val apkBytes = apkSignatures.first().toByteArray()
+        val currentBytes = currentSignatures.first().toByteArray()
+        val apkDigest = MessageDigest.getInstance("SHA-256").digest(apkBytes)
+        val currentDigest = MessageDigest.getInstance("SHA-256").digest(currentBytes)
+        return MessageDigest.isEqual(apkDigest, currentDigest)
     }
 
     private fun getCurrentVersionCode(context: Context): Long {
@@ -420,21 +424,18 @@ internal object AppUpdateManager {
             .addHeader("Accept", "application/octet-stream")
             .addHeader("User-Agent", "$REPO_NAME-app-update")
             .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
+        executeRequest(context, request).use { response ->
             if (!response.isSuccessful) {
                 throw IllegalStateException(
-                    context.getString(
-                        R.string.app_update_error_download_http_fmt,
-                        response.code,
-                    ),
+                    context.getString(R.string.app_update_error_download_http_fmt, response.code),
                 )
             }
-            response.body?.byteStream()?.use { input ->
-                FileOutputStream(targetFile).use { output ->
+            val body = response.body ?: throw IllegalStateException(context.getString(R.string.app_update_error_empty_response))
+            body.byteStream().use { input ->
+                targetFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
-            } ?: throw IllegalStateException(context.getString(R.string.app_update_error_empty_response))
+            }
         }
     }
 
@@ -445,18 +446,25 @@ internal object AppUpdateManager {
             .addHeader("Accept", "application/vnd.github+json")
             .addHeader("User-Agent", "$REPO_NAME-app-update")
             .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
+        executeRequest(context, request).use { response ->
             if (!response.isSuccessful) {
                 throw IllegalStateException(
-                    context.getString(
-                        R.string.app_update_error_release_http_fmt,
-                        response.code,
-                    ),
+                    context.getString(R.string.app_update_error_release_http_fmt, response.code),
                 )
             }
             return response.body?.string()
                 ?: throw IllegalStateException(context.getString(R.string.app_update_error_empty_response))
+        }
+    }
+
+    private fun executeRequest(context: Context, request: okhttp3.Request): Response {
+        return try {
+            okHttpClient.newCall(request).execute()
+        } catch (e: SSLPeerUnverifiedException) {
+            throw SecurityException(
+                context.getString(R.string.app_update_error_cert_pin_failed),
+                e,
+            )
         }
     }
 
@@ -483,6 +491,16 @@ internal object AppUpdateManager {
     }
 
     private fun errorMessage(context: Context, error: Throwable): String {
+        if (error is SSLPeerUnverifiedException) {
+            return context.getString(R.string.app_update_error_cert_pin_failed)
+        }
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause is SSLPeerUnverifiedException) {
+                return context.getString(R.string.app_update_error_cert_pin_failed)
+            }
+            cause = cause.cause
+        }
         return error.message?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.app_update_error_generic)
     }
