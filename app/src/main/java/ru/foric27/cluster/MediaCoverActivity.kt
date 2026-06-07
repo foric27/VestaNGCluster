@@ -12,9 +12,9 @@ import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ImageView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
-import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.palette.graphics.Palette
@@ -40,7 +40,7 @@ internal class MediaCoverActivity : ComponentActivity() {
     private lateinit var trackArtist: TextView
     private lateinit var playbackPosition: TextView
     private lateinit var playbackDuration: TextView
-    private lateinit var playbackProgress: AppCompatSeekBar
+    private lateinit var playbackProgress: SeekBar
 
     private var finishReceiver: BroadcastReceiver? = null
 
