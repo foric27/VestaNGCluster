@@ -330,7 +330,13 @@ internal object AppUpdateManager {
 
         val apkDigest = MessageDigest.getInstance("SHA-256").digest(apkSignatures.first().toByteArray())
         val currentDigest = MessageDigest.getInstance("SHA-256").digest(currentSignatures.first().toByteArray())
-        return MessageDigest.isEqual(apkDigest, currentDigest)
+        val match = MessageDigest.isEqual(apkDigest, currentDigest)
+        if (!match) {
+            val apkHex = apkDigest.joinToString("") { "%02x".format(it) }
+            val currentHex = currentDigest.joinToString("") { "%02x".format(it) }
+            Timber.tag(TAG).w("Подпись APK не совпадает с установленным приложением: APK_SHA256=%s, Установленный_SHA256=%s", apkHex, currentHex)
+        }
+        return match
     }
 
     private fun loadArchivePackageInfo(context: Context, apkFile: File): android.content.pm.PackageInfo? {
