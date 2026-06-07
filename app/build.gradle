@@ -47,19 +47,6 @@ if (releaseStoreFile != null) {
 }
 def releaseSigningReady = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it != null && !it.toString().trim().isEmpty() }
 
-configurations.all {
-    resolutionStrategy {
-        // Security fixes: bump transitive dependencies with known CVEs
-        force 'io.netty:netty-all:4.1.115.Final'
-        force 'org.bouncycastle:bcprov-jdk18on:1.84'
-        force 'org.bouncycastle:bcpkix-jdk18on:1.84'
-        force 'org.bitbucket.b_c:jose4j:0.9.6'
-        force 'org.jdom:jdom2:2.0.6.1'
-        force 'org.apache.commons:commons-lang3:3.18.0'
-        force 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
-    }
-}
-
 android {
     namespace = 'ru.foric27.cluster'
     compileSdk = 37
@@ -114,6 +101,13 @@ android {
                     'META-INF/NOTICE',
                     'META-INF/NOTICE.txt'
             ]
+            // Netty 4.1.133 через netty-all тянет десятки модулей с одинаковыми служебными
+            // файлами META-INF/INDEX.LIST и io.netty.versions.properties. Содержимое
+            // идентично, в runtime не используется — берём первый.
+            pickFirsts += [
+                'META-INF/INDEX.LIST',
+                'META-INF/io.netty.versions.properties',
+            ]
         }
     }
 
@@ -143,5 +137,23 @@ dependencies {
     implementation 'androidx.palette:palette:1.0.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'androidx.work:work-runtime-ktx:2.11.2'
+
+    // Security: pinned patched versions for transitive deps (Dependabot visibility).
+    // Direct declarations here are required because Dependabot does not see
+    // resolutionStrategy.force overrides; without these the alerts stay open.
+    implementation 'io.netty:netty-all:4.1.133.Final'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.84'
+    implementation 'org.bitbucket.b_c:jose4j:0.9.6'
+    implementation 'org.jdom:jdom2:2.0.6.1'
+    implementation 'org.apache.commons:commons-lang3:3.18.0'
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
+
+    constraints {
+        implementation('org.apache.httpcomponents:httpclient:4.5.14') {
+            because 'CVE-2020-13956: transitive XSS in httpclient < 4.5.13'
+        }
+    }
+
     testImplementation 'junit:junit:4.13.2'
 }
