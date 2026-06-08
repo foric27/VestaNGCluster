@@ -20,6 +20,14 @@ class VideoDisplayLauncherTest {
         Thread.sleep(200)
     }
 
+    private fun waitUntil(timeoutMs: Long = 2000L, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (condition()) return
+            Thread.sleep(20)
+        }
+    }
+
     @Test
     fun `launch uses root am start command with preferred component`() {
         val rootStarter = RecordingRootActivityStarter(success = true)
@@ -77,9 +85,10 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(42)
-        waitForCleanup()
+        // Polling: foreground main launch синхронный, но cleanup идёт в фоне.
+        // Ждём появления основной am start команды (не cleanup) с таймаутом.
+        waitUntil { rootStarter.commands.any { it.contains(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER) } }
 
-        assertTrue(rootStarter.commands.isNotEmpty())
         assertTrue(
             "Ожидался am start с COMPONENT_AUTO_CLUSTER, получили: ${rootStarter.commands}",
             rootStarter.commands.any { it.contains(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER) },
@@ -307,7 +316,9 @@ class VideoDisplayLauncherTest {
     }
 
     private class RecordingRootActivityStarter(private val success: Boolean) : VideoDisplayLauncher.RootActivityStarter {
-        val commands = mutableListOf<String>()
+        // CopyOnWriteArrayList: thread-safe, и foreground main launch, и
+        // background LauncherCleanup могут писать одновременно без CME.
+        val commands: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
 
         override fun start(command: String): VideoDisplayLauncher.RootLaunchAttempt {
             commands += command
