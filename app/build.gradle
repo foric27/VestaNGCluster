@@ -99,7 +99,14 @@ android {
                     'META-INF/LICENSE',
                     'META-INF/LICENSE.txt',
                     'META-INF/NOTICE',
-                    'META-INF/NOTICE.txt'
+                    'META-INF/NOTICE.txt',
+                    // Netty 4.2 через netty-codec-native-quic поставляет 5 platform-specific
+                    // jar (linux/darwin/windows × x86_64/aarch_64) с одинаковыми служебными
+                    // файлами в META-INF/license/ и GraalVM native-image конфигами в
+                    // META-INF/native-image/io.netty/. На Android не используются,
+                    // исключаем чтобы избежать конфликта при merge.
+                    'META-INF/license/**',
+                    'META-INF/native-image/**',
             ]
             // Netty 4.1.133 через netty-all тянет десятки модулей с одинаковыми служебными
             // файлами META-INF/INDEX.LIST и io.netty.versions.properties. Содержимое
