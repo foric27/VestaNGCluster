@@ -2,72 +2,107 @@ package ru.foric27.cluster
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Test
 
 class VideoDisplayLauncherTest {
 
+    @Before
+    fun resetState() {
+        VideoDisplayLauncher.clearLaunchState()
+    }
+
+    private fun waitForCleanup() {
+        // Cleanup (closeOwnClusterOverlays + launchBlackScreen) runs in a
+        // background Thread после launchOnDisplay(). Ждём 200мс чтобы команды
+        // появились в RecordingRootActivityStarter.commands.
+        Thread.sleep(200)
+    }
+
     @Test
     fun `launch uses root am start command with preferred component`() {
-        val rootStarter = FakeRootActivityStarter(success = true)
+        val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
             rootActivityStarter = rootStarter,
         )
 
         launcher.launchOnDisplay(7)
+        waitForCleanup()
 
-        assertTrue(rootStarter.called)
-        val command = requireNotNull(rootStarter.lastCommand)
-        assertTrue(command.contains("am start"))
-        assertTrue(command.contains("--display 7"))
-        assertTrue(command.contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
-        assertTrue(command.contains(RuntimeConfig.TargetApp.ACTION_MAIN))
-        assertTrue(command.contains(RuntimeConfig.TargetApp.CATEGORY_CLUSTER_NAVIGATION))
+        // Ищем основной am start, а не cleanup (cleanup идёт в фоне).
+        val mainCommand = requireNotNull(
+            rootStarter.commands.firstOrNull {
+                it.contains("am start") && it.contains("ru.yandex.yandexnavi/.CustomClusterActivity")
+            },
+        ) { "Не нашли основной am start для навигатора в командах: ${rootStarter.commands}" }
+        assertTrue(mainCommand.contains("am start"))
+        assertTrue(mainCommand.contains("--display 7"))
+        assertTrue(mainCommand.contains(RuntimeConfig.TargetApp.ACTION_MAIN))
+        assertTrue(mainCommand.contains(RuntimeConfig.TargetApp.CATEGORY_CLUSTER_NAVIGATION))
     }
 
     @Test
     fun `launch falls back through commands on root failure`() {
-        val rootStarter = FakeRootActivityStarter(success = false)
+        val rootStarter = RecordingRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
             rootActivityStarter = rootStarter,
         )
 
         launcher.launchOnDisplay(3)
+        waitForCleanup()
 
-        assertTrue(rootStarter.called)
-        val command = requireNotNull(rootStarter.lastCommand)
-        assertTrue(command.contains("am start"))
-        assertTrue(command.contains("--display 3"))
+        // С success=false основной am start (proxy) должен быть выполнен.
+        // Cleanup-команды идут в фоне, и am start для чёрного экрана
+        // присутствует в общем списке. Проверяем что proxy am start
+        // для навигатора действительно был запущен.
+        val proxyAmStart = rootStarter.commands.firstOrNull {
+            it.contains("am start") && it.contains("ru.yandex.yandexnavi/.CustomClusterActivity")
+        }
+        assertTrue(
+            "Ожидался proxy am start для навигатора с display=3 в командах: ${rootStarter.commands}",
+            proxyAmStart != null,
+        )
+        assertTrue(proxyAmStart!!.contains("--display 3"))
     }
 
     @Test
     fun `launch uses default component when preferred is null`() {
-        val rootStarter = FakeRootActivityStarter(success = true)
+        val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = null,
             rootActivityStarter = rootStarter,
         )
 
         launcher.launchOnDisplay(42)
+        waitForCleanup()
 
-        assertTrue(rootStarter.called)
-        val command = requireNotNull(rootStarter.lastCommand)
-        assertTrue(command.contains(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER))
+        assertTrue(rootStarter.commands.isNotEmpty())
+        assertTrue(
+            "Ожидался am start с COMPONENT_AUTO_CLUSTER, получили: ${rootStarter.commands}",
+            rootStarter.commands.any { it.contains(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER) },
+        )
     }
 
     @Test
     fun `launch shell command contains proxy component`() {
-        val rootStarter = FakeRootActivityStarter(success = true)
+        val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = null,
             rootActivityStarter = rootStarter,
         )
 
         launcher.launchOnDisplay(5)
+        waitForCleanup()
 
-        val command = requireNotNull(rootStarter.lastCommand)
-        assertTrue(command.contains("ru.foric27.cluster/${ClusterLaunchProxyActivity::class.java.name}"))
+        assertTrue(
+            "Ожидался am start с proxy component, получили: ${rootStarter.commands}",
+            rootStarter.commands.any {
+                it.contains("ru.foric27.cluster/${ClusterLaunchProxyActivity::class.java.name}")
+            },
+        )
     }
 
     @Test
@@ -79,14 +114,23 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(9)
+        waitForCleanup()
 
-        assertEquals(5, rootStarter.commands.size)
-        assertOverlayCloseCommands(rootStarter.commands)
-        assertBlackScreenCommand(rootStarter.commands[2], 9)
-        assertEquals("am force-stop ${RuntimeConfig.TargetApp.PACKAGE_NAME}", rootStarter.commands[3])
-        assertTrue(rootStarter.commands[4].contains("am start"))
-        assertTrue(rootStarter.commands[4].contains("--display 9"))
-        assertTrue(rootStarter.commands[4].contains("${BuildConfig.APPLICATION_ID}/.MediaCoverActivity"))
+        // Cleanup теперь async → команды приходят вперемешку.
+        // Главное: force-stop и am start выполнены, плюс close×2 + blackScreen.
+        val forceStopIdx = rootStarter.commands.indexOfFirst { it.startsWith("am force-stop ") }
+        val mainStartIdx = rootStarter.commands.indexOfFirst {
+            it.contains("am start") && it.contains(".MediaCoverActivity")
+        }
+        assertTrue("force-stop должен быть в командах: ${rootStarter.commands}", forceStopIdx >= 0)
+        assertTrue("am start для MediaCoverActivity должен быть: ${rootStarter.commands}", mainStartIdx >= 0)
+        assertTrue(
+            "force-stop должен быть ДО am start: ${rootStarter.commands}",
+            forceStopIdx < mainStartIdx,
+        )
+        assertTrue(rootStarter.commands[mainStartIdx].contains("--display 9"))
+        assertOverlayCloseCommandsPresent(rootStarter.commands)
+        assertBlackScreenCommandPresent(rootStarter.commands, 9)
     }
 
     @Test
@@ -98,15 +142,20 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(11)
+        waitForCleanup()
 
-        assertEquals(5, rootStarter.commands.size)
-        assertOverlayCloseCommands(rootStarter.commands)
-        assertBlackScreenCommand(rootStarter.commands[2], 11)
-        assertTrue(rootStarter.commands[3].startsWith("am force-stop "))
+        val mainStartIdx = rootStarter.commands.indexOfFirst {
+            it.contains("am start") && it.contains(".MediaCoverActivity")
+        }
+        assertTrue(mainStartIdx >= 0)
         assertEquals(
             "am start --display 11 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[4],
+            rootStarter.commands[mainStartIdx],
         )
+        val forceStopIdx = rootStarter.commands.indexOfFirst { it.startsWith("am force-stop ") }
+        assertTrue(forceStopIdx in 0 until mainStartIdx)
+        assertOverlayCloseCommandsPresent(rootStarter.commands)
+        assertBlackScreenCommandPresent(rootStarter.commands, 11)
     }
 
     @Test
@@ -118,15 +167,20 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(13)
+        waitForCleanup()
 
-        assertEquals(5, rootStarter.commands.size)
-        assertOverlayCloseCommands(rootStarter.commands)
-        assertBlackScreenCommand(rootStarter.commands[2], 13)
-        assertTrue(rootStarter.commands[3].startsWith("am force-stop "))
+        val mainStartIdx = rootStarter.commands.indexOfFirst {
+            it.contains("am start") && it.contains(".MediaCoverActivity")
+        }
+        assertTrue(mainStartIdx >= 0)
         assertEquals(
             "am start --display 13 -n ${BuildConfig.APPLICATION_ID}/.MediaCoverActivity -f 0x14000000",
-            rootStarter.commands[4],
+            rootStarter.commands[mainStartIdx],
         )
+        val forceStopIdx = rootStarter.commands.indexOfFirst { it.startsWith("am force-stop ") }
+        assertTrue(forceStopIdx in 0 until mainStartIdx)
+        assertOverlayCloseCommandsPresent(rootStarter.commands)
+        assertBlackScreenCommandPresent(rootStarter.commands, 13)
     }
 
     @Test
@@ -138,13 +192,20 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(17)
+        waitForCleanup()
 
         assertTrue(rootStarter.commands.isNotEmpty())
-        assertTrue(rootStarter.commands.last().contains("ru.yandex.yandexnavi/.CustomClusterActivity"))
+        // Главный launch идёт в main thread; cleanup — в фоне. Проверяем что
+        // В СПИСКЕ есть команда запуска навигатора, а не "last" (который теперь
+        // относится к cleanup).
+        assertTrue(
+            "Ожидался am start для yandexnavi в командах: ${rootStarter.commands}",
+            rootStarter.commands.any { it.contains("ru.yandex.yandexnavi/.CustomClusterActivity") },
+        )
     }
 
     @Test
-    fun `launch always emits black screen before target launch on own component`() {
+    fun `launch emits black screen launch on own component`() {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
@@ -152,24 +213,82 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(21)
+        waitForCleanup()
 
-        val blackScreenIndex = rootStarter.commands.indexOfFirst { it.contains(ClusterBlackScreenActivity::class.java.simpleName) }
-        assertTrue("Ожидался запуск ClusterBlackScreenActivity, получили: ${rootStarter.commands}", blackScreenIndex >= 0)
-        assertTrue(rootStarter.commands[blackScreenIndex].contains("--display 21"))
+        val blackScreenCommand = rootStarter.commands.firstOrNull {
+            it.contains(ClusterBlackScreenActivity::class.java.simpleName)
+        }
+        assertTrue("Ожидался запуск ClusterBlackScreenActivity, получили: ${rootStarter.commands}", blackScreenCommand != null)
+        assertTrue(blackScreenCommand!!.contains("--display 21"))
     }
 
-    private fun assertOverlayCloseCommands(commands: List<String>) {
-        assertEquals(YandexLaunchTarget.buildBroadcastCommand(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER), commands[0])
+    @Test
+    fun `normal relaunch within 800ms is throttled`() {
+        // Используем поддельные часы: при первом вызове T=1000, при втором T=1200
+        // (разница 200мс < 800мс throttle) → второй вызов должен быть отброшен.
+        var nowMs = 1_000L
+        val clock = { nowMs }
+        val rootStarter = RecordingRootActivityStarter(success = true)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            rootActivityStarter = rootStarter,
+            clock = clock,
+        )
+
+        launcher.launchOnDisplay(31)
+        waitForCleanup()
+        val commandsAfterFirst = rootStarter.commands.size
+
+        // Перемещаем часы вперёд на 200мс (в пределах throttle window 800мс)
+        nowMs = 1_200L
+        launcher.launchOnDisplay(32)
+        // Cleanup идёт в фоне, но throttle отбрасывает весь вызов
+        // (включая main launch) → commands.size не должен измениться.
+        waitForCleanup()
         assertEquals(
-            YandexLaunchTarget.buildBroadcastCommand(ClusterBlackScreenActivity.ACTION_FINISH_CLUSTER_BLACK_SCREEN),
-            commands[1],
+            "В пределах 800мс throttle должен отбросить второй вызов, получили: ${rootStarter.commands}",
+            commandsAfterFirst,
+            rootStarter.commands.size,
         )
     }
 
-    private fun assertBlackScreenCommand(command: String, displayId: Int) {
-        assertEquals(
-            "am start --display $displayId -n ${BuildConfig.APPLICATION_ID}/.${ClusterBlackScreenActivity::class.java.simpleName} -f 0x14000000",
-            command,
+    @Test
+    fun `normal relaunch after 800ms is not throttled`() {
+        var nowMs = 1_000L
+        val clock = { nowMs }
+        val rootStarter = RecordingRootActivityStarter(success = true)
+        val launcher = VideoDisplayLauncher(
+            preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            rootActivityStarter = rootStarter,
+            clock = clock,
+        )
+
+        launcher.launchOnDisplay(31)
+        waitForCleanup()
+        val commandsAfterFirst = rootStarter.commands.size
+
+        // Перемещаем часы на 1000мс вперёд (> 800мс throttle) → второй вызов должен пройти
+        nowMs = 2_000L
+        launcher.launchOnDisplay(32)
+        waitForCleanup()
+        assertTrue(
+            "После >800мс throttle второй вызов должен был добавить команду, получили: ${rootStarter.commands}",
+            rootStarter.commands.size > commandsAfterFirst,
+        )
+    }
+
+    private fun assertOverlayCloseCommandsPresent(commands: List<String>) {
+        val expectedCloseMediaCover = YandexLaunchTarget.buildBroadcastCommand(MediaCoverActivity.ACTION_FINISH_MEDIA_COVER)
+        val expectedCloseBlackScreen = YandexLaunchTarget.buildBroadcastCommand(ClusterBlackScreenActivity.ACTION_FINISH_CLUSTER_BLACK_SCREEN)
+        assertTrue("Ожидался broadcast FINISH_MEDIA_COVER: $commands", commands.contains(expectedCloseMediaCover))
+        assertTrue("Ожидался broadcast FINISH_CLUSTER_BLACK_SCREEN: $commands", commands.contains(expectedCloseBlackScreen))
+    }
+
+    private fun assertBlackScreenCommandPresent(commands: List<String>, displayId: Int) {
+        val expected = "am start --display $displayId -n ${BuildConfig.APPLICATION_ID}/.${ClusterBlackScreenActivity::class.java.simpleName} -f 0x14000000"
+        assertTrue(
+            "Ожидался black screen launch на display=$displayId, получили: $commands",
+            commands.contains(expected),
         )
     }
 

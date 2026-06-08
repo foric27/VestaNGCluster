@@ -15,6 +15,7 @@ import timber.log.Timber
 internal class VideoDisplayLauncher(
     private val preferredLaunchComponent: String?,
     private val rootActivityStarter: RootActivityStarter = RootCommandActivityStarter,
+    private val clock: () -> Long = { safeElapsedRealtime() },
 ) {
 
     internal fun interface RootActivityStarter {
@@ -26,25 +27,54 @@ internal class VideoDisplayLauncher(
         val errorMessage: String?,
     )
 
-    @Volatile private var lastForceLaunchMs = 0L
-
     fun launchOnDisplay(displayId: Int, force: Boolean = false) {
         val component = preferredLaunchComponent
         if (force) {
-            val now = SystemClock.elapsedRealtime()
-            val sinceLast = now - lastForceLaunchMs
-            if (lastForceLaunchMs != 0L && sinceLast < FORCE_RELAUNCH_THROTTLE_MS) {
-                Timber.tag(TAG).i("Пропускаю принудительный перезапуск на display=$displayId — прошло ${sinceLast}мс с прошлого force=true (throttle=${FORCE_RELAUNCH_THROTTLE_MS}мс)")
+            synchronized(throttleLock) {
+                val now = clock()
+                val sinceLast = now - lastForceLaunchMs
+                if (lastForceLaunchMs != 0L && sinceLast < FORCE_RELAUNCH_THROTTLE_MS) {
+                    Timber.tag(TAG).i("Пропускаю принудительный перезапуск на display=$displayId — прошло ${sinceLast}мс с прошлого force=true (throttle=${FORCE_RELAUNCH_THROTTLE_MS}мс)")
+                    return
+                }
+                lastForceLaunchMs = now
+            }
+        } else {
+            synchronized(throttleLock) {
+                if (lastNormalLaunchMs != 0L) {
+                    val now = clock()
+                    val sinceLast = now - lastNormalLaunchMs
+                    if (sinceLast < NORMAL_RELAUNCH_THROTTLE_MS) {
+                        Timber.tag(TAG).i("Пропускаю force=false relaunch на display=$displayId — прошло ${sinceLast}мс (throttle=${NORMAL_RELAUNCH_THROTTLE_MS}мс)")
+                        return
+                    }
+                }
+            }
+            if (shouldReuseLaunch(displayId, component)) {
+                Timber.tag(TAG).i("Пропускаю повторный root-запуск на display=$displayId, component=${component ?: "null"}")
                 return
             }
-            lastForceLaunchMs = now
-        } else if (shouldReuseLaunch(displayId, component)) {
-            Timber.tag(TAG).i("Пропускаю повторный root-запуск на display=$displayId, component=${component ?: "null"}")
-            return
+            synchronized(throttleLock) {
+                lastNormalLaunchMs = clock()
+            }
         }
 
-        closeOwnClusterOverlays()
-        launchBlackScreen(displayId)
+        // Cleanup (закрытие overlay + чёрный экран) — best-effort fire-and-forget.
+        // Запускаем в фоне, чтобы медленный/нестабильный libsu shell не блокировал
+        // основной запуск навигатора (раньше 4 root команды шли последовательно
+        // и каждая могла занять 10s на таймауте → 20-40s freeze UI).
+        Thread({
+            try {
+                closeOwnClusterOverlays()
+            } catch (t: Throwable) {
+                Timber.tag(TAG).w(t, "closeOwnClusterOverlays: непредвиденная ошибка")
+            }
+            try {
+                launchBlackScreen(displayId)
+            } catch (t: Throwable) {
+                Timber.tag(TAG).w(t, "launchBlackScreen: непредвиденная ошибка")
+            }
+        }, "LauncherCleanup").start()
 
         val isOwnComponent = component != null && component.startsWith(BuildConfig.APPLICATION_ID)
 
@@ -117,14 +147,28 @@ internal class VideoDisplayLauncher(
     companion object {
         private const val TAG = "VideoDisplayLauncher"
         private const val FORCE_RELAUNCH_THROTTLE_MS = 1_500L
+        private const val NORMAL_RELAUNCH_THROTTLE_MS = 800L
         @Volatile private var lastLaunchedDisplayId: Int = -1
         @Volatile private var lastLaunchedComponent: String? = null
+        @Volatile private var lastForceLaunchMs = 0L
+        @Volatile private var lastNormalLaunchMs = 0L
+        private val throttleLock = Any()
 
         private val RootCommandActivityStarter = rootCommandActivityStarter(RootCommandRunner)
 
+        private fun safeElapsedRealtime(): Long = try {
+            SystemClock.elapsedRealtime()
+        } catch (_: Throwable) {
+            0L
+        }
+
         fun clearLaunchState() {
-            lastLaunchedDisplayId = -1
-            lastLaunchedComponent = null
+            synchronized(throttleLock) {
+                lastLaunchedDisplayId = -1
+                lastLaunchedComponent = null
+                lastForceLaunchMs = 0L
+                lastNormalLaunchMs = 0L
+            }
         }
 
         private fun shouldReuseLaunch(displayId: Int, component: String?): Boolean {
