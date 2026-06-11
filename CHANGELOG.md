@@ -7,15 +7,26 @@
 
 ## [Unreleased]
 
+### Added
+- Version catalog (`gradle/libs.versions.toml`) для централизации зависимостей
+- ProGuard rules (`app/proguard-rules.pro`) для release minification
+- Unit-тесты: `VideoEncoderTest`, `AppUpdateManagerTest`, `PersistentVirtualDisplayTest`
+
+### Changed
+- Включён `minifyEnabled` и `shrinkResources` для release builds
+- `UdpStreamService`: объединены дублирующие методы `stopInternalKeepService`/`stopInternalKeepPipelineOnly` в единый `stopInternal(stopCoordinators)`
+- Миграция зависимостей на version catalog в `build.gradle`
+
+### Fixed
+- **Критический:** `UpdateServerManager.setState()` — broadcast о состоянии FTP не отправлялся (lambda создана, но не вызвана)
+- **Безопасность:** USB media receiver зарегистрирован с `RECEIVER_NOT_EXPORTED` вместо `RECEIVER_EXPORTED`
+- **Безопасность:** Добавлен `CertificatePinner` для GitHub API в `AppUpdateManager`
+- **Параллелизм:** `VideoEncoder.hasPendingSurfaceFrame` и `hasRenderedAnyFrame` помечены `@Volatile` для thread safety
+
 ### Security
 - Удалена runtime-проверка подписи APK (SignatureVerifier)
 - Удалены утёкшие signing secrets из git history
 - Добавлен `.gitignore` для signing-скриптов
-
-### Changed
-- Улучшено оформление репозитория для open-source
-- Добавлена лицензия Apache 2.0
-- Обновлен README с badges и архитектурой
 
 ## [1.0.2] - 2026-05-30
 

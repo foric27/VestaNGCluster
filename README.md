@@ -274,7 +274,11 @@ adb shell rm /data/local/tmp/app-release.apk
 ├── app/
 │   ├── src/main/java/ru/foric27/cluster/    # Основной Kotlin runtime-код
 │   ├── src/main/res/                        # Ресурсы, layout, строки
+│   ├── src/test/java/ru/foric27/cluster/    # JVM unit tests
+│   ├── proguard-rules.pro                   # ProGuard/R8 rules для release
 │   └── build.gradle                         # Конфигурация Android-модуля
+├── gradle/
+│   └── libs.versions.toml                   # Version catalog зависимостей
 ├── docs/                                    # Документация
 ├── .github/workflows/                       # GitHub Actions
 ├── .githooks/                               # Локальные hooks (pre-push checks)

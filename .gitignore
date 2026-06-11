@@ -28,6 +28,7 @@ keystore.properties
 *.tmp
 *.orig
 .sisyphus/
+.mimocode/
 .omo/
 screenshot_*.png
 screenshot_*.jpg

@@ -67,7 +67,7 @@ $env:JAVA_HOME="C:\Program Files\Java\jdk-21"; $env:PATH="$env:JAVA_HOME/bin;$en
 ./gradlew.bat :app:testDebugUnitTest
 ./gradlew.bat lintDebug
 # Основная целевая сборка: release, подписанная ключом foric27.
-# Minify/shrink/proguard для app release отключены.
+# Release подписан, minify + shrinkResources включены.
 ./gradlew.bat assembleRelease
 ```
 
