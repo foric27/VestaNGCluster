@@ -47,7 +47,10 @@ internal object AppUpdateManager {
     }
 
     sealed interface DownloadResult {
-        data class Success(val update: DownloadedUpdate) : DownloadResult
+        data class Success(
+            val update: DownloadedUpdate,
+            val signatureWarning: String? = null,
+        ) : DownloadResult
         data class Error(val message: String) : DownloadResult
     }
 
@@ -73,6 +76,7 @@ internal object AppUpdateManager {
         val versionName: String,
         val versionCode: Long,
         val buildSha: String?,
+        val signatureMismatch: Boolean = false,
     )
 
     fun queryUpdate(context: Context, channel: AppSettings.UpdateChannel, force: Boolean = false): QueryResult {
@@ -138,7 +142,10 @@ internal object AppUpdateManager {
                 clearCachedFiles(downloaded)
                 return DownloadResult.Error(context.getString(R.string.app_update_error_not_newer))
             }
-            DownloadResult.Success(downloaded)
+            val signatureWarning = if (downloaded.signatureMismatch) {
+                context.getString(R.string.app_update_signature_mismatch_warning)
+            } else null
+            DownloadResult.Success(downloaded, signatureWarning)
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось скачать APK обновления")
             DownloadResult.Error(errorMessage(context, t))
@@ -296,7 +303,33 @@ internal object AppUpdateManager {
             )
         }
 
-        if (!isApkSignatureValid(context, packageInfo)) {
+        val signatureValid = try {
+            isApkSignatureValid(context, packageInfo)
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "Проверка подписи APK бросила исключение, продолжаю с checksum fallback")
+            false
+        }
+
+        if (!signatureValid) {
+            if (checksumFile != null && checksumFile.exists()) {
+                val checksumValid = runCatching {
+                    verifyChecksum(context, apkFile, checksumFile)
+                    true
+                }.getOrDefault(false)
+                if (checksumValid) {
+                    Timber.tag(TAG).w("Подпись APK не совпадает, но SHA-256 checksum проверен — разрешаю установку с предупреждением")
+                    val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
+                    val versionName = packageInfo.versionName ?: context.getString(R.string.app_update_unknown_version)
+                    return DownloadedUpdate(
+                        apkFile,
+                        checksumFile,
+                        versionName,
+                        versionCode,
+                        AppUpdateReleaseParsing.parseBuildShaFromApkName(apkFile.name),
+                        signatureMismatch = true,
+                    )
+                }
+            }
             throw SecurityException(context.getString(R.string.app_update_error_signature_mismatch))
         }
 
