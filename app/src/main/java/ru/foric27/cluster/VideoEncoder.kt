@@ -157,8 +157,8 @@ internal class VideoEncoder(
     private var nextFrameTimeNs: Long = 0L
     private var fpsWindowStartedAtMs: Long = 0L
     private var fpsWindowFrames: Int = 0
-    private var hasPendingSurfaceFrame: Boolean = false
-    private var hasRenderedAnyFrame: Boolean = false
+    @Volatile private var hasPendingSurfaceFrame: Boolean = false
+    @Volatile private var hasRenderedAnyFrame: Boolean = false
     private var lastRestartErrorLogMs: Long = 0L
     private var suppressedRestartErrorCount: Int = 0
 

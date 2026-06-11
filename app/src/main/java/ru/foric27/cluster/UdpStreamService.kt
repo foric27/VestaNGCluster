@@ -532,7 +532,7 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
                     addDataScheme("file")
                 }
                 if (Build.VERSION.SDK_INT >= 33) {
-                    registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+                    registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
                 } else {
                     @Suppress("DEPRECATION")
                     registerReceiver(receiver, filter)
@@ -628,44 +628,35 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     }
 
     private fun stopInternalKeepService() {
-        synchronized(serviceLock) {
-            streamActive = false
-            streamActiveState = false
-            startInProgress = false
-            connectivityWatchdogCoordinator.stop()
-            transportStatsCoordinator.stop()
-            statusSyncCoordinator.stop()
-            updateCoordinator.stop()
-            connectivityWatchdogCoordinator.resetRouteFailureStreak()
-            activeRootIface = null
-            updateStreamWakeLock(held = false)
-
-            runCatching { sender?.close() }
-                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
-            sender = null
-
-            runCatching { encoder?.stop() }
-                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
-            encoder = null
-
-            notifyMediaCoverFinish()
-        }
+        stopInternal(stopCoordinators = true)
     }
 
     private fun stopInternalKeepPipelineOnly() {
+        stopInternal(stopCoordinators = false)
+    }
+
+    private fun stopInternal(stopCoordinators: Boolean) {
         synchronized(serviceLock) {
             streamActive = false
             streamActiveState = false
             startInProgress = false
+            if (stopCoordinators) {
+                connectivityWatchdogCoordinator.stop()
+                transportStatsCoordinator.stop()
+                statusSyncCoordinator.stop()
+                updateCoordinator.stop()
+                connectivityWatchdogCoordinator.resetRouteFailureStreak()
+                activeRootIface = null
+            }
             updateStreamWakeLock(held = false)
-
-            runCatching { encoder?.stop() }
-                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
-            encoder = null
 
             runCatching { sender?.close() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
+
+            runCatching { encoder?.stop() }
+                .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
+            encoder = null
 
             notifyMediaCoverFinish()
         }

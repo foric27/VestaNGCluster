@@ -578,11 +578,13 @@ internal object UpdateServerManager {
         currentState.also { reference ->
             reference.set(state)
             appContext?.let { context ->
-                {
+                runCatching {
                     context.sendBroadcast(
                         Intent(ACTION_UPDATE_SERVER_STATE_CHANGED).setPackage(context.packageName),
                     )
-                }.runCatchingTimber(TAG, "Не удалось отправить состояние FTP в UI")
+                }.onFailure { error ->
+                    Timber.tag(TAG).e(error, "Не удалось отправить состояние FTP в UI")
+                }
             }
         }
     }

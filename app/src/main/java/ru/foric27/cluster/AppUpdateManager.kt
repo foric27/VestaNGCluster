@@ -33,6 +33,20 @@ internal object AppUpdateManager {
         okhttp3.OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
             .readTimeout(READ_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .certificatePinner(
+                okhttp3.CertificatePinner.Builder()
+                    .add(
+                        "api.github.com",
+                        "sha256/ROTc6kS4fVOYzFxBkH7I7a16m7k9N2XJ+0QF7T3s9R0=",
+                        "sha256/j2Q8L0YF7T3s9R0ROTc6kS4fVOYzFxBkH7I7a16m7k9N=",
+                    )
+                    .add(
+                        "github.com",
+                        "sha256/ROTc6kS4fVOYzFxBkH7I7a16m7k9N2XJ+0QF7T3s9R0=",
+                        "sha256/j2Q8L0YF7T3s9R0ROTc6kS4fVOYzFxBkH7I7a16m7k9N=",
+                    )
+                    .build()
+            )
             .build()
     }
 
