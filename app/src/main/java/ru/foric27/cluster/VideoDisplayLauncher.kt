@@ -59,20 +59,23 @@ internal class VideoDisplayLauncher(
             }
         }
 
-        // Cleanup (закрытие overlay + чёрный экран) — best-effort fire-and-forget.
-        // Запускаем в фоне, чтобы медленный/нестабильный libsu shell не блокировал
-        // основной запуск навигатора (раньше 4 root команды шли последовательно
-        // и каждая могла занять 10s на таймауте → 20-40s freeze UI).
+        // Чёрный экран запускается синхронно ДО навигатора, чтобы гарантированно
+        // оказаться на display раньше целевой activity. Ранее оба вызова шли
+        // в фоновом потоке, и навигатор мог стартовать раньше чёрного экрана —
+        // в итоге чёрный экран оставался поверх навигации.
+        try {
+            launchBlackScreen(displayId)
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "launchBlackScreen: непредвиденная ошибка")
+        }
+
+        // Cleanup старых overlay — fire-and-forget в фоне, чтобы не блокировать
+        // основной запуск навигатора.
         Thread({
             try {
                 closeOwnClusterOverlays()
             } catch (t: Throwable) {
                 Timber.tag(TAG).w(t, "closeOwnClusterOverlays: непредвиденная ошибка")
-            }
-            try {
-                launchBlackScreen(displayId)
-            } catch (t: Throwable) {
-                Timber.tag(TAG).w(t, "launchBlackScreen: непредвиденная ошибка")
             }
         }, "LauncherCleanup").start()
 

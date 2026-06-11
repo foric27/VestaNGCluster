@@ -14,9 +14,9 @@ class VideoDisplayLauncherTest {
     }
 
     private fun waitForCleanup() {
-        // Cleanup (closeOwnClusterOverlays + launchBlackScreen) runs in a
-        // background Thread после launchOnDisplay(). Ждём 200мс чтобы команды
-        // появились в RecordingRootActivityStarter.commands.
+        // launchBlackScreen выполняется синхронно (foreground), а
+        // closeOwnClusterOverlays — в фоновом Thread. Ждём 200мс чтобы
+        // фоновые команды cleanup появились в RecordingRootActivityStarter.commands.
         Thread.sleep(200)
     }
 
@@ -85,8 +85,8 @@ class VideoDisplayLauncherTest {
         )
 
         launcher.launchOnDisplay(42)
-        // Polling: foreground main launch синхронный, но cleanup идёт в фоне.
-        // Ждём появления основной am start команды (не cleanup) с таймаутом.
+        // Polling: foreground main launch + blackScreen синхронные,
+        // cleanup идёт в фоне. Ждём появления основной am start команды с таймаутом.
         waitUntil { rootStarter.commands.any { it.contains(YandexLaunchTarget.COMPONENT_AUTO_CLUSTER) } }
 
         assertTrue(
@@ -125,7 +125,7 @@ class VideoDisplayLauncherTest {
         launcher.launchOnDisplay(9)
         waitForCleanup()
 
-        // Cleanup теперь async → команды приходят вперемешку.
+        // blackScreen — синхронный (foreground), close×2 — async (background).
         // Главное: force-stop и am start выполнены, плюс close×2 + blackScreen.
         val forceStopIdx = rootStarter.commands.indexOfFirst { it.startsWith("am force-stop ") }
         val mainStartIdx = rootStarter.commands.indexOfFirst {
@@ -252,7 +252,7 @@ class VideoDisplayLauncherTest {
         nowMs = 1_200L
         launcher.launchOnDisplay(32)
         // Cleanup идёт в фоне, но throttle отбрасывает весь вызов
-        // (включая main launch) → commands.size не должен измениться.
+        // (включая main launch + blackScreen) → commands.size не должен измениться.
         waitForCleanup()
         assertEquals(
             "В пределах 800мс throttle должен отбросить второй вызов, получили: ${rootStarter.commands}",
