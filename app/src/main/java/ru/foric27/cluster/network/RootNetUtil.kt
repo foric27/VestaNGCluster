@@ -291,7 +291,7 @@ internal object RootNetUtil {
         }
         val selection = resolveSelection(force = forceProbe)
         val ifaceName = selection.name ?: RuntimeConfig.Root.IFACE
-        if (!isValidIpv4(ip)) {
+        if (!RootNetworkAddressing.isValidIpv4(ip)) {
             return RouteCheckResult(
                 iface = ifaceName,
                 dstIp = ip,
@@ -548,7 +548,7 @@ internal object RootNetUtil {
         val cleanTarget = targetIp.trim()
         val cleanIface = iface.trim()
         val cleanSrc = srcIp.trim()
-        if (!isValidIpv4(cleanTarget) || cleanIface.isEmpty() || !isValidIpv4(cleanSrc)) {
+        if (!RootNetworkAddressing.isValidIpv4(cleanTarget) || cleanIface.isEmpty() || !RootNetworkAddressing.isValidIpv4(cleanSrc)) {
             Timber.tag(TAG).w("applyHostRoute: некорректные параметры target=$cleanTarget iface=$cleanIface src=$cleanSrc")
             return false
         }
@@ -576,14 +576,6 @@ internal object RootNetUtil {
             "iptables -t mangle -D OUTPUT -d $gatewayIp -j MARK --set-mark ${Constants.FWMARK_VALUE}",
             "iptables -t mangle -A OUTPUT -d $gatewayIp -j MARK --set-mark ${Constants.FWMARK_VALUE}",
         )
-    }
-
-    private fun parseIpv4Cidr(value: String): Ipv4Cidr? {
-        return RootNetworkAddressing.parseIpv4Cidr(value)
-    }
-
-    private fun isValidIpv4(value: String): Boolean {
-        return RootNetworkAddressing.isValidIpv4(value)
     }
 
     private fun updateRouteCache(
@@ -637,12 +629,12 @@ internal object RootNetUtil {
             return ApplyResult(false, probeState.iface, details, failureReason = FailureReason.IFACE_MISSING)
          }
 
-         val cidr = parseIpv4Cidr(localCidr)
+         val cidr = RootNetworkAddressing.parseIpv4Cidr(localCidr)
             ?: return ApplyResult(false, probeState.iface, "Некорректный localCidr: $localCidr", failureReason = FailureReason.ROUTE_NOT_APPLIED)
          val iface = sanitizeIfaceName(probeState.iface)
             ?: return ApplyResult(false, probeState.iface, "Некорректный iface: ${probeState.iface}", failureReason = FailureReason.ROUTE_NOT_APPLIED)
          val gatewayIp = gateway?.trim()?.takeIf { it.isNotEmpty() }
-         if (gatewayIp != null && !isValidIpv4(gatewayIp)) {
+         if (gatewayIp != null && !RootNetworkAddressing.isValidIpv4(gatewayIp)) {
             return ApplyResult(false, probeState.iface, "Некорректный gateway: $gatewayIp", failureReason = FailureReason.ROUTE_NOT_APPLIED)
          }
 

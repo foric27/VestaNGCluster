@@ -195,11 +195,6 @@ internal object UpdateServerManager {
         return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.USB_ONLY)
     }
 
-    @Deprecated("Периодический опрос удалён в пользу event-driven обнаружения USB")
-    fun pollAvailableStorage(context: Context): Result {
-        return prepareAndStartServer(context, UpdateFileLocator.SearchPolicy.USB_ONLY)
-    }
-
     fun getServerState(): State = currentState.get()
 
     fun getPreparedFileInfo(): PreparedFileInfo? = currentState.get().fileInfo

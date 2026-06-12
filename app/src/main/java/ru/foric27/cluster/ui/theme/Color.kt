@@ -26,9 +26,6 @@ val SurfaceDark3 = Color(0xFF0D1420)
 /** Цвет линий-разделителей. */
 val SurfaceLine = Color(0xFF1A2540)
 
-/** Мягкий цвет линий-разделителей. */
-val SurfaceLineSoft = Color(0xFF141E33)
-
 /** Основной цвет текста. */
 val TextPrimary = Color(0xFFE0E0E0)
 
@@ -52,3 +49,6 @@ val OemClusterAccent = Color(0xFF1682FF)
 
 /** Фон полосы прогресса на кластерном дисплее. */
 val OemClusterSeekbarBg = Color(0xFF333333)
+
+/** Цвет заглушки обложки на кластерном дисплее. */
+val OemClusterPlaceholder = Color(0xFF1e1d1d)

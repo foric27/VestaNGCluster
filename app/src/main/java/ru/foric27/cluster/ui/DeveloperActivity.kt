@@ -126,17 +126,17 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onBack) {
-                    Text("< ", color = Primary)
+                    Text("< ", color = MaterialTheme.colorScheme.primary)
                 }
                 Text(
                     text = stringResource(R.string.developer_title),
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
         },
-        containerColor = BackgroundDark,
+        containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         val sections = remember(fieldValues) {
             val map = linkedMapOf<Int, MutableList<RuntimeConfig.FieldSpec>>()
@@ -156,7 +156,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
             item {
                 Text(
                     text = stringResource(R.string.app_version_fmt, BuildConfig.VERSION_NAME),
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                 )
             }
@@ -240,10 +240,10 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                                 statusText = error
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark2),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.developer_reset_all), color = TextPrimary, fontSize = 12.sp)
+                        Text(stringResource(R.string.developer_reset_all), color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                     }
 
                     Button(
@@ -266,10 +266,10 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                             }.start()
                         },
                         enabled = exportEnabled,
-                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark2),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.developer_export_logcat), color = TextPrimary, fontSize = 12.sp)
+                        Text(stringResource(R.string.developer_export_logcat), color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                     }
 
                     Button(
@@ -298,10 +298,10 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                             }.start()
                         },
                         enabled = clearEnabled,
-                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark2),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.developer_clear_logcat), color = TextPrimary, fontSize = 12.sp)
+                        Text(stringResource(R.string.developer_clear_logcat), color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                     }
                 }
             }
@@ -310,7 +310,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                 item {
                     Text(
                         text = statusText,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 16.dp),
                     )
@@ -432,7 +432,7 @@ private fun BooleanField(
     onChanged: (Boolean) -> Unit,
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark3),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -441,7 +441,7 @@ private fun BooleanField(
         ) {
             Text(
                 text = title,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 13.sp,
                 modifier = Modifier.weight(1f),
             )
@@ -481,15 +481,15 @@ private fun TextInputField(
             },
         ),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = SurfaceDark3,
-            unfocusedContainerColor = SurfaceDark3,
-            focusedTextColor = TextPrimary,
-            unfocusedTextColor = TextPrimary,
-            focusedBorderColor = Primary,
-            unfocusedBorderColor = SurfaceLine,
-            focusedLabelColor = TextSecondary,
-            unfocusedLabelColor = TextSecondary,
-            cursorColor = Primary,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            cursorColor = MaterialTheme.colorScheme.primary,
         ),
         modifier = Modifier.fillMaxWidth(),
     )

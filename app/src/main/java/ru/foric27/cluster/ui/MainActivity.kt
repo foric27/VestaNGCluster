@@ -594,7 +594,7 @@ private fun MainScreen(
 private fun TitleSection() {
     Text(
         text = stringResource(R.string.app_name),
-        color = Primary,
+        color = MaterialTheme.colorScheme.primary,
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -605,25 +605,25 @@ private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> U
     if (noticeLog.isEmpty()) return
     val hasErrors = noticeLog.hasErrors()
     Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (hasErrors) stringResource(R.string.inline_notice_title_warning) else stringResource(R.string.inline_notice_title_info),
-                    color = Warning,
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onClear) {
-                    Text(stringResource(R.string.inline_notice_clear), color = Warning, fontSize = 12.sp)
+                    Text(stringResource(R.string.inline_notice_clear), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.height(8.dp))
             Box(modifier = Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
-                Text(text = noticeLog.renderText(), color = TextPrimary, fontSize = 13.sp)
+                Text(text = noticeLog.renderText(), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
             }
         }
     }
@@ -632,13 +632,13 @@ private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> U
 @Composable
 private fun StatusSection(state: ScreenState) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = state.headline, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(text = state.headline, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text(text = state.subline, color = TextSecondary, fontSize = 13.sp)
+            Text(text = state.subline, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
     }
 }
@@ -646,13 +646,13 @@ private fun StatusSection(state: ScreenState) {
 @Composable
 private fun ModeSelector(selected: UiStreamMode, onSelect: (UiStreamMode) -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(R.string.stream_mode_title),
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -673,7 +673,7 @@ private fun ModeSelector(selected: UiStreamMode, onSelect: (UiStreamMode) -> Uni
                             UiStreamMode.MED -> stringResource(R.string.stream_mode_med)
                             UiStreamMode.ABS -> stringResource(R.string.stream_mode_abs)
                         },
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                     )
                 }
@@ -687,27 +687,26 @@ private fun RestartButton(onRestart: () -> Unit) {
     Button(
         onClick = onRestart,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Primary),
     ) {
-        Text(stringResource(R.string.main_restart_stream_button), color = OnPrimary, fontSize = 14.sp)
+        Text(stringResource(R.string.main_restart_stream_button), fontSize = 14.sp)
     }
 }
 
 @Composable
 private fun FtpStatusCard(ftpState: String) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(R.string.ftp_title),
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
-            Text(text = ftpState, color = TextSecondary, fontSize = 13.sp)
+            Text(text = ftpState, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
     }
 }
@@ -719,18 +718,18 @@ private fun AppUpdateCard(
     onInstall: () -> Unit,
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(R.string.app_update_title),
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
-            Text(text = state.statusText, color = TextSecondary, fontSize = 13.sp)
+            Text(text = state.statusText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -744,7 +743,6 @@ private fun AppUpdateCard(
                     onClick = onInstall,
                     enabled = state.installEnabled,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
                 ) {
                     Text(state.installButtonText.ifEmpty { stringResource(R.string.app_update_download_button) }, fontSize = 12.sp)
                 }
@@ -761,14 +759,14 @@ private fun Footer(onVersionTap: () -> Unit, onTelegramTap: () -> Unit) {
     ) {
         Text(
             text = stringResource(R.string.app_version_fmt, BuildConfig.VERSION_NAME),
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             modifier = Modifier.clickable { onVersionTap() },
         )
         Spacer(Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.developer_telegram),
-            color = Secondary,
+            color = MaterialTheme.colorScheme.secondary,
             fontSize = 12.sp,
             modifier = Modifier.clickable { onTelegramTap() },
         )

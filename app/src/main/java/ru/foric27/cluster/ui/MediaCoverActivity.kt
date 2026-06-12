@@ -154,7 +154,7 @@ private fun MediaCoverScreen() {
             .offset(x = visibleArea.left.dp, y = visibleArea.top.dp)
             .width(visibleArea.width().dp)
             .height(visibleArea.height().dp)
-            .background(Color(android.graphics.Color.parseColor("#050505"))),
+            .background(OemClusterBg),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -187,7 +187,7 @@ private fun MediaCoverScreen() {
                     modifier = Modifier
                         .size(96.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF1e1d1d)),
+                        .background(OemClusterPlaceholder),
                 )
             }
 
