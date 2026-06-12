@@ -105,7 +105,10 @@ internal class UpdateFileLocator {
     private fun resolvePersistedTree(context: Context): ScanRoot? {
         val persistedTreeUri = getPersistedTreeUri(context)
         if (persistedTreeUri == null) {
-            Timber.tag(TAG).w("Persisted SAF URI отсутствует; поиск OTA-файлов пропущен")
+            if (!safUriMissingLogged) {
+                Timber.tag(TAG).w("Persisted SAF URI отсутствует; поиск OTA-файлов пропущен")
+                safUriMissingLogged = true
+            }
             return null
         }
 
@@ -263,6 +266,9 @@ internal class UpdateFileLocator {
         private const val PREFS_NAME = "update_file_locator"
         private const val KEY_TREE_URI = "persisted_tree_uri"
         private const val INTERNAL_STORAGE_ROOT = "/storage/emulated/0"
+
+        @Volatile
+        private var safUriMissingLogged = false
 
         private data class RootDescriptor(
             val sourceKind: SourceKind,
