@@ -10,10 +10,10 @@
 - `network/` — `RootNetUtilTest`, `RootNetworkAddressingTest`, `NetworkInterfaceSelectorTest`, `NetworkRootShellTest`, `RoutePreparationResultTest`
 - `video/` — `VideoEncoderTest`, `VideoDisplayLauncherTest`, `VideoCodecOutputProcessorTest`, `VideoFrameTimingControllerTest`, `H264AnnexBUtilTest`, `PersistentVirtualDisplayTest`, `VideoCaptureLifecycleStateMachineTest`
 - `config/` — `RuntimeConfigTest`, `AppSettingsUiStreamModeTest`, `AppSettingsUpdateChannelTest`
-- `service/` — `SyncHandlerTest`, `SyncHandlerPayloadPolicyTest`, `UdpPipelineStartCoordinatorTest`, `UdpStartupFlowCoordinatorTest`
-- `update/` — `AppUpdateManagerTest`, `AppUpdateReleaseParsingTest`, `AppUpdateVersionPolicyTest`, `EmbeddedFtpServerFactoryTest`, `Sha256VerifierTest`, `UpdateFileLocatorTest`
+- `service/` — `SyncHandlerTest`, `SyncHandlerPayloadPolicyTest`, `UdpPipelineStartCoordinatorTest`, `UdpStartupFlowCoordinatorTest`, `UdpStartupProbeCoordinatorTest`, `UdpServiceAlertsTest`, `UdpServiceRestartControllerTest`, `UdpNetworkPreparationCoordinatorTest`, `StreamConfigTest`
+- `update/` — `AppUpdateManagerTest`, `AppUpdateReleaseParsingTest`, `AppUpdateVersionPolicyTest`, `EmbeddedFtpServerFactoryTest`, `Sha256VerifierTest`, `UpdateFileLocatorTest`, `FtpServerConfigTest`
 - `ui/` — `YandexLaunchTargetTest`
-- `util/` — `AppWarningCenterTest`, `ClusterModeTest`, `ConnectivityHealthTest`, `LogSanitizerTest`
+- `util/` — `AppWarningCenterTest`, `ClusterModeTest`, `ConnectivityHealthTest`, `LogSanitizerTest`, `InMemoryLogBufferTest`, `Sha256UtilTest`, `UsbStoragePathMatcherTest`, `VdspStateTest`, `ProcessRecoveryManagerTest`
 
 ## Локальные правила
 

@@ -35,28 +35,31 @@
 
 ## Краткая карта проекта
 
-- `app/` — Android-приложение (single-module, Kotlin + Compose).
+- `app/` — Android-приложение (single-module, Kotlin + Compose + Material3).
 - `app/src/main/java/ru/foric27/cluster/` — bootstrap: `ClusterApp`, `ClusterMode`, receivers.
-- `app/src/main/java/ru/foric27/cluster/service/` — `UdpStreamService`, координаторы, контроллеры.
-- `app/src/main/java/ru/foric27/cluster/video/` — video pipeline: `VideoEncoder`, `GlFrameComposer`.
+- `app/src/main/java/ru/foric27/cluster/service/` — `UdpStreamService`, координаторы, контроллеры, `TcpHandshakeServer`.
+- `app/src/main/java/ru/foric27/cluster/video/` — video pipeline: `VideoEncoder`, `GlFrameComposer`, I-frame buffer.
 - `app/src/main/java/ru/foric27/cluster/network/` — root networking: `RootNetUtil`, `NetworkRootShell`.
 - `app/src/main/java/ru/foric27/cluster/config/` — `ProductConfig`, `RuntimeConfig`, `AppSettings`.
-- `app/src/main/java/ru/foric27/cluster/update/` — OTA/FTP + app self-update.
-- `app/src/main/java/ru/foric27/cluster/ui/` — Activities (Compose), `YandexLaunchTarget`.
+- `app/src/main/java/ru/foric27/cluster/update/` — OTA/FTP + app self-update (GitHub Releases).
+- `app/src/main/java/ru/foric27/cluster/ui/` — Activities (Compose, Material3), `YandexLaunchTarget`.
 - `app/src/main/java/ru/foric27/cluster/util/` — утилиты: логирование, `VdspState`, `Sha256Util`.
 - `app/src/main/res/` — XML resources и локализация `ru` + `values-en`.
 - `app/src/test/java/ru/foric27/cluster/` — JVM unit tests (зеркальная структура).
 - `test-client/` — Python-утилиты для UDP-диагностики.
-- `oem/` — read-only OEM reference material; использовать для сравнения, не редактировать.
+- `oem/` — read-only OEM reference material (HUMAX/AvtoVAZ); использовать для сравнения, не редактировать.
 - Build: Kotlin DSL (`build.gradle.kts`, `settings.gradle.kts`).
 
 ## Ключевые домены
 
 - Video pipeline: `VirtualDisplay -> OpenGL -> MediaCodec -> UDP`.
+- I-frame buffer: `UdpSender` буферизует последний IDR-кадр и переотправляет при подключении нового клиента (keep-alive).
+- TCP handshake: `TcpHandshakeServer` на порту 5151 — обнаружение подключения приёмника кластера (OEM паттерн).
 - Root network: авто-поиск USB iface, policy routing, route pinning.
 - Launch: `am start --display` / proxy-activity / MED overlay.
 - OTA: встроенный FTP и поиск `ICUpdate.zip`.
 - App update: self-update APK из GitHub Releases (`main-latest` / `latest`) без root через системный installer.
+- OEM reference: `oem/ClusterRendererServiceExtension` — штатный рендерер кластера (HUMAX), эталонная архитектура.
 
 ## Локальные AGENTS
 
