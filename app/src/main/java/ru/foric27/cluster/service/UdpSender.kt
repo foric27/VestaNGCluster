@@ -52,6 +52,9 @@ internal class UdpSender(
     @Volatile private var lastSendErrorLogElapsedRealtimeMs: Long = 0L
     @Volatile private var suppressedSendErrorCount: Int = 0
 
+    @Volatile private var lastIframePayload: ByteArray? = null
+    @Volatile private var lastIframeConfig: ByteArray? = null
+
     private var pacingDebtBytes: Int = 0
     private var pacingNextSendNs: Long = 0L
 
@@ -263,6 +266,46 @@ internal class UdpSender(
      * @return true если сокет закрыт или null
      */
     fun isClosed(): Boolean = closed || socket == null || (socket?.isClosed == true)
+
+    /**
+     * Сохраняет последний I-frame для повторной отправки новым клиентам.
+     *
+     * @param payload полный I-frame включая SPS/PPS (Annex B)
+     * @param config SPS/PPS конфигурация (может быть null если уже в payload)
+     */
+    fun bufferIframe(payload: ByteArray, config: ByteArray?) {
+        lastIframePayload = payload
+        lastIframeConfig = config
+    }
+
+    /**
+     * Повторно отправляет последний I-frame (keep-alive / new client).
+     *
+     * Если I-frame ещё не был буферизован — ничего не делает.
+     *
+     * @return true если I-frame был отправлен
+     */
+    @Synchronized
+    fun resendLastIframe(): Boolean {
+        val payload = lastIframePayload ?: return false
+        val config = lastIframeConfig
+        try {
+            if (config != null && config.isNotEmpty()) {
+                sendFrame(config)
+            }
+            sendFrame(payload)
+            Timber.tag(TAG).d("I-frame переотправлен (%d байт)", payload.size)
+            return true
+        } catch (e: Exception) {
+            Timber.tag(TAG).w(e, "Не удалось переотправить I-frame")
+            return false
+        }
+    }
+
+    /**
+     * Проверяет, есть ли буферизованный I-frame.
+     */
+    fun hasBufferedIframe(): Boolean = lastIframePayload != null
 
     /**
      * Возвращает снимок текущей статистики отправки.

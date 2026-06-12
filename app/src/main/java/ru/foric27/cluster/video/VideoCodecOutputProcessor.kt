@@ -89,6 +89,12 @@ internal class VideoCodecOutputProcessor(
         }
 
         udpSender.sendFrame(annexB)
+
+        // Сохраняем I-frame для переотправки новым клиентам (keep-alive)
+        if (keyFrame) {
+            udpSender.bufferIframe(annexB, effectiveConfig)
+        }
+
         onFrameSent()
     }
 

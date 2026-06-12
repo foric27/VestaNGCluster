@@ -92,6 +92,7 @@ import timber.log.Timber
     private lateinit var pipelineStartCoordinator: UdpPipelineStartCoordinator
     private lateinit var startupProbeCoordinator: UdpStartupProbeCoordinator
     private lateinit var startupFlowCoordinator: UdpStartupFlowCoordinator
+    private var tcpHandshakeServer: TcpHandshakeServer? = null
     private lateinit var networkPreparationCoordinator: UdpNetworkPreparationCoordinator
     private lateinit var oomScoreAdjuster: OomScoreAdjuster
 
@@ -410,6 +411,11 @@ import timber.log.Timber
             setStreamActive = {
                 streamActive = it
                 streamActiveState = it
+                if (it) {
+                    startTcpHandshakeServer()
+                } else {
+                    stopTcpHandshakeServer()
+                }
             },
             setStartInProgress = { startInProgress = it },
             resetRestartBackoff = restartController::resetBackoff,
@@ -646,6 +652,8 @@ import timber.log.Timber
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось закрыть UdpSender") }
             sender = null
 
+            stopTcpHandshakeServer()
+
             runCatching { encoder?.stop() }
                 .onFailure { t -> Timber.tag(TAG).w(t, "Не удалось остановить VideoEncoder") }
             encoder = null
@@ -785,6 +793,32 @@ import timber.log.Timber
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось изменить приоритет потока $name")
         }
+    }
+
+    private fun startTcpHandshakeServer() {
+        if (tcpHandshakeServer?.isRunning() == true) return
+        try {
+            val server = TcpHandshakeServer(
+                onClientConnected = {
+                    Timber.tag(TAG).i("TCP handshake: приёмник подключился")
+                    sender?.resendLastIframe()
+                },
+                onClientDisconnected = {
+                    Timber.tag(TAG).w("TCP handshake: приёмник отключился")
+                },
+            )
+            server.start()
+            tcpHandshakeServer = server
+        } catch (t: Throwable) {
+            Timber.tag(TAG).w(t, "Не удалось запустить TCP handshake сервер")
+        }
+    }
+
+    private fun stopTcpHandshakeServer() {
+        try {
+            tcpHandshakeServer?.stop()
+        } catch (_: Throwable) {}
+        tcpHandshakeServer = null
     }
 
     private fun registerLocalReceiver(receiver: BroadcastReceiver, filter: IntentFilter) {
