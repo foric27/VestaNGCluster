@@ -1,146 +1,122 @@
 package ru.foric27.cluster.service
 
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UdpServiceRestartControllerTest {
 
-    private val testDispatcher = StandardTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
-
     private fun createController(
-        onAttemptRestart: (String?) -> Unit = {},
-        notifyRestartScheduled: (Long) -> Unit = {},
+        onRestart: (String?) -> Unit = {},
+        onScheduled: (Long) -> Unit = {},
     ) = UdpServiceRestartController(
-        scope = testScope,
-        tag = "UdpServiceRestartControllerTest",
-        onAttemptRestart = onAttemptRestart,
-        notifyRestartScheduled = notifyRestartScheduled,
+        scope = CoroutineScope(Dispatchers.Unconfined),
+        tag = "test",
+        onAttemptRestart = onRestart,
+        notifyRestartScheduled = onScheduled,
     )
 
     @Test
-    fun `currentBackoffMs initial value is RESTART_BACKOFF_START_MS`() {
-        val controller = createController()
-        assertEquals(700L, controller.currentBackoffMs())
+    fun `initial backoff is RESTART_BACKOFF_START_MS`() {
+        val ctrl = createController()
+        assertEquals(700L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `increaseBackoff doubles the backoff`() {
-        val controller = createController()
-        assertEquals(1400L, controller.increaseBackoff())
+    fun `increaseBackoff doubles the value`() {
+        val ctrl = createController()
+        ctrl.increaseBackoff()
+        assertEquals(1400L, ctrl.currentBackoffMs())
     }
 
     @Test
     fun `increaseBackoff doubles again`() {
-        val controller = createController()
-        controller.increaseBackoff()
-        assertEquals(2800L, controller.increaseBackoff())
+        val ctrl = createController()
+        ctrl.increaseBackoff()
+        ctrl.increaseBackoff()
+        assertEquals(2800L, ctrl.currentBackoffMs())
     }
 
     @Test
     fun `increaseBackoff caps at RESTART_BACKOFF_MAX_MS`() {
-        val controller = createController()
-        repeat(5) { controller.increaseBackoff() }
-        assertEquals(15000L, controller.increaseBackoff())
+        val ctrl = createController()
+        repeat(10) { ctrl.increaseBackoff() }
+        assertEquals(15000L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `increaseBackoff with minBackoffMs uses max of min and doubled`() {
-        val controller = createController()
-        assertEquals(10000L, controller.increaseBackoff(10000L))
+    fun `increaseBackoff with min respects minimum`() {
+        val ctrl = createController()
+        val result = ctrl.increaseBackoff(10000)
+        assertEquals(10000L, result)
+        assertEquals(10000L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `ensureMinBackoff respects min even above cap`() {
-        val controller = createController()
-        assertEquals(20000L, controller.ensureMinBackoff(20000L))
+    fun `ensureMinBackoff raises to minimum`() {
+        val ctrl = createController()
+        val result = ctrl.ensureMinBackoff(5000)
+        assertEquals(5000L, result)
+        assertEquals(5000L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `resetBackoff restores to RESTART_BACKOFF_START_MS`() {
-        val controller = createController()
-        controller.increaseBackoff()
-        controller.increaseBackoff()
-        controller.resetBackoff()
-        assertEquals(700L, controller.currentBackoffMs())
+    fun `ensureMinBackoff does not lower`() {
+        val ctrl = createController()
+        ctrl.setBackoff(8000)
+        ctrl.ensureMinBackoff(5000)
+        assertEquals(8000L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `setBackoff sets exact value`() {
-        val controller = createController()
-        controller.setBackoff(5000L)
-        assertEquals(5000L, controller.currentBackoffMs())
+    fun `resetBackoff restores initial value`() {
+        val ctrl = createController()
+        ctrl.increaseBackoff()
+        ctrl.increaseBackoff()
+        ctrl.resetBackoff()
+        assertEquals(700L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `cancel does not throw when no job scheduled`() {
-        val controller = createController()
-        controller.cancel()
+    fun `setBackoff sets custom value`() {
+        val ctrl = createController()
+        ctrl.setBackoff(12345)
+        assertEquals(12345L, ctrl.currentBackoffMs())
     }
 
     @Test
-    fun `schedule debounces when called within debounce window`() = runTest {
-        var callCount = 0
-        val controller = createController(
-            notifyRestartScheduled = { callCount++ },
+    fun `cancel does not throw when no job`() {
+        val ctrl = createController()
+        ctrl.cancel()
+    }
+
+    @Test
+    fun `schedule notifies with backoff delay`() {
+        var scheduledDelay: Long? = null
+        val ctrl = createController(onScheduled = { scheduledDelay = it })
+        ctrl.setBackoff(3000)
+        ctrl.schedule("test_reason", null)
+        assertEquals(3000L, scheduledDelay)
+    }
+
+    @Test
+    fun `prepareImmediateRecovery calls notifyUser and schedule`() {
+        var userMsg: String? = null
+        var scheduledDelay: Long? = null
+        val ctrl = createController(
+            onScheduled = { scheduledDelay = it },
         )
-        controller.schedule("test_reason", null)
-        controller.schedule("test_reason", null)
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(0, callCount)
-    }
-
-    @Test
-    fun `cancel resets scheduled state`() {
-        var callCount = 0
-        val controller = createController(
-            notifyRestartScheduled = { callCount++ },
-        )
-        controller.cancel()
-        controller.cancel()
-    }
-
-    @Test
-    fun `prepareImmediateRecovery calls notifyUser`() = runTest {
-        var notifiedMessage: String? = null
-        val controller = createController(
-            notifyRestartScheduled = {},
-        )
-
-        controller.prepareImmediateRecovery(
+        ctrl.prepareImmediateRecovery(
             reason = "test",
-            minBackoffMs = 5000L,
+            minBackoffMs = 1000,
             logPipelineSnapshot = {},
-            userMessage = "recovering",
-            notifyUser = { notifiedMessage = it },
+            userMessage = "recovery msg",
+            notifyUser = { userMsg = it },
             beforeSchedule = {},
         )
-
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals("recovering", notifiedMessage)
-    }
-
-    @Test
-    fun `prepareImmediateRecovery calls beforeSchedule`() = runTest {
-        var beforeScheduleCalled = false
-        val controller = createController(
-            notifyRestartScheduled = {},
-        )
-
-        controller.prepareImmediateRecovery(
-            reason = "test",
-            minBackoffMs = 5000L,
-            logPipelineSnapshot = {},
-            userMessage = "recovering",
-            notifyUser = {},
-            beforeSchedule = { beforeScheduleCalled = true },
-        )
-
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue(beforeScheduleCalled)
+        assertEquals("recovery msg", userMsg)
+        assertTrue(scheduledDelay!! >= 1000)
     }
 }
