@@ -87,7 +87,6 @@ internal class MediaCoverActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        finish()
     }
 
     private fun registerFinishReceiver() {

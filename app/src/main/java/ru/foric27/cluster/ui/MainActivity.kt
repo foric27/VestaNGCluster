@@ -188,6 +188,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onModeSelected(mode: UiStreamMode) {
+        val currentMode = AppSettings.getSelectedMode(this)
+        if (currentMode == mode) {
+            refreshScreenState(refreshFtp = false)
+            noticeLog.show(getString(R.string.stream_mode_apply_ok_fmt, modeLabel(mode)), isError = false)
+            return
+        }
         val result = AppSettings.applySelectedMode(this, mode)
         if (result.ok || result.savedLocally) UdpStreamService.restartPipelineCompat(this)
         refreshScreenState(refreshFtp = false)
@@ -551,6 +557,8 @@ private fun TitleSection() {
 
 @Composable
 private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> Unit) {
+    @Suppress("UNUSED_VARIABLE")
+    val _ = trigger
     if (noticeLog.isEmpty()) return
     val hasErrors = noticeLog.hasErrors()
     Card(
@@ -571,7 +579,9 @@ private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> U
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text(text = noticeLog.renderText(), color = TextPrimary, fontSize = 13.sp)
+            Box(modifier = Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
+                Text(text = noticeLog.renderText(), color = TextPrimary, fontSize = 13.sp)
+            }
         }
     }
 }
