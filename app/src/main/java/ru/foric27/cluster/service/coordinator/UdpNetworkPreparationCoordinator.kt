@@ -4,15 +4,28 @@ import ru.foric27.cluster.service.*
 
 import timber.log.Timber
 
+/**
+ * Результат подготовки сетевого маршрута для streaming.
+ *
+ * Sealed class с 6 вариантами результата, отражающими все возможные
+ * состояния сетевой подготовки: успех, отсутствие интерфейса,
+ * недоступность root, таймаут маршрута, невозможность применения
+ * маршрута, недоступность сети.
+ *
+ * @property bindIp IP-адрес для привязки UDP sender, или null при ошибке
+ * @property ifaceName имя сетевого интерфейса, или null при ошибке
+ */
 internal sealed class RoutePreparationResult {
     abstract val bindIp: String?
     abstract val ifaceName: String?
 
+    /** Успешная подготовка: маршрут настроен, интерфейс доступен. */
     data class Success(
         override val bindIp: String?,
         override val ifaceName: String?,
     ) : RoutePreparationResult()
 
+    /** Запрошенный интерфейс отсутствует на устройстве. */
     data class IfaceMissing(
         override val ifaceName: String?,
         val details: String,
@@ -20,6 +33,7 @@ internal sealed class RoutePreparationResult {
         override val bindIp: String? = null
     }
 
+    /** Root-доступ недоступен — сетевые операции невозможны. */
     data class RootUnavailable(
         override val ifaceName: String?,
         val details: String,
@@ -27,6 +41,7 @@ internal sealed class RoutePreparationResult {
         override val bindIp: String? = null
     }
 
+    /** Таймаут при ожидании применения маршрута. */
     data class RouteTimeout(
         override val ifaceName: String?,
         val details: String,
@@ -34,12 +49,14 @@ internal sealed class RoutePreparationResult {
         override val bindIp: String? = null
     }
 
+    /** Маршрут не удалось применить (например, конфликт IP). */
     data class RouteNotApplied(
         override val ifaceName: String?,
         override val bindIp: String?,
         val details: String,
     ) : RoutePreparationResult()
 
+    /** Сеть недоступна (нет ping до gateway, нет link). */
     data class NetworkUnreachable(
         override val ifaceName: String?,
         override val bindIp: String?,
@@ -57,6 +74,13 @@ internal sealed class RoutePreparationResult {
         }
 }
 
+/**
+ * Обёртка над [RoutePreparationResult] с удобными boolean-аксессорами.
+ *
+ * @property routeReady `true` только при [RoutePreparationResult.Success]
+ * @property ifacePresent `false` только при [RoutePreparationResult.IfaceMissing]
+ * @property rootRequired `true` при [RoutePreparationResult.RootUnavailable]
+ */
 internal data class UdpNetworkPreparationResult(
     val routePreparation: RoutePreparationResult,
 ) {
@@ -67,6 +91,21 @@ internal data class UdpNetworkPreparationResult(
     val routeReady: Boolean get() = routePreparation is RoutePreparationResult.Success
 }
 
+/**
+ * Координатор подготовки сети для UDP streaming.
+ *
+ * Выполняет root-операции для настройки сетевого интерфейса:
+ * 1. Применение статического IP (CIDR) и gateway через [RootNetUtil.applyStaticIfaceNetwork]
+ * 2. Проверка наличия интерфейса через [RootNetUtil.getIfaceProbeState]
+ * 3. Проверка маршрута до целевого IP через [RootNetUtil.checkRouteTo]
+ * 4. Привязка host route к выбранному интерфейсу через [RootNetUtil.applyHostRoute]
+ *
+ * @param tag префикс для логов Timber
+ * @param defaultUsbLocalCidr fallback CIDR когда не задан в [StreamConfig]
+ * @param defaultUsbGateway fallback gateway когда не задан в [StreamConfig]
+ * @param ipFromCidr функция извлечения IP из CIDR-строки
+ * @param logRouteVerdict callback для логирования результата проверки маршрута
+ */
 internal class UdpNetworkPreparationCoordinator(
     private val tag: String,
     private val defaultUsbLocalCidr: String,
@@ -75,6 +114,18 @@ internal class UdpNetworkPreparationCoordinator(
     private val logRouteVerdict: (String, RootNetUtil.RouteCheckResult) -> Unit,
 ) {
 
+    /**
+     * Подготавливает сеть для streaming по заданной конфигурации.
+     *
+     * Порядок операций:
+     * 1. Применяет статический IP из [cfg.localCidr] или [defaultUsbLocalCidr]
+     * 2. Проверяет наличие root и интерфейса
+     * 3. Проверяет маршрут до [cfg.ip]
+     * 4. Привязывает host route к интерфейсу (pinning)
+     *
+     * @param cfg конфигурация потока с сетевыми параметрами
+     * @return результат подготовки с boolean-флагами для быстрой проверки
+     */
     fun prepare(cfg: StreamConfig): UdpNetworkPreparationResult {
         RootNetUtil.logSelectedIface(tag, "Подготовка сети")
         val localCidr = cfg.localCidr?.takeIf { it.isNotBlank() } ?: defaultUsbLocalCidr

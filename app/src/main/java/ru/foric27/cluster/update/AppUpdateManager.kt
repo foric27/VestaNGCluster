@@ -22,13 +22,13 @@ import java.util.Locale
  * Менеджер self-update приложения из GitHub Releases.
  *
  * Поддерживает два канала обновления:
- * - **Rolling** (`main-latest` tag) — всегда последняя версия
- * - **Stable** (`latest` release) — стабильные релизы
+ * - **Rolling** (`main-latest` tag) — всегда последняя версия из main
+ * - **Stable** (`latest` release) — стабильные релизы с semver
  *
  * Флоу обновления:
  * 1. [queryUpdate] — проверка наличия нового релиза через GitHub API
  * 2. [downloadUpdate] — скачивание APK + SHA-256 checksum
- * 3. [requestInstall] — запуск системного установщика
+ * 3. [requestInstall] — запуск системного установщика через PackageInstaller Session API
  *
  * Проверки при скачивании:
  * - SHA-256 checksum файла
@@ -36,7 +36,16 @@ import java.util.Locale
  * - VersionCode больше текущего
  * - Build SHA (для rolling канала)
  *
- * Установка через PackageInstaller Session API (без root).
+ * **Defense-in-depth:**
+ * - HTTPS-only соединение через OkHttp
+ * - SHA-256 checksum верификация
+ * - APK signature match (с fallback на checksum-only при несовпадении)
+ * - PackageInstaller Session API — установка без root
+ *
+ * **Rate limiting:**
+ * - Минимальный интервал между запросами: [MIN_QUERY_INTERVAL_MS]
+ * - Exponential backoff при ошибках: `MIN_QUERY_INTERVAL_MS * 2^consecutiveErrors`
+ * - Максимальный backoff: [MAX_BACKOFF_MS]
  */
 internal object AppUpdateManager {
 
@@ -103,6 +112,23 @@ internal object AppUpdateManager {
         val signatureMismatch: Boolean = false,
     )
 
+    /**
+     * Проверяет наличие обновления через GitHub API или кэш.
+     *
+     * Порядок проверки:
+     * 1. Кэшированный APK — если есть и версия новее текущей
+     * 2. Rate limiting — пропуск если с последнего запроса прошло меньше backoff
+     * 3. GitHub API — запрос release info для указанного канала
+     * 4. Версионная политика — [AppUpdateVersionPolicy.isUpdateNewer]
+     *
+     * @param context контекст приложения
+     * @param channel канал обновления ([AppSettings.UpdateChannel.ROLLING] или [AppSettings.UpdateChannel.STABLE])
+     * @param force если `true`, игнорирует rate limiting и кэш
+     * @return [QueryResult.DownloadedReady] — готовый к установке кэш
+     *         [QueryResult.RemoteAvailable] — есть новый релиз, нужно скачать
+     *         [QueryResult.UpToDate] — текущая версия актуальна
+     *         [QueryResult.Error] — ошибка при запросе
+     */
     fun queryUpdate(context: Context, channel: AppSettings.UpdateChannel, force: Boolean = false): QueryResult {
         val currentVersionCode = getCurrentVersionCode(context)
         val currentBuildSha = currentBuildSha()
@@ -154,6 +180,21 @@ internal object AppUpdateManager {
         return QueryResult.RemoteAvailable(release)
     }
 
+    /**
+     * Скачивает APK и checksum для указанного релиза.
+     *
+     * Порядок операций:
+     * 1. Создание/очистка директории обновлений в cacheDir
+     * 2. Скачивание APK и SHA-256 файла через OkHttp
+     * 3. Верификация checksum
+     * 4. Инспекция APK (package name, versionCode, signature)
+     * 5. Проверка версионной политики
+     *
+     * @param context контекст приложения
+     * @param release релиз для скачивания (из [queryUpdate])
+     * @return [DownloadResult.Success] с [DownloadedUpdate] и опциональным warning
+     *         [DownloadResult.Error] при любой ошибке
+     */
     fun downloadUpdate(context: Context, release: RemoteRelease): DownloadResult {
         return try {
             val updateDir = File(context.cacheDir, UPDATE_DIR).apply { mkdirs() }
@@ -183,6 +224,23 @@ internal object AppUpdateManager {
         }
     }
 
+    /**
+     * Запускает установку скачанного APK через PackageInstaller Session API.
+     *
+     * **Важно:** при `update.signatureMismatch == true` (checksum прошёл, но
+     * подпись APK отличается от текущей) — пропускает проверку подписи,
+     * позволяя установку с предупреждением.
+     *
+     * Требует permission `REQUEST_INSTALL_PACKAGES` на Android 8+.
+     * Если permission не granted — возвращает [InstallResult.PermissionRequired]
+     * с intent для открытия системных настроек.
+     *
+     * @param context контекст приложения
+     * @param update скачанное обновление из [downloadUpdate]
+     * @return [InstallResult.Started] — установка запущена, ожидайте broadcast
+     *         [InstallResult.PermissionRequired] — нужно разрешение на установку
+     *         [InstallResult.Error] — ошибка при создании session или commit
+     */
     fun requestInstall(context: Context, update: DownloadedUpdate): InstallResult {
         if (!update.apkFile.exists()) {
             return InstallResult.Error(context.getString(R.string.app_update_error_file_missing))

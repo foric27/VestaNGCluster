@@ -3,6 +3,12 @@ import ru.foric27.cluster.config.*
 
 import java.util.Locale
 
+/**
+ * Политика сравнения версий для self-update.
+ *
+ * Сравнивает versionCode и build SHA для rolling-канала,
+ * определяет, является ли кандидат более новым релизом.
+ */
 internal object AppUpdateVersionPolicy {
 
     fun isUpdateNewer(

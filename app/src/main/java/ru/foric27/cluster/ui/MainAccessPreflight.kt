@@ -13,6 +13,13 @@ import timber.log.Timber
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
 
+/**
+ * Предстартовые проверки доступа перед запуском стрима.
+ *
+ * Проверяет root-доступ, MANAGE_ALL_FILES_ACCESS, разрешение уведомлений
+ * и battery optimization. При непрохождении — показывает notice и
+ * блокирует запуск.
+ */
 internal class MainAccessPreflight(
     private val activity: ComponentActivity,
     private val showNotice: (String, Boolean) -> Unit,

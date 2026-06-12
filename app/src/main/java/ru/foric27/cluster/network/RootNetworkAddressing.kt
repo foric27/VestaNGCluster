@@ -1,11 +1,25 @@
 package ru.foric27.cluster.network
 
+/**
+ * IPv4 CIDR-адрес с префиксом и сетевым адресом.
+ *
+ * @property ip IPv4-адрес в dotted-decimal нотации
+ * @property prefix длина префикса (0..32)
+ * @property network вычисленный сетевой адрес
+ */
 internal data class Ipv4Cidr(
     val ip: String,
     val prefix: Int,
     val network: String,
 )
 
+/**
+ * Парсинг и валидация IPv4 CIDR.
+ *
+ * Предоставляет [parseIpv4Cidr] для разбора строк вида "192.168.1.0/24",
+ * [isValidIpv4] для проверки формата и [calculateNetworkAddress] для
+ * вычисления сетевого адреса по маске префикса.
+ */
 internal object RootNetworkAddressing {
 
     fun parseIpv4Cidr(value: String): Ipv4Cidr? {

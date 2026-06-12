@@ -5,6 +5,11 @@ import java.io.InputStream
 import java.security.MessageDigest
 import java.util.Locale
 
+/**
+ * SHA-256 хеширование файлов и потоков для верификации обновлений.
+ *
+ * Возвращает hex-строку нижнего регистра длиной 64 символа.
+ */
 internal object Sha256Util {
 
     fun sha256Hex(file: File): String =

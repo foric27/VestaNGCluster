@@ -18,6 +18,11 @@ import java.util.concurrent.TimeUnit
  */
 class ServiceKeepAliveWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
 
+    /**
+     * Проверяет, запущен ли [UdpStreamService], и запускает его при необходимости.
+     *
+     * @return [Result.success] всегда, чтобы WorkManager не считал задачу failed
+     */
     override fun doWork(): Result {
         val ctx = applicationContext
         if (!UdpStreamService.isServiceRunning()) {
@@ -37,6 +42,13 @@ class ServiceKeepAliveWorker(context: Context, params: WorkerParameters) : Worke
         private const val TAG = "KeepAliveWorker"
         private const val WORK_NAME = "cluster_keepalive"
 
+        /**
+         * Планирует периодическую проверку живости сервиса через WorkManager.
+         *
+         * Запускается каждые 15 минут с политикой [ExistingPeriodicWorkPolicy.KEEP].
+         *
+         * @param context контекст приложения
+         */
         fun schedule(context: Context) {
             try {
                 val request = PeriodicWorkRequestBuilder<ServiceKeepAliveWorker>(15, TimeUnit.MINUTES)

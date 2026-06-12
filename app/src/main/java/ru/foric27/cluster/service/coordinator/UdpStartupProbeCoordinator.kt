@@ -4,6 +4,12 @@ import ru.foric27.cluster.service.*
 import android.os.SystemClock
 import timber.log.Timber
 
+/**
+ * Координатор проверки готовности UDP-канала перед запуском pipeline.
+ *
+ * Ждёт ответа probe-пакета с таймаутом, планирует backoff-рестарт
+ * при неудаче, логирует прогресс ожидания маршрута.
+ */
 internal class UdpStartupProbeCoordinator(
     private val tag: String,
     private val routeWaitStepMs: Long,

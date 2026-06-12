@@ -93,6 +93,16 @@ internal class UdpSender(
         Timber.tag(TAG).i("UDP-сокет создан для $host:$port, payload=$safePayloadBytes, pacingMax=${safePacingMaxBps}бит/с")
     }
 
+    /**
+     * Отправляет видеокадр по UDP, фрагментируя при необходимости.
+     *
+     * Крупные буферы разбиваются на фрагменты размером [safePayloadBytes].
+     * Выполняет pacing между пакетами для контроля битрейта.
+     *
+     * @param data байтовый массив видеокадра или null
+     * @throws IOException при повторяющихся ошибках отправки
+     * @throws SocketException если сокет закрыт
+     */
     @Synchronized
     @Throws(IOException::class)
     fun sendFrame(data: ByteArray?) {
@@ -217,6 +227,12 @@ internal class UdpSender(
         }
     }
 
+    /**
+     * Пересоздаёт UDP-сокет.
+     *
+     * Закрывает текущий сокет и создаёт новый через [createSocket].
+     * При ошибке помечает sender как закрытый.
+     */
     @Synchronized
     fun restart() {
         try {
@@ -229,6 +245,11 @@ internal class UdpSender(
         }
     }
 
+    /**
+     * Закрывает UDP-сокет и помечает sender как закрытый.
+     *
+     * После вызова [isClosed] вернёт true.
+     */
     @Synchronized
     fun close() {
         closed = true
@@ -236,8 +257,18 @@ internal class UdpSender(
         resetPacing()
     }
 
+    /**
+     * Проверяет, закрыт ли sender или его сокет.
+     *
+     * @return true если сокет закрыт или null
+     */
     fun isClosed(): Boolean = closed || socket == null || (socket?.isClosed == true)
 
+    /**
+     * Возвращает снимок текущей статистики отправки.
+     *
+     * @return объект [StatsSnapshot] с актуальными счётчиками
+     */
     fun snapshot(): StatsSnapshot = StatsSnapshot(
         host = host,
         port = port,
@@ -357,6 +388,21 @@ internal class UdpSender(
         pacingNextSendNs = 0L
     }
 
+    /**
+     * Снимок статистики UDP-отправки.
+     *
+     * @param host целевой хост
+     * @param port целевой порт
+     * @param videoFramesSent количество отправленных видеокадров
+     * @param videoPacketsSent количество отправленных видеопакетов
+     * @param videoBytesSent количество отправленных видеобайт
+     * @param probePacketsSent количество отправленных пробных пакетов
+     * @param probeBytesSent количество отправленных пробных байт
+     * @param sendErrors количество ошибок отправки
+     * @param consecutiveFrameSendErrors количество последовательных ошибок отправки кадров
+     * @param lastSendAttemptElapsedRealtimeMs время последней попытки отправки (elapsedRealtime)
+     * @param lastSendSuccessElapsedRealtimeMs время последней успешной отправки (elapsedRealtime)
+     */
     data class StatsSnapshot(
         val host: String,
         val port: Int,

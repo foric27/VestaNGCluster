@@ -10,6 +10,26 @@ import android.graphics.Rect
  * Значения по умолчанию берутся из [ProductConfig], а локальные переопределения
  * сохраняются в DataStore. Через этот объект приложение получает и
  * метаданные для developer-экрана, и уже нормализованные runtime-значения.
+ *
+ * **Структура:**
+ * Конфигурация организована в namespaces через вложенные `object`:
+ * - [Root] — сетевой интерфейс, CIDR, gateway
+ * - [Network] — target IP/port, bind IP, local CIDR, gateway
+ * - [Video] — размер, fps, bitrate, codec profile/level
+ * - [Service] — backoff delays, recovery params, notification settings
+ * - [UpdateFtp] — FTP port, passive ports, credentials
+ * - [TargetApp] — launch component, cluster activity
+ * - [VisibleArea] — прямоугольник видимой области для overlay
+ *
+ * **Использование:**
+ * ```kotlin
+ * RuntimeConfig.init(context)           // инициализация из DataStore
+ * val ip = RuntimeConfig.Network.TARGET_IP   // чтение
+ * RuntimeConfig.putString("custom_key", "value")  // запись
+ * ```
+ *
+ * @see ProductConfig для immutable значений по умолчанию
+ * @see DeveloperActivity для UI управления runtime-настройками
  */
 object RuntimeConfig {
 
@@ -122,6 +142,12 @@ object RuntimeConfig {
 
     /**
      * Инициализирует кеш runtime-значений при старте процесса или экрана.
+     *
+     * Вызывает [reload] для загрузки всех сохранённых значений из DataStore.
+     * Должен быть вызван до первого обращения к любому namespace (например,
+     * в [UdpStreamService.onCreate]).
+     *
+     * @param context контекст для доступа к DataStore
      */
     fun init(context: Context) {
         reload(context)
@@ -129,6 +155,11 @@ object RuntimeConfig {
 
     /**
      * Полностью перечитывает пользовательские overrides из DataStore.
+     *
+     * Обновляет [rawValues] — volatile map с текущими значениями.
+     * Используется при изменении настроек в [DeveloperActivity].
+     *
+     * @param context контекст для доступа к DataStore
      */
     fun reload(context: Context) {
         rawValues = repository.load(context, fieldSpecs)
@@ -144,6 +175,11 @@ object RuntimeConfig {
 
     /**
      * Возвращает описание всех полей для динамического построения developer UI.
+     *
+     * [DeveloperActivity] использует этот список для генерации настроек
+     * из [RuntimeConfigFieldSpecs.create()] без ручного дублирования.
+     *
+     * @return список [FieldSpec] с key, section, title, type, defaultValue
      */
     fun getFieldSpecs(): List<FieldSpec> = fieldSpecs
 
@@ -165,6 +201,14 @@ object RuntimeConfig {
 
     /**
      * Валидирует и сохраняет одно runtime-поле, сразу обновляя внутренний кеш.
+     *
+     * Валидация выполняется в [RuntimeConfigRepository] (type-specific).
+     * После успешного сохранения вызывает [reload] для синхронизации кеша.
+     *
+     * @param context контекст для доступа к DataStore
+     * @param spec описание поля из [getFieldSpecs]
+     * @param rawValue строковое значение от пользователя
+     * @return [SaveResult] с результатом валидации и сохранения
      */
     fun saveField(context: Context, spec: FieldSpec, rawValue: String): SaveResult {
         val fieldTitle = getFieldTitle(context, spec)
@@ -176,6 +220,13 @@ object RuntimeConfig {
 
     /**
      * Сбрасывает все runtime-overrides и возвращает проект к ProductConfig.
+     *
+     * Удаляет все сохранённые пользовательские значения из DataStore,
+     * после чего все [string]/[int]/[long]/[boolean] вернут значения
+     * из [ProductConfig].
+     *
+     * @param context контекст для доступа к DataStore
+     * @return [SaveResult] с результатом сброса
      */
     fun resetToDefaults(context: Context): SaveResult {
         if (!repository.resetToDefaults(context)) {

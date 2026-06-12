@@ -14,6 +14,13 @@ import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * Координатор периодической отправки JSON-пакетов синхронизации на порт 5001.
+ *
+ * Публикует vid/time/lang через [DatagramSocket], привязанный к [bindIp].
+ * Ключевые поля отправляются по таймеру или при изменении.
+ * Слушает broadcast времени и языка для дедупликации.
+ */
 internal class UdpStatusSyncCoordinator(
     private val context: Context,
     private val tag: String,
@@ -28,6 +35,13 @@ internal class UdpStatusSyncCoordinator(
     private val joinThreadQuietly: (Thread?, String) -> Unit,
 ) {
 
+    /**
+     * Снимок статистики отправки status-пакетов.
+     *
+     * @property packetsSent количество отправленных пакетов
+     * @property bytesSent количество отправленных байт
+     * @property sendErrors количество ошибок отправки
+     */
     data class StatsSnapshot(
         val packetsSent: Long,
         val bytesSent: Long,

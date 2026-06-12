@@ -14,6 +14,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Crash recovery: перехват необработанных исключений и rate-limited перезапуск.
+ *
+ * Устанавливает глобальный [Thread.UncaughtExceptionHandler], записывает
+ * crash-логи и планирует перезапуск через [AlarmManager] с защитой от crash-петли.
+ */
 internal object ProcessRecoveryManager {
 
     private const val TAG = "ProcessRecovery"

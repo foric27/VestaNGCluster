@@ -32,6 +32,17 @@ internal class VideoCodecOutputProcessor(
         hasLoggedConfig = false
     }
 
+    /**
+     * Обрабатывает выходной буфер MediaCodec: нормализует к Annex B, добавляет SPS/PPS
+     * к keyframe и отправляет по UDP.
+     *
+     * При codec-config буфере сохраняет SPS/PPS для последующих keyframe'ов.
+     *
+     * @param codec источник выходного буфера
+     * @param index индекс выходного буфера
+     * @param info метаданные буфера
+     * @param configAnnexB SPS/PPS из [onOutputFormatChanged], если уже доступны
+     */
     fun process(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo, configAnnexB: ByteArray?) {
         if (info.size <= 0) {
             VideoCodecUtil.releaseOutputBufferQuietly(codec, index)

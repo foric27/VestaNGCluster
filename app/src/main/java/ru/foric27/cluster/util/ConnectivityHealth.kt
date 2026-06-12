@@ -1,5 +1,15 @@
 package ru.foric27.cluster.util
 
+/**
+ * Снимок состояния runtime для диагностики связности.
+ *
+ * @property streamActive стрим активен
+ * @property startInProgress запуск в процессе
+ * @property senderReady UDP sender готов
+ * @property displayReady VirtualDisplay создан
+ * @property recentVideoTraffic недавняя видеотрафика
+ * @property routeReady маршрут настроен
+ */
 internal data class RuntimeHealthSnapshot(
     val streamActive: Boolean,
     val startInProgress: Boolean,
@@ -9,6 +19,12 @@ internal data class RuntimeHealthSnapshot(
     val routeReady: Boolean,
 )
 
+/**
+ * Диагностика состояния сетевого стрима.
+ *
+ * Проверяет health-check после wake, watchdog-мониторинг
+ * и принимает решения о необходимости recovery.
+ */
 internal object ConnectivityHealth {
 
     fun isWakeStreamHealthy(snapshot: RuntimeHealthSnapshot): Boolean {

@@ -15,6 +15,22 @@ import timber.log.Timber
  * Все запуски выполняются через root `am start`, что обеспечивает совместимость
  * на устройствах, где прямой `Context.startActivity` с `setLaunchDisplayId`
  * не работает из-за ограничений системы (Permission Denial).
+ *
+ * **Throttle:**
+ * - Normal launch: [NORMAL_RELAUNCH_THROTTLE_MS] между попытками
+ * - Force launch: [FORCE_RELAUNCH_THROTTLE_MS] между принудительными запусками
+ * - Reuse guard: пропускает запуск, если activity уже запущена на том же display
+ *
+ * **Launch order (критичен):**
+ * 1. `launchBlackScreen()` — синхронно в foreground для предотвращения race condition
+ * 2. `closeOwnClusterOverlays()` — background fire-and-forget для закрытия старых overlay
+ * 3. Root `am start --display <id>` — запуск target activity
+ *
+ * @param preferredLaunchComponent полный компонент (`package/class`) для запуска.
+ *   Если null — используется [RuntimeConfig.TargetApp.CLUSTER_COMPONENT]
+ * @param rootActivityStarter интерфейс для выполнения root-команд.
+ *   По умолчанию [RootCommandActivityStarter] через [NetworkRootShell]
+ * @param clock функция получения текущего времени (для тестирования)
  */
 internal class VideoDisplayLauncher(
     private val preferredLaunchComponent: String?,
@@ -22,15 +38,37 @@ internal class VideoDisplayLauncher(
     private val clock: () -> Long = { safeElapsedRealtime() },
 ) {
 
+    /**
+     * Интерфейс для выполнения root-команд запуска activity.
+     *
+     * Абстрагирует способ выполнения `am start` — через libsu, mock или другой executor.
+     */
     internal fun interface RootActivityStarter {
         fun start(command: String): RootLaunchAttempt
     }
 
+    /**
+     * Результат попытки root-запуска activity.
+     *
+     * @param success true если команда выполнена успешно
+     * @param errorMessage текст ошибки при неуспешном запуске
+     */
     internal data class RootLaunchAttempt(
         val success: Boolean,
         val errorMessage: String?,
     )
 
+    /**
+     * Запускает целевую activity на указанном display.
+     *
+     * Порядок запуска критичен:
+     * 1. [launchBlackScreen] — синхронно для предотвращения race condition
+     * 2. [closeOwnClusterOverlays] — fire-and-forget в фоне
+     * 3. Root `am start --display` — запуск target activity
+     *
+     * @param displayId ID VirtualDisplay для запуска
+     * @param force если `true`, игнорирует reuse guard и throttle (с собственным throttle)
+     */
     fun launchOnDisplay(displayId: Int, force: Boolean = false) {
         val component = preferredLaunchComponent
         if (force) {
@@ -127,6 +165,11 @@ internal class VideoDisplayLauncher(
         )
     }
 
+    /**
+     * Закрывает собственные overlay-activity (MediaCover, BlackScreen) через broadcast.
+     *
+     * Выполняется в фоновом потоке, чтобы не блокировать основной запуск навигатора.
+     */
     private fun closeOwnClusterOverlays() {
         val actions = listOf(
             MediaCoverActivity.ACTION_FINISH_MEDIA_COVER,
@@ -140,6 +183,15 @@ internal class VideoDisplayLauncher(
         }
     }
 
+    /**
+     * Запускает чёрный экран на указанном display для предотвращения race condition
+     * с основной activity.
+     *
+     * Чёрный экран должен стартовать синхронно ДО навигатора, чтобы гарантированно
+     * оказаться на display раньше целевой activity.
+     *
+     * @param displayId ID VirtualDisplay для запуска
+     */
     private fun launchBlackScreen(displayId: Int) {
         val component = BuildConfig.APPLICATION_ID + "/." + ClusterBlackScreenActivity::class.java.simpleName
         val command = YandexLaunchTarget.buildDirectAmStartCommand(displayId, component)
@@ -169,6 +221,12 @@ internal class VideoDisplayLauncher(
             0L
         }
 
+        /**
+         * Сбрасывает состояние throttle и reuse guard.
+         *
+         * Вызывается при остановке видеопайплайна, чтобы следующий запуск
+         * не был пропущен из-за устаревшего состояния.
+         */
         fun clearLaunchState() {
             synchronized(throttleLock) {
                 lastLaunchedDisplayId = -1
@@ -190,6 +248,15 @@ internal class VideoDisplayLauncher(
             lastLaunchedComponent = component
         }
 
+        /**
+         * Создаёт [RootActivityStarter] на основе [RootCommandExecutor].
+         *
+         * Оборачивает вызов [RootCommandExecutor.run] в [RootLaunchAttempt],
+         * преобразуя код возврата и текст вывода.
+         *
+         * @param executor executor для выполнения root-команд
+         * @return адаптер [RootActivityStarter]
+         */
         internal fun rootCommandActivityStarter(executor: RootCommandExecutor): RootActivityStarter {
             return RootActivityStarter { command ->
                 val result = executor.run(

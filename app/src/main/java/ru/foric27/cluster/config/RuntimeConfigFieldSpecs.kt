@@ -1,6 +1,12 @@
 package ru.foric27.cluster.config
 import ru.foric27.cluster.R
 
+/**
+ * Спецификации полей runtime-конфигурации для UI разработчика.
+ *
+ * Определяет список [RuntimeConfig.FieldSpec] с группировкой по секциям,
+ * типами значений и строковыми ресурсами для отображения в [DeveloperActivity].
+ */
 internal object RuntimeConfigFieldSpecs {
 
     fun create(): List<RuntimeConfig.FieldSpec> = listOf(

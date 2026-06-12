@@ -9,6 +9,12 @@ import android.os.Build
 import android.os.SystemClock
 import timber.log.Timber
 
+/**
+ * Планировщик восстановления сервиса через AlarmManager.
+ *
+ * Использует exact alarm для гарантированного перезапуска сервиса
+ * после kill системой или удаления задачи из recents.
+ */
 internal class UdpServiceRecoveryScheduler(
     private val context: Context,
     private val tag: String,
@@ -17,6 +23,17 @@ internal class UdpServiceRecoveryScheduler(
     private val onFallbackStart: () -> Unit,
 ) {
 
+    /**
+     * Планирует восстановление сервиса через AlarmManager.
+     *
+     * Проверяет разрешение SCHEDULE_EXACT_ALARM на Android 12+.
+     * При невозможности планирования выполняет fallback-запуск.
+     *
+     * @param reason причина восстановления (для логов)
+     * @param delayMs задержка перед восстановлением в миллисекундах
+     * @param userReason причина для отображения пользователю (по умолчанию равна [reason])
+     * @param launchUi запускать ли UI при восстановлении
+     */
     fun schedule(reason: String, delayMs: Long, userReason: String = reason, launchUi: Boolean = false) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -54,6 +71,11 @@ internal class UdpServiceRecoveryScheduler(
         }
     }
 
+    /**
+     * Снимает все pending alarm восстановления.
+     *
+     * Отменяет alarm для обоих вариантов launchUi (true/false).
+     */
     fun cancel() {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

@@ -10,6 +10,13 @@ import android.os.Handler
 import android.os.SystemClock
 import timber.log.Timber
 
+/**
+ * Координатор FTP-сервера обновлений (OTA).
+ *
+ * Управляет запуском, перезапуском и обновлением FTP-сервера для
+ * доставки ICUpdate.zip на кластер. Обрабатывает USB mount/unmount
+ * и показывает диалог обновления при обнаружении нового файла.
+ */
 internal class UdpUpdateServerCoordinator(
     private val context: Context,
     private val mainHandler: Handler,
@@ -28,6 +35,12 @@ internal class UdpUpdateServerCoordinator(
 
     private val ftpRetryRunnable = Runnable { performFtpRetry() }
 
+    /**
+     * Запускает или обновляет FTP-сервер при старте сервиса.
+     *
+     * Проверяет разрешение MANAGE_EXTERNAL_STORAGE, ищет update-файл
+     * и показывает диалог обновления при необходимости.
+     */
     fun startOrRefreshUpdateServer() {
         if (!StorageAccessManager.isAllFilesAccessGranted()) {
             Timber.tag(TAG).i("Пропускаю запуск FTP обновления: нет разрешения MANAGE_EXTERNAL_STORAGE")

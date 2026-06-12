@@ -3,6 +3,12 @@ import ru.foric27.cluster.util.*
 
 import java.util.ArrayDeque
 
+/**
+ * Журнал пользовательских уведомлений для отображения в UI.
+ *
+ * Хранит ограниченный список предупреждений из [AppWarningCenter]
+ * и уведомлений сервиса. Поддерживает callback для обновления UI.
+ */
 internal class MainNoticeLog {
 
     private data class NoticeEntry(

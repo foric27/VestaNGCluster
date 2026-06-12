@@ -8,6 +8,12 @@ import android.content.IntentFilter
 import android.os.SystemClock
 import timber.log.Timber
 
+/**
+ * Контроллер восстановления стрима после sleep/wake.
+ *
+ * Регистрирует receiver экранного события, останавливает стрим при screen off
+ * и перезапускает при пробуждении.
+ */
 internal class UdpWakeRecoveryController(
     private val context: Context,
     private val registerLocalReceiver: (BroadcastReceiver, IntentFilter) -> Unit,

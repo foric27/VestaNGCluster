@@ -50,6 +50,11 @@ class DeveloperActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Сбрасывает все runtime-настройки к значениям по умолчанию.
+     *
+     * @return сообщение об ошибке или null при успехе
+     */
     internal fun performResetAll(): String? {
         val result = RuntimeConfig.resetToDefaults(this)
         if (!result.ok) return result.message
@@ -60,10 +65,25 @@ class DeveloperActivity : ComponentActivity() {
         return null
     }
 
+    /**
+     * Экспортирует logcat в файл и возвращает результат.
+     *
+     * @return результат экспорта с файлом и URI
+     */
     internal fun performExportLogcat(): Result<LogcatExporter.Result> = runCatching { LogcatExporter.export(this) }
 
+    /**
+     * Очищает системный logcat и локальные файлы логов.
+     *
+     * @return результат очистки
+     */
     internal fun performClearLogcat(): Result<LogcatExporter.ClearResult> = runCatching { LogcatExporter.clear(this) }
 
+    /**
+     * Открывает системное меню share для переданного экспортированного лога.
+     *
+     * @param exported результат экспорта logcat
+     */
     internal fun shareLogcat(exported: LogcatExporter.Result) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -74,6 +94,11 @@ class DeveloperActivity : ComponentActivity() {
         startActivity(Intent.createChooser(intent, getString(R.string.developer_logcat_share_title)))
     }
 
+    /**
+     * Удаляет все постоянные файлы логов из cacheDir/logs.
+     *
+     * @return количество удалённых файлов
+     */
     internal fun clearPersistentLogFiles(): Int {
         val logDir = java.io.File(cacheDir, "logs")
         if (!logDir.exists()) return 0

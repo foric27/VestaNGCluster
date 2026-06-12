@@ -35,15 +35,30 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
-/**
- * Главный foreground-сервис cluster-проекта.
- *
- * Сервис оркестрирует жизненный цикл стрима, root-сети, FTP-обновлений, wake
- * recovery, watchdog и публикацию состояния в уведомлении. Это одна из самых
- * чувствительных точек проекта, поэтому здесь важнее предсказуемость и
- * наблюдаемость, чем красивая абстрактная архитектура.
- */
-class UdpStreamService : Service(), VideoEncoder.RestartCallback {
+    /**
+     * Главный foreground-сервис cluster-проекта.
+     *
+     * Сервис оркестрирует жизненный цикл стрима, root-сети, FTP-обновлений, wake
+     * recovery, watchdog и публикацию состояния в уведомлении. Это одна из самых
+     * чувствительных точек проекта, поэтому здесь важнее предсказуемость и
+     * наблюдаемость, чем красивая абстрактная архитектура.
+     *
+     * Управляется через статические методы [companion object] и intent actions.
+     * Lifecycle: [onCreate] → [onStartCommand] → [onDestroy].
+     *
+     * Ключевые компоненты:
+     * - [UdpNetworkPreparationCoordinator] — подготовка root-сети (policy routing, IP, маршрут)
+     * - [UdpStartupFlowCoordinator] — UDP sender + startup probe
+     * - [UdpPipelineStartCoordinator] — запуск video encoder + VirtualDisplay
+     * - [UdpStatusSyncCoordinator] — синхронизация состояния с кластером (порт 5001)
+     * - [UdpTransportStatsCoordinator] — сбор статистики транспорта
+     * - [UdpConnectivityWatchdogCoordinator] — проверка link/interface/route/encoder
+     * - [UdpUpdateServerCoordinator] — FTP-сервер для OTA обновлений
+     * - [UdpWakeRecoveryController] — восстановление после sleep/wake
+     * - [UdpServiceRestartController] — управление backoff-перезапусками
+     * - [ProcessRecoveryManager] — защита от crash-петель
+     */
+    class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private val serviceLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -100,6 +115,10 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     /**
      * Готовит сервисный runtime: wake lock, coordinators, receivers и канал
      * foreground-уведомления.
+     *
+     * Вызывается системой один раз перед первым [onStartCommand].
+     * Инициализирует [RuntimeConfig], root shell, все координаторы и
+     * регистрирует broadcast receiver для состояния дисплея.
      */
     override fun onCreate() {
         super.onCreate()
@@ -135,6 +154,19 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
      */
     @Volatile private var streamStoppedForSleep = false
 
+    /**
+     * Обрабатывает входящие intents для управления сервисом.
+     *
+     * Поддерживаемые actions:
+     * - [ACTION_START_STREAM] — запуск streaming pipeline
+     * - [ACTION_STOP_STREAM] — остановка streaming
+     * - [ACTION_RESTART_PIPELINE_NOW] — перезапуск pipeline (без сетевой подготовки)
+     * - [ACTION_RESTART_SERVICE_NOW] — полный перезапуск сервиса
+     * - [ACTION_REFRESH_USB_FTP_NOW] — обновление FTP после USB mount
+     * - [ACTION_REFRESH_USB_REMOVED_FTP_NOW] — обновление FTP после USB unmount
+     *
+     * @return [START_STICKY] — сервис будет перезапущен системой после kill
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ensureNotificationChannel()
         startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
@@ -170,6 +202,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * Вызывается системой, когда задача приложения удалена из recents.
+     *
+     * Проверяет доступность root и сети перед планированием восстановления.
+     * Если root или сеть недоступны — останавливает сервис без восстановления.
+     *
+     * @param rootIntent intent, который был у задачи
+     */
     override fun onTaskRemoved(rootIntent: Intent?) {
         val probe = RootNetUtil.getIfaceProbeState(force = true)
         val recoveryBlocked = probe.rootRequired || (!probe.exists && !RootNetUtil.wasSelectedIfaceEverPresent)
@@ -189,6 +229,12 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         super.onTaskRemoved(rootIntent)
     }
 
+    /**
+     * Останавливает все компоненты и освобождает ресурсы при уничтожении сервиса.
+     *
+     * Отменяет корутины, освобождает wake lock, снимает receiver'ы,
+     * останавливает encoder и sender. Вызывается системой при остановке сервиса.
+     */
     override fun onDestroy() {
         streamActiveState = false
         serviceRunning = false
@@ -214,6 +260,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         super.onDestroy()
     }
 
+    /**
+     * Запрашивает перезапуск сервиса через [UdpServiceRestartController].
+     *
+     * Вызывается из [VideoEncoder] при ошибках кодека или UDP.
+     */
     override fun requestRestart() {
         restartController.schedule("udp_error", null)
     }
@@ -1156,15 +1207,41 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
     }
 
+    /**
+     * Статические методы для управления сервисом из любого контекста.
+     *
+     * Все public методы создают intent с action и запускают сервис через
+     * [Context.startForegroundService]. Сервис должен вызвать
+     * [startForeground] в течение 5 секунд после получения intent.
+     */
     companion object {
+        /** Key для передачи [StreamConfig] через intent extras. */
         const val EXTRA_CONFIG: String = "config"
 
         @Volatile private var serviceRunning: Boolean = false
         @Volatile private var streamActiveState: Boolean = false
 
+        /**
+         * Проверяет, запущен ли сервис в данный момент.
+         * @return `true` если [onCreate] был вызван и [onDestroy] ещё не вызван
+         */
         fun isServiceRunning(): Boolean = serviceRunning
+
+        /**
+         * Проверяет, активен ли streaming pipeline.
+         * @return `true` если encoder запущен и sender отправляет данные
+         */
         fun isStreamActive(): Boolean = streamActiveState
 
+        /**
+         * Создаёт intent для запуска сервиса с конфигурацией по умолчанию.
+         *
+         * Использует текущий [AppSettings.UiStreamMode] для выбора launch component.
+         * При ошибке чтения режима fallback на [AppSettings.UiStreamMode.NAV].
+         *
+         * @param context контекст для создания intent
+         * @return intent с [EXTRA_CONFIG] extra
+         */
         fun createStartIntent(context: Context): Intent {
             val mode = try {
                 AppSettings.getSelectedMode(context)
@@ -1176,11 +1253,25 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             }
         }
 
+        /**
+         * Запускает сервис с текущей конфигурацией.
+         *
+         * Эквивалентен [createStartIntent] + [Context.startForegroundService].
+         *
+         * @param context контекст для запуска сервиса
+         */
         fun startServiceCompat(context: Context) {
             val intent = createStartIntent(context)
             context.startForegroundService(intent)
         }
 
+        /**
+         * Перезапускает сервис полностью (сетевые настройки + pipeline).
+         *
+         * Action: [ACTION_RESTART_SERVICE_NOW]
+         *
+         * @param context контекст для запуска сервиса
+         */
         fun restartServiceCompat(context: Context) {
             val intent = createStartIntent(context).apply {
                 action = ACTION_RESTART_SERVICE_NOW
@@ -1188,6 +1279,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             context.startForegroundService(intent)
         }
 
+        /**
+         * Перезапускает только video pipeline (без сетевой подготовки).
+         *
+         * Action: [ACTION_RESTART_PIPELINE_NOW]. Полезен при смене режима
+         * или восстановлении после codec error.
+         *
+         * @param context контекст для запуска сервиса
+         */
         fun restartPipelineCompat(context: Context) {
             val intent = createStartIntent(context).apply {
                 action = ACTION_RESTART_PIPELINE_NOW
@@ -1195,6 +1294,11 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             context.startForegroundService(intent)
         }
 
+        /**
+         * Обновляет FTP-сервер (устаревший метод, используйте [refreshUsbFtpCompat]).
+         *
+         * @param context контекст для запуска сервиса
+         */
         fun refreshFtpCompat(context: Context) {
             val intent = Intent(context, UdpStreamService::class.java).apply {
                 action = ACTION_REFRESH_FTP_NOW
@@ -1202,6 +1306,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             context.startForegroundService(intent)
         }
 
+        /**
+         * Обновляет FTP-сервер после подключения USB-накопителя.
+         *
+         * Action: [ACTION_REFRESH_USB_FTP_NOW]. Переиндексирует доступные
+         * OTA-файлы на USB.
+         *
+         * @param context контекст для запуска сервиса
+         */
         fun refreshUsbFtpCompat(context: Context) {
             val intent = Intent(context, UdpStreamService::class.java).apply {
                 action = ACTION_REFRESH_USB_FTP_NOW
@@ -1209,6 +1321,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
             context.startForegroundService(intent)
         }
 
+        /**
+         * Обновляет FTP-сервер после отключения USB-накопителя.
+         *
+         * Action: [ACTION_REFRESH_USB_REMOVED_FTP_NOW]. Очищает
+         * USB-специфичные OTA-файлы из индекса.
+         *
+         * @param context контекст для запуска сервиса
+         */
         fun refreshUsbRemovedFtpCompat(context: Context) {
             val intent = Intent(context, UdpStreamService::class.java).apply {
                 action = ACTION_REFRESH_USB_REMOVED_FTP_NOW

@@ -11,6 +11,15 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
+/**
+ * OpenGL/EGL компоновщик кадров из SurfaceTexture на входной Surface MediaCodec.
+ *
+ * Инициализирует EGL-контекст с recordable-флагом, создаёт external OES-текстуру
+ * и выполняет отрисовку полноэкранного прямоугольника через vertex/fragment shader.
+ *
+ * Поддерживает маскирование нижней полосы [RuntimeConfig.Video.BLACK_BOTTOM_PX]
+ * через GL_SCISSOR_TEST.
+ */
 internal class GlFrameComposer(
     outputSurface: Surface,
     private val width: Int,
@@ -86,14 +95,39 @@ internal class GlFrameComposer(
         }
     }
 
+    /**
+     * Отрисовывает кадр из SurfaceTexture на encoder input surface.
+     *
+     * Вызывает [SurfaceTexture.updateTexImage], применяет transform matrix и
+     * устанавливает presentation timestamp через [EGLExt.eglPresentationTimeANDROID].
+     *
+     * @param surfaceTexture источник кадра
+     * @param presentationTimestampNs желаемый presentation timestamp в наносекундах
+     */
     fun drawSurfaceFrame(surfaceTexture: SurfaceTexture, presentationTimestampNs: Long? = null) {
         renderInternal(surfaceTexture, presentationTimestampNs)
     }
 
+    /**
+     * Повторно отрисовывает последний кадр без обновления SurfaceTexture.
+     *
+     * Используется для keepalive-кадров, когда новых данных от VirtualDisplay нет.
+     *
+     * @param presentationTimestampNs желаемый presentation timestamp в наносекундах
+     */
     fun drawLastFrame(presentationTimestampNs: Long? = null) {
         renderInternal(null, presentationTimestampNs)
     }
 
+    /**
+     * Внутренний метод отрисовки кадра через OpenGL.
+     *
+     * Привязывает EGL-контекст, выполняет clear, рисует прямоугольник с текстурой
+     * и выполняет swap buffers с установкой presentation timestamp.
+     *
+     * @param surfaceTexture если null — повторная отрисовка последнего кадра
+     * @param presentationTimestampNs желаемый presentation timestamp
+     */
     private fun renderInternal(surfaceTexture: SurfaceTexture?, presentationTimestampNs: Long?) {
         makeCurrent()
 
@@ -142,6 +176,11 @@ internal class GlFrameComposer(
         EGL14.eglSwapBuffers(eglDisplay, eglSurface)
     }
 
+    /**
+     * Освобождает все EGL/GL ресурсы: текстуры, программу, surface, context, display.
+     *
+     * Перед освобождением привязывает EGL-контекст к текущему потоку для корректного cleanup.
+     */
     fun release() {
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
             makeCurrent()
@@ -162,6 +201,11 @@ internal class GlFrameComposer(
         eglSurface = EGL14.EGL_NO_SURFACE
     }
 
+    /**
+     * Привязывает EGL-контекст к текущему потоку, если он ещё не привязан.
+     *
+     * @throws IllegalArgumentException если eglMakeCurrent не удался
+     */
     private fun makeCurrent() {
         if (EGL14.eglGetCurrentContext() == eglContext) return
         require(EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)) { "eglMakeCurrent failed" }

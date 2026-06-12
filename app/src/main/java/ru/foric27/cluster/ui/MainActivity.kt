@@ -44,6 +44,12 @@ import ru.foric27.cluster.config.AppSettings.UiStreamMode
 import ru.foric27.cluster.config.AppSettings.UpdateChannel
 import timber.log.Timber
 
+/**
+ * Главная Activity приложения.
+ *
+ * Управляет UI, потоковым режимом, обновлениями, уведомлениями и
+ * проверкой root-доступа. Является точкой входа для пользователя.
+ */
 class MainActivity : ComponentActivity() {
 
     private lateinit var noticeLog: MainNoticeLog
@@ -97,6 +103,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Инициализирует UI, проверяет разрешения, запускает сервис и проверяет обновления.
+     *
+     * @param savedInstanceState сохранённое состояние
+     */
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -187,6 +198,11 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /**
+     * Применяет выбранный режим потоковой передачи и перезапускает pipeline.
+     *
+     * @param mode целевой режим (NAV, MED, ABS)
+     */
     private fun onModeSelected(mode: UiStreamMode) {
         val currentMode = AppSettings.getSelectedMode(this)
         if (currentMode == mode) {
@@ -204,6 +220,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Перезапускает сервис потоковой передачи.
+     */
     private fun onRestartStream() {
         UdpStreamService.restartServiceCompat(this)
         noticeLog.show(getString(R.string.main_restart_stream_requested), isError = false)
@@ -308,6 +327,12 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    /**
+     * Проверяет наличие обновления приложения и обновляет UI.
+     *
+     * @param silent тихая проверка без уведомлений об ошибках
+     * @param force принудительная проверка, игнорируя кэш
+     */
     private fun refreshAppUpdateState(silent: Boolean = false, force: Boolean = false) {
         if (updateBusy) return
         val channel = AppSettings.getSelectedUpdateChannel(this)
@@ -350,6 +375,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Загружает обновление APK из GitHub Releases.
+     *
+     * @param release информация о релизе для загрузки
+     */
     private fun downloadAppUpdate(release: AppUpdateManager.RemoteRelease) {
         if (updateBusy) return
         updateBusy = true
@@ -376,6 +406,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Запускает установку загруженного обновления.
+     *
+     * @param update загруженное обновление
+     */
     private fun requestInstallUpdate(update: AppUpdateManager.DownloadedUpdate) {
         when (val result = AppUpdateManager.requestInstall(this, update)) {
             is AppUpdateManager.InstallResult.Started -> noticeLog.show(getString(R.string.app_update_install_started), isError = false)
@@ -435,6 +470,9 @@ class MainActivity : ComponentActivity() {
             .onFailure(onFailure)
     }
 
+    /**
+     * Проверяет доступность root и публикует предупреждение, если root недоступен.
+     */
     private fun checkRootAndNotify() {
         val shell = NetworkRootShell()
         val rootAvailable = try { shell.isAvailable() } catch (_: Throwable) { false } finally { shell.close() }
@@ -448,6 +486,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Сворачивает задачу в background после завершения preflight, если включена настройка.
+     */
     private fun tryMoveTaskToBackIfNeeded() {
         if (backgroundLaunchHandled) return
         if (intent.getBooleanExtra(EXTRA_KEEP_IN_FOREGROUND, false)) return

@@ -46,6 +46,11 @@ internal class MediaCoverActivity : ComponentActivity() {
 
     private var finishReceiver: BroadcastReceiver? = null
 
+    /**
+     * Создаёт activity и регистрирует receiver для завершения.
+     *
+     * @param savedInstanceState сохранённое состояние
+     */
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +93,9 @@ internal class MediaCoverActivity : ComponentActivity() {
         super.onPause()
     }
 
+    /**
+     * Регистрирует BroadcastReceiver для завершения activity по внешнему сигналу.
+     */
     private fun registerFinishReceiver() {
         finishReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -113,6 +121,11 @@ internal class MediaCoverActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Compose-экран обложки медиа-трека для отображения на кластере.
+ *
+ * Показывает обложку, название трека, исполнителя и прогресс.
+ */
 @Composable
 private fun MediaCoverScreen() {
     val track by MediaCoverState.trackFlow.collectAsState()

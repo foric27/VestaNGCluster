@@ -16,6 +16,12 @@ private val Context.runtimeConfigDataStore by preferencesDataStore(
     },
 )
 
+/**
+ * Хранилище runtime-конфигурации на базе DataStore Preferences.
+ *
+ * Реализует [RuntimeConfigRepository]: чтение, запись и сброс настроек.
+ * Автоматически мигрирует данные из SharedPreferences.
+ */
 internal object RuntimeConfigStore : RuntimeConfigRepository {
 
     override fun load(context: Context, specs: List<RuntimeConfig.FieldSpec>): Map<String, String> {

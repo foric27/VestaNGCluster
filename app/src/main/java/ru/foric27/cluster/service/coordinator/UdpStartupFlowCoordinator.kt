@@ -3,6 +3,12 @@ import ru.foric27.cluster.service.*
 
 import timber.log.Timber
 
+/**
+ * Координатор startup-потока: создание UDP sender и запуск probe.
+ *
+ * Создаёт [UdpSender], назначает его, запускает UDP probe в фоне
+ * и при успехе вызывает callback запуска pipeline.
+ */
 internal class UdpStartupFlowCoordinator(
     private val tag: String,
     private val createSender: (String, Int, String?) -> UdpSender,

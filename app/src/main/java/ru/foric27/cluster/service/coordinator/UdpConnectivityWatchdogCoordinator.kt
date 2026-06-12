@@ -9,6 +9,13 @@ import android.os.SystemClock
 import timber.log.Timber
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Координатор watchdog-мониторинга связности стрима.
+ *
+ * В фоновом потоке проверяет link/interface/route/encoder.
+ * При превышении порога ошибок маршрута запрашивает immediate recovery.
+ * Отслеживает grace-период после смены маршрута.
+ */
 internal class UdpConnectivityWatchdogCoordinator(
     private val tag: String,
     private val launchWorker: (String, Int, () -> Unit) -> Thread,

@@ -27,6 +27,20 @@ object PersistentVirtualDisplay {
     @Volatile
     private var dpi: Int = 0
 
+    /**
+     * Создаёт или переиспользует VirtualDisplay с заданными параметрами.
+     *
+     * Если существующий display валиден и имеет те же размеры/DPI — обновляет
+     * только входную Surface. При невалидности или изменении параметров — создаёт новый.
+     *
+     * @param context контекст приложения
+     * @param width ширина display
+     * @param height высота display
+     * @param dpi плотность пикселей
+     * @param surface входная Surface для отображения
+     * @return созданный или переиспользованный VirtualDisplay
+     * @throws IllegalStateException если создание display не удалось
+     */
     @Synchronized
     fun acquire(
         context: Context,
@@ -74,6 +88,12 @@ object PersistentVirtualDisplay {
         return created
     }
 
+    /**
+     * Отсоединяет Surface от текущего VirtualDisplay без его освобождения.
+     *
+     * Используется при остановке кодера, чтобы display оставался жив,
+     * но не принимал кадры от освобождённого encoder'а.
+     */
     @Synchronized
     fun detachSurface() {
         try {
@@ -83,6 +103,12 @@ object PersistentVirtualDisplay {
         }
     }
 
+    /**
+     * Полностью освобождает VirtualDisplay и сбрасывает состояние.
+     *
+     * Вызывается при полной остановке сервиса или при невозможности
+     * переиспользовать существующий display.
+     */
     @Synchronized
     fun releaseAll() {
         releaseLocked(clearState = true)

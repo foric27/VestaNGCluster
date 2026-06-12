@@ -29,28 +29,59 @@ private fun MediaFormat.trySetInteger(key: String, value: Int) {
     }
 }
 
+/**
+ * Причина ошибки запуска кодека.
+ *
+ * [CONFIGURE] — ошибка при configure, [START] — ошибка при start.
+ */
 internal enum class VideoEncoderStartupFailureReason {
     CONFIGURE,
     START,
 }
 
+/**
+ * Исключение при запуске кодека.
+ *
+ * @property reason фаза ошибки (configure/start)
+ */
 internal class VideoEncoderStartupException(
     val reason: VideoEncoderStartupFailureReason,
     message: String,
     cause: Throwable,
 ) : RuntimeException(message, cause)
 
+/**
+ * Поддерживаемая пара profile/level кодека.
+ *
+ * @property profile AVC profile кодека
+ * @property level AVC level кодека
+ */
 internal data class CodecProfileLevelSupport(
     val profile: Int,
     val level: Int,
 )
 
+/**
+ * Снимок возможностей аппаратного кодека.
+ *
+ * @property codecName название кодека
+ * @property supportsCbr поддержка CBR-режима
+ * @property supportedProfileLevels список поддерживаемых пар profile/level
+ */
 internal data class EncoderCapabilitySnapshot(
     val codecName: String,
     val supportsCbr: Boolean,
     val supportedProfileLevels: List<CodecProfileLevelSupport>,
 )
 
+/**
+ * Кандидат конфигурации кодека для перебора.
+ *
+ * @property label метка для логирования
+ * @property profile AVC profile или null для fallback
+ * @property level AVC level или null для fallback
+ * @property bitrateMode режим битрейта или null если не поддерживается
+ */
 internal data class CodecConfigCandidate(
     val label: String,
     val profile: Int?,
@@ -58,6 +89,17 @@ internal data class CodecConfigCandidate(
     val bitrateMode: Int?,
 )
 
+/**
+ * Строит упорядоченный список кандидатов конфигурации кодека.
+ *
+ * Порядок: точный profile+level → запрошенный profile с fallback level →
+ * fallback profiles (Baseline) → generic fallback.
+ *
+ * @param capabilities снимок возможностей кодека
+ * @param requestedProfile запрошенный AVC profile
+ * @param requestedLevel запрошенный AVC level
+ * @return упорядоченный список кандидатов для перебора
+ */
 internal fun buildCodecConfigCandidates(
     capabilities: EncoderCapabilitySnapshot,
     requestedProfile: Int,
@@ -118,11 +160,35 @@ internal fun buildCodecConfigCandidates(
 }
 
 /**
- * Координатор видеопайплайна VirtualDisplay -> OpenGL -> MediaCodec -> UDP.
+ * Координатор видеопайплайна VirtualDisplay → OpenGL → MediaCodec → UDP.
  *
- * Класс держит наружный фасад start/stop/relaunch/forceOutputFrame, а детали
+ * Управляет полным жизненным циклом video encoding:
+ * 1. Создание [VirtualDisplay] через [PersistentVirtualDisplay]
+ * 2. Запуск target activity на secondary display через [VideoDisplayLauncher]
+ * 3. SurfaceTexture → [GlFrameComposer] → MediaCodec input surface
+ * 4. MediaCodec H.264 encoding → [VideoCodecOutputProcessor] (Annex B)
+ * 5. UDP отправка через [UdpSender]
+ *
+ * Класс держит наружный фасад [start]/[stop]/[relaunch]/[forceOutputFrame], а детали
  * display-launch, тайминга кадров и обработки выходных буферов делегирует
  * специализированным helper-компонентам в этом же пакете.
+ *
+ * **State machine:**
+ * ```
+ * IDLE → START_REQUESTED → PREPARING → START_COMPLETED → RUNNING → STOPPED → IDLE
+ *                                     ↘ ERROR → IDLE
+ * ```
+ *
+ * **Thread safety:**
+ * - [encoder], [virtualDisplay], [hasPendingSurfaceFrame], [hasRenderedAnyFrame] — `@Volatile`
+ * - [codecHandler] работает в отдельном [HandlerThread] для callback'ов MediaCodec
+ * - [lifecycleState] защищён [lifecycleLock]
+ *
+ * @param context контекст приложения
+ * @param streamConfig конфигурация потока (размер, fps, bitrate, launch component)
+ * @param preferredLaunchComponent компонент для запуска на secondary display
+ * @param udpSender sender для отправки encoded video по UDP
+ * @param restartCallback callback для запроса перезапуска при критических ошибках
  */
 internal class VideoEncoder(
     private val context: Context,
@@ -132,6 +198,9 @@ internal class VideoEncoder(
     private val restartCallback: RestartCallback,
 ) {
 
+    /**
+     * Callback для запроса перезапуска видеопайплайна при критических ошибках.
+     */
     interface RestartCallback {
         fun requestRestart()
     }
@@ -169,6 +238,19 @@ internal class VideoEncoder(
     /**
      * Поднимает codec thread, настраивает MediaCodec и присоединяет к нему
      * persistent VirtualDisplay через GL-компоновщик.
+     *
+     * Порядок инициализации:
+     * 1. HandlerThread с приоритетом [Process.THREAD_PRIORITY_URGENT_DISPLAY]
+     * 2. Создание и конфигурация MediaCodec (H.264 encoder)
+     * 3. Создание VirtualDisplay с SurfaceTexture
+     * 4. Запуск [GlFrameComposer] для копирования кадров
+     * 5. Запуск target activity на secondary display
+     * 6. Старт MediaCodec (async mode с callback на codecHandler)
+     *
+     * При ошибке на любом этапе — [VideoEncoderStartupException] с причиной
+     * [VideoEncoderStartupFailureReason.CONFIGURE] или [VideoEncoderStartupFailureReason.START].
+     *
+     * Thread-safe: проверяет [running] флаг и [lifecycleState] перед запуском.
      */
     fun start() {
         if (running) return
@@ -240,6 +322,14 @@ internal class VideoEncoder(
     /**
      * Останавливает кодек и освобождает связанные поверхности, не уничтожая
      * persistent VirtualDisplay без явной необходимости.
+     *
+     * Порядок остановки (критичен для избежания deadlock):
+     * 1. Снятие listener'ов с SurfaceTexture
+     * 2. Остановка MediaCodec (flush + stop)
+     * 3. Освобождение GL composer
+     * 4. Освобождение Surface/SurfaceTexture
+     * 5. Join codec thread
+     * 6. Сброс флагов [running], [stopping]
      */
     fun stop() {
         transitionLifecycle(VideoCaptureLifecycleEvent.STOP_REQUESTED)
@@ -261,6 +351,12 @@ internal class VideoEncoder(
     /**
      * Повторно активирует целевую activity на текущем display после recovery,
      * если сам VirtualDisplay всё ещё валиден.
+     *
+     * Используется при wake recovery и watchdog restart для восстановления
+     * отображения навигатора/медиа на secondary display без пересоздания
+     * VirtualDisplay.
+     *
+     * @param reason причина relaunch (для логирования)
      */
     fun relaunchTargetActivityIfNeeded(reason: String) {
         val displayId = virtualDisplay?.display?.displayId ?: VdspState.getDisplayId()
@@ -280,6 +376,12 @@ internal class VideoEncoder(
 
     /**
      * Принудительно просит кодек отдать кадр после wake/recovery-сценариев.
+     *
+     * При восстановлении после sleep/wake pipeline может застрять в состоянии
+     * без pending frames. Этот метод форсирует отправку одного кадра через
+     * [scheduleNextFrame] для "пробуждения" кодека.
+     *
+     * @param reason причина force frame (для логирования)
      */
     fun forceOutputFrame(reason: String) {
         runOnCodecThread {
@@ -324,6 +426,15 @@ internal class VideoEncoder(
         }
     }
 
+    /**
+     * Создаёт и конфигурирует MediaCodec H.264 encoder с подбором рабочей конфигурации.
+     *
+     * Пробует кандидатов из [buildCodecConfigCandidates] по порядку и возвращает первый
+     * успешно сконфигурированный encoder с его input surface.
+     *
+     * @return сконфигурированный encoder, input surface и выбранный кандидат
+     * @throws VideoEncoderStartupException если ни один кандидат не подошёл
+     */
     private fun createConfiguredEncoder(): ConfiguredEncoder {
         val capabilities = inspectEncoderCapabilities()
         Timber.tag(TAG).i(
@@ -361,6 +472,15 @@ internal class VideoEncoder(
         )
     }
 
+    /**
+     * Сканирует capability H.264 encoder'а на устройстве.
+     *
+     * Возвращает имя кодека, флаг поддержки CBR и список доступных profile/level.
+     * Используется для выбора оптимальной конфигурации перед созданием encoder'а.
+     *
+     * @return snapshot capability выбранного encoder'а
+     * @throws VideoEncoderStartupException при ошибке чтения capability
+     */
     private fun inspectEncoderCapabilities(): EncoderCapabilitySnapshot {
         val mediaCodec = MediaCodec.createEncoderByType(MIME_AVC)
         try {
@@ -409,6 +529,20 @@ internal class VideoEncoder(
         return "candidate=${candidate.label}, profile=${candidate.profile ?: "default"}, level=${candidate.level ?: "default"}, bitrateMode=${candidate.bitrateMode ?: "default"}, size=${width}x${height}, fps=${streamConfig.fps}, bitrate=${streamConfig.bitrate}"
     }
 
+    /**
+     * Безопасная остановка внутренних ресурсов кодера с опциональным освобождением VirtualDisplay.
+     *
+     * Порядок остановки критичен для избежания deadlock:
+     * 1. Отсоединение/освобождение VirtualDisplay
+     * 2. Остановка MediaCodec
+     * 3. Освобождение GL composer
+     * 4. Завершение codec thread
+     * 5. Освобождение Surface/SurfaceTexture
+     * 6. Освобождение MediaCodec
+     *
+     * @param releasePersistentDisplay если true — полностью освобождает VirtualDisplay,
+     *                                 иначе только отсоединяет Surface
+     */
     private fun safeStopInternal(releasePersistentDisplay: Boolean) {
         if (releasePersistentDisplay) {
             PersistentVirtualDisplay.releaseAll()

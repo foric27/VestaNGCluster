@@ -51,6 +51,17 @@
 
 Выбранный режим хранится в `AppSettings` и преобразуется в runtime-параметры через `StreamConfig`.
 
+## Документация
+
+- [`docs/architecture.md`](docs/architecture.md) — полная архитектурная документация (overview, video pipeline, root network, status sync, recovery, update subsystems)
+- [`docs/api.md`](docs/api.md) — API reference для ключевых компонентов (UdpStreamService, StreamConfig, VideoEncoder, AppUpdateManager, RuntimeConfig и др.)
+- [`docs/release.md`](docs/release.md) — процесс релиза и подписи
+- [`docs/signing.md`](docs/signing.md) — настройка подписи
+- [`CHANGELOG.md`](CHANGELOG.md) — история изменений (Keep a Changelog + SemVer)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила вклада
+- [`SECURITY.md`](SECURITY.md) — политика безопасности
+- 5 [`AGENTS.md`](AGENTS.md) — архитектурные правила для агентов (root, Kotlin runtime, resources, tests, test-client)
+
 ## Архитектура
 
 Ниже приведена актуальная схема фактического runtime-потока по коду.

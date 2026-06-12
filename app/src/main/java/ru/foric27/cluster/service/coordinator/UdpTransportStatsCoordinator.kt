@@ -9,6 +9,13 @@ import timber.log.Timber
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Координатор сбора и логирования UDP-статистики.
+ *
+ * Периодически (каждые ~5 секунд) запрашивает снимки от [UdpSender] и
+ * [UdpStatusSyncCoordinator], считает дельту по кадрам/пакетам/байтам
+ * и логирует Mbps, ошибки и probe-статистику.
+ */
 internal class UdpTransportStatsCoordinator(
     private val context: Context,
     private val tag: String,

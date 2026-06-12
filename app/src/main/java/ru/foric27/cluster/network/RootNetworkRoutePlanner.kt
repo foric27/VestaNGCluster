@@ -1,5 +1,14 @@
 package ru.foric27.cluster.network
 
+/**
+ * Модель пакета policy-route команд.
+ *
+ * @property iface имя сетевого интерфейса
+ * @property cidr локальный CIDR-адрес
+ * @property gatewayIp IP шлюза
+ * @property routingTable номер таблицы маршрутизации
+ * @property commands список shell-команд для применения маршрута
+ */
 internal data class RootNetworkRoutePlan(
     val iface: String,
     val cidr: Ipv4Cidr,

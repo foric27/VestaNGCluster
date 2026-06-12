@@ -44,6 +44,21 @@ internal class UdpPipelineStartCoordinator(
     private val stopEncoderQuietly: () -> Unit,
 ) {
 
+    /**
+     * Запускает готовый video pipeline после успешного UDP probe.
+     *
+     * Проверяет актуальность sender, выбирает режим (video или status-only)
+     * и инициализирует все необходимые компоненты.
+     *
+     * @param cfg конфигурация потока
+     * @param hostValue целевой хост
+     * @param port целевой порт
+     * @param bindIp локальный IP для привязки
+     * @param launchComponent компонент для запуска (Yandex/Navi)
+     * @param restartLog логировать ли как перезапуск
+     * @param localSender готовый UDP sender
+     * @param isVideoModeSelected true для видеорежима, false для бортового компьютера
+     */
     fun startReadyPipeline(
         cfg: StreamConfig,
         hostValue: String,

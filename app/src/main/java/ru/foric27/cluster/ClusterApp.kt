@@ -6,6 +6,12 @@ import android.app.Application
 import android.content.Context
 import timber.log.Timber
 
+/**
+ * Точка входа приложения.
+ *
+ * Инициализирует [RuntimeConfig], ставит на место [AppTimberTree]
+ * и устанавливает глобальный обработчик крашей [ProcessRecoveryManager].
+ */
 class ClusterApp : Application() {
 
     override fun onCreate() {

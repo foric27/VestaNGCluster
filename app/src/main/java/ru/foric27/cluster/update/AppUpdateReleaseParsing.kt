@@ -1,5 +1,10 @@
 package ru.foric27.cluster.update
 
+/**
+ * Парсинг build SHA из имени APK-файла и release notes GitHub.
+ *
+ * Извлекает хеш коммита для rolling-канала обновлений.
+ */
 internal object AppUpdateReleaseParsing {
 
     private val commitLineRegex = Regex("""\*\*Commit:\*\*\s*\[([0-9a-fA-F]{7,40})]""")

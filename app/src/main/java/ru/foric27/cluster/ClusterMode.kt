@@ -1,5 +1,17 @@
 package ru.foric27.cluster
 
+/**
+ * Режим работы кластера.
+ *
+ * Определяет тип контента (навигация / медиа / abs) и визуальный стиль
+ * цифровой комбинации приборов (CLASSIC / ADVANCED / MODERN / SPORT).
+ * Преобразуется в настройки стрима и значение [android.provider.Settings.System].
+ *
+ * @property prefValue строковый ключ для SharedPreferences ("nav", "med", "abs")
+ * @property settingValue числовое значение Settings.System для выбора стиля
+ * @property streamModeValue тип стрима ("nav", "med", "abs")
+ * @property labelResId строковый ресурс для отображения в UI
+ */
 internal enum class ClusterMode(
     val prefValue: String,
     val settingValue: Int,

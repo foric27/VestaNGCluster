@@ -10,6 +10,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Контроллер backoff-перезапусков сервиса.
+ *
+ * Управляет экспоненциальным backoff при повторных попытках запуска,
+ * дедуплицирует запросы на перезапуск и планирует их через [CoroutineScope].
+ */
 internal class UdpServiceRestartController(
     private val scope: CoroutineScope,
     private val tag: String,
@@ -25,16 +31,37 @@ internal class UdpServiceRestartController(
     @Volatile private var lastCodecErrorRestartMs = 0L
     @Volatile private var pendingRestartReason: String? = null
 
+    /**
+     * Сбрасывает backoff до начального значения.
+     *
+     * Вызывается при успешном запуске стрима.
+     */
     fun resetBackoff() {
         restartBackoffMs = RuntimeConfig.Service.RESTART_BACKOFF_START_MS
     }
 
+    /**
+     * Устанавливает текущее значение backoff вручную.
+     *
+     * @param value новое значение backoff в миллисекундах
+     */
     fun setBackoff(value: Long) {
         restartBackoffMs = value
     }
 
+    /**
+     * Возвращает текущее значение backoff.
+     *
+     * @return текущий backoff в миллисекундах
+     */
     fun currentBackoffMs(): Long = restartBackoffMs
 
+    /**
+     * Увеличивает backoff вдвое с учётом минимального порога и максимума.
+     *
+     * @param minBackoffMs минимально допустимое значение backoff
+     * @return новое значение backoff в миллисекундах
+     */
     fun increaseBackoff(minBackoffMs: Long = 0L): Long {
         restartBackoffMs = maxOf(
             minBackoffMs,
@@ -43,11 +70,26 @@ internal class UdpServiceRestartController(
         return restartBackoffMs
     }
 
+    /**
+     * Гарантирует, что backoff не меньше указанного минимума.
+     *
+     * @param minBackoffMs минимальное значение backoff
+     * @return актуальное значение backoff в миллисекундах
+     */
     fun ensureMinBackoff(minBackoffMs: Long): Long {
         restartBackoffMs = maxOf(minBackoffMs, restartBackoffMs)
         return restartBackoffMs
     }
 
+    /**
+     * Планирует отложенный перезапуск сервиса с учётом debounce.
+     *
+     * Для ошибок кодека (["udp_error"]) используется отдельный debounce.
+     * Остальные причины дедуплицируются через общий интервал.
+     *
+     * @param reason причина перезапуска (например, "udp_error", "net_wait")
+     * @param cause исключение, вызвавшее перезапуск, или null
+     */
     fun schedule(reason: String, cause: Throwable?) {
         val now = SystemClock.elapsedRealtime()
         if (reason == "udp_error") {
@@ -77,6 +119,9 @@ internal class UdpServiceRestartController(
         }
     }
 
+    /**
+     * Отменяет запланированный перезапуск и сбрасывает флаги.
+     */
     fun cancel() {
         restartScheduled.set(false)
         pendingRestartReason = null
@@ -84,6 +129,18 @@ internal class UdpServiceRestartController(
         restartJob = null
     }
 
+    /**
+     * Подготавливает и запускает немедленное восстановление с заданным минимальным backoff.
+     *
+     * Логирует снимок состояния, уведомляет пользователя и планирует перезапуск.
+     *
+     * @param reason причина восстановления
+     * @param minBackoffMs минимальный backoff перед перезапуском
+     * @param logPipelineSnapshot callback для логирования снимка состояния
+     * @param userMessage сообщение для пользователя
+     * @param notifyUser callback для публикации уведомления пользователю
+     * @param beforeSchedule callback, выполняемый перед планированием перезапуска
+     */
     fun prepareImmediateRecovery(
         reason: String,
         minBackoffMs: Long,

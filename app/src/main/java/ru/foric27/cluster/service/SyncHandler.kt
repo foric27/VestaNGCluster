@@ -23,6 +23,9 @@ import kotlin.math.abs
  *
  * Пакет всегда содержит `vid`, а `time` и `lang` отправляются периодически
  * или при явном изменении соответствующего состояния.
+ *
+ * @param context контекст приложения
+ * @param keySyncInterval интервал периодической синхронизации ключевых полей
  */
 internal class SyncHandler(
     private val context: Context,
@@ -33,6 +36,14 @@ internal class SyncHandler(
     @Volatile private var timeChanged: Boolean = false
     @Volatile private var langChanged: Boolean = false
 
+    /**
+     * Представление времени для синхронизации в формате кластера.
+     *
+     * Формат: HHMMSS+HHMM (UTC time + timezone offset).
+     *
+     * @param utcInst момент времени в UTC
+     * @param zone часовой пояс устройства
+     */
     class SyncTime(
         private val utcInst: Instant,
         private val zone: TimeZone,
@@ -67,14 +78,32 @@ internal class SyncHandler(
         }
     }
 
+    /**
+     * Помечает, что время или часовой пояс изменились.
+     *
+     * Следующий вызов [sync] включит `time` в пакет.
+     */
     fun setTimeChanged() {
         timeChanged = true
     }
 
+    /**
+     * Помечает, что язык системы изменился.
+     *
+     * Следующий вызов [sync] включит `lang` в пакет.
+     */
     fun setLangChanged() {
         langChanged = true
     }
 
+    /**
+     * Формирует JSON-пакет синхронизации.
+     *
+     * Всегда включает `vid`. `time` и `lang` добавляются периодически
+     * или при флаге изменения.
+     *
+     * @return JSON-строка с данными синхронизации
+     */
     fun sync(): String {
         val data = SyncData()
         data.streamMode = readStreamModeSafely()
@@ -139,6 +168,9 @@ internal class SyncHandler(
         }
     }
 
+    /**
+     * Исключение при получении неизвестного значения режима видеопотока.
+     */
     class StreamModeException : Exception("Неизвестное значение режима видеопотока")
 
     companion object {

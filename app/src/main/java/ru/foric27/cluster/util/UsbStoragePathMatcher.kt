@@ -2,6 +2,12 @@ package ru.foric27.cluster.util
 
 import java.util.Locale
 
+/**
+ * Определение USB-накопителей по пути.
+ *
+ * Пути вида `/storage/<id>` без `emulated`, `self`, `enc_emulated`
+ * считаются USB-хранилищем.
+ */
 internal object UsbStoragePathMatcher {
 
     fun isUsbStoragePath(path: String): Boolean {

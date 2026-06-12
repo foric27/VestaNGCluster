@@ -7,6 +7,12 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 
+/**
+ * Управление battery optimization.
+ *
+ * Проверяет и запрашивает игнорирование оптимизации батареи
+ * для бесперебойной фоновой работы сервиса.
+ */
 object BatteryOptimizationManager {
 
     fun isIgnoringOptimizations(context: Context): Boolean {
