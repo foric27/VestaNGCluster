@@ -119,10 +119,6 @@ android {
     lint {
         disable += listOf("ProtectedPermissions")
     }
-
-    testOptions {
-        unitTests.isReturnDefaultValues = true
-    }
 }
 
 dependencies {
