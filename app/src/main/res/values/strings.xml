@@ -76,6 +76,7 @@
     <string name="sha256_verified">SHA-256 подтверждён</string>
     <string name="sha256_mismatch">SHA-256 не совпадает</string>
     <string name="app_update_cached_update_invalid">Удаляю повреждённое кэшированное обновление.</string>
+    <string name="app_update_stable_not_available">Стабильные релизы пока не опубликованы.</string>
     <string name="udp_stats_baseline_reset">Сбрасываю базовую линию UDP-статистики после перезапуска пайплайна или синхронизации статуса.</string>
     <string name="app_version_fmt">Версия: %1$s</string>
     <string name="developer_telegram">Telegram разработчика: @foric27</string>

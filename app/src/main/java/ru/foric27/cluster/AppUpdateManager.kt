@@ -33,20 +33,6 @@ internal object AppUpdateManager {
         okhttp3.OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
             .readTimeout(READ_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
-            .certificatePinner(
-                okhttp3.CertificatePinner.Builder()
-                    .add(
-                        "api.github.com",
-                        "sha256/ROTc6kS4fVOYzFxBkH7I7a16m7k9N2XJ+0QF7T3s9R0=",
-                        "sha256/j2Q8L0YF7T3s9R0ROTc6kS4fVOYzFxBkH7I7a16m7k9N=",
-                    )
-                    .add(
-                        "github.com",
-                        "sha256/ROTc6kS4fVOYzFxBkH7I7a16m7k9N2XJ+0QF7T3s9R0=",
-                        "sha256/j2Q8L0YF7T3s9R0ROTc6kS4fVOYzFxBkH7I7a16m7k9N=",
-                    )
-                    .build()
-            )
             .build()
     }
 
@@ -120,6 +106,13 @@ internal object AppUpdateManager {
             Timber.tag(TAG).w(t, "Не удалось проверить GitHub release")
             consecutiveErrors++
             return QueryResult.Error(errorMessage(context, t))
+        }
+
+        if (release == null) {
+            consecutiveErrors = 0
+            return QueryResult.UpToDate(
+                context.getString(R.string.app_update_stable_not_available),
+            )
         }
 
         consecutiveErrors = 0
@@ -262,12 +255,22 @@ internal object AppUpdateManager {
         }
     }
 
-    private fun fetchRemoteRelease(context: Context, channel: AppSettings.UpdateChannel): RemoteRelease {
+    private fun fetchRemoteRelease(context: Context, channel: AppSettings.UpdateChannel): RemoteRelease? {
         val releaseUrl = when (channel) {
             AppSettings.UpdateChannel.ROLLING -> "$API_BASE_URL/tags/$ROLLING_TAG"
             AppSettings.UpdateChannel.STABLE -> "$API_BASE_URL/latest"
         }
-        val payload = readTextFromUrl(context, releaseUrl)
+        val payload = try {
+            readTextFromUrl(context, releaseUrl)
+        } catch (t: IllegalStateException) {
+            if (channel == AppSettings.UpdateChannel.STABLE &&
+                t.message.orEmpty().contains("404")
+            ) {
+                Timber.tag(TAG).d("STABLE канал: нет стабильных релизов (404)")
+                return null
+            }
+            throw t
+        }
         val root = JSONObject(payload)
         val body = root.optString("body")
         val versionMetadata = VERSION_LINE_REGEX.find(body)

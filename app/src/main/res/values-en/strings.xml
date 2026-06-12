@@ -76,6 +76,7 @@
     <string name="sha256_verified">SHA-256 verified</string>
     <string name="sha256_mismatch">SHA-256 mismatch</string>
     <string name="app_update_cached_update_invalid">Removing corrupted cached update.</string>
+    <string name="app_update_stable_not_available">Stable releases are not yet published.</string>
     <string name="udp_stats_baseline_reset">Resetting the UDP stats baseline after a pipeline or status sync restart.</string>
     <string name="app_version_fmt">Version: %1$s</string>
     <string name="developer_telegram">Developer Telegram: @foric27</string>

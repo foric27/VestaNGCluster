@@ -379,7 +379,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             is AppUpdateManager.QueryResult.Error -> {
-                if (silent) return
+                if (silent) {
+                    Timber.tag(TAG).w("Фоновая проверка обновлений: %s", result.message)
+                    return
+                }
                 pendingRemoteUpdate = null
                 pendingDownloadedUpdate = null
                 renderAppUpdateError(result.message)
