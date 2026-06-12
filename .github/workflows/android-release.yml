@@ -44,10 +44,10 @@ jobs:
       - name: Extract version info
         id: version
         run: |
-          VERSION_NAME=$(sed -n "s/.*versionName *= *['\"]\\([^'\"]*\\)['\"].*/\\1/p" app/build.gradle)
-          VERSION_CODE=$(sed -n "s/.*versionCode *= *\\([0-9]*\\).*/\\1/p" app/build.gradle)
+          VERSION_NAME=$(sed -n "s/.*versionName *= *['\"]\\([^'\"]*\\)['\"].*/\\1/p" app/build.gradle.kts)
+          VERSION_CODE=$(sed -n "s/.*versionCode *= *\\([0-9]*\\).*/\\1/p" app/build.gradle.kts)
           if [ -z "${VERSION_NAME}" ] || [ -z "${VERSION_CODE}" ]; then
-            echo "ERROR: Failed to extract version info from app/build.gradle"
+            echo "ERROR: Failed to extract version info from app/build.gradle.kts"
             exit 1
           fi
           echo "VERSION_NAME=${VERSION_NAME}" >> "${GITHUB_ENV}"
