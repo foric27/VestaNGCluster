@@ -3,6 +3,7 @@ package ru.foric27.cluster.update
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import timber.log.Timber
 
 /**
@@ -39,6 +40,21 @@ class AppUpdateInstallReceiver : BroadcastReceiver() {
             }
             android.content.pm.PackageInstaller.STATUS_FAILURE_STORAGE -> {
                 Timber.tag(TAG).w("Недостаточно места для установки: $packageName")
+            }
+            android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                }
+                if (confirmIntent != null) {
+                    confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(confirmIntent)
+                    Timber.tag(TAG).i("Запрошен пользовательский confirm при установке APK")
+                } else {
+                    Timber.tag(TAG).w("STATUS_PENDING_USER_ACTION без confirmation intent")
+                }
             }
             else -> {
                 val message = intent.getStringExtra("android.content.pm.extra.STATUS_MESSAGE")

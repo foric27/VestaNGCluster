@@ -25,7 +25,7 @@ internal object AppUpdateVersionPolicy {
         val normalizedCurrentSha = normalizeBuildSha(currentBuildSha)
         return when {
             normalizedCandidateSha == null -> false
-            normalizedCurrentSha == null -> true
+            normalizedCurrentSha == null -> false
             normalizedCandidateSha != normalizedCurrentSha -> true
             else -> false
         }

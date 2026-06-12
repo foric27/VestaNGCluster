@@ -56,8 +56,8 @@ class AppUpdateVersionPolicyTest {
     }
 
     @Test
-    fun `rolling update is newer when current sha is unknown`() {
-        assertTrue(
+    fun `rolling update is not newer when current sha is unknown`() {
+        assertFalse(
             AppUpdateVersionPolicy.isUpdateNewer(
                 channel = AppSettings.UpdateChannel.ROLLING,
                 candidateVersionCode = 3,

@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
     private var vdspReceiverRegistered = false
     private var versionTapCount = 0
     private var lastVersionTapAt = 0L
+    private var lastModeChangeAt = 0L
     private var backgroundLaunchHandled = false
     private var updateBusy = false
     private var pendingRemoteUpdate: AppUpdateManager.RemoteRelease? = null
@@ -204,6 +205,9 @@ class MainActivity : ComponentActivity() {
      * @param mode целевой режим (NAV, MED, ABS)
      */
     private fun onModeSelected(mode: UiStreamMode) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastModeChangeAt < 500) return
+        lastModeChangeAt = now
         val currentMode = AppSettings.getSelectedMode(this)
         if (currentMode == mode) {
             refreshScreenState(refreshFtp = false)
@@ -661,7 +665,7 @@ private fun ModeSelector(selected: UiStreamMode, onSelect: (UiStreamMode) -> Uni
                         .clickable { onSelect(mode) }
                         .padding(vertical = 4.dp),
                 ) {
-                    RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
+                    RadioButton(selected = selected == mode, onClick = null)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = when (mode) {
