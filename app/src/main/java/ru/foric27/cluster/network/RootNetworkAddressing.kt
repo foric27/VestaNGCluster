@@ -1,3 +1,5 @@
+package ru.foric27.cluster.network
+
 /**
  * Утилиты для работы с IPv4-адресацией и CIDR.
  *
