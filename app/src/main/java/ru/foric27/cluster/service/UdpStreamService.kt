@@ -59,8 +59,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
     @Volatile private var sender: UdpSender? = null
     private var displayStateReceiver: BroadcastReceiver? = null
     private var displayStateReceiverRegistered = false
-    private var usbMediaReceiver: BroadcastReceiver? = null
-    private var usbMediaReceiverRegistered = false
     @Volatile private var activeRootIface: String? = null
     private var streamWakeLock: PowerManager.WakeLock? = null
 
@@ -125,7 +123,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         recoveryScheduler.cancel()
         wakeRecoveryController.register()
         registerDisplayStateReceiver()
-        registerUsbMediaReceiver()
         initOomProtection()
         scheduleHeartbeat()
         scheduleWakeLockReacquire()
@@ -209,7 +206,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         }
         wakeRecoveryController.unregister()
         unregisterDisplayStateReceiver()
-        unregisterUsbMediaReceiver()
         mainHandler.removeCallbacksAndMessages(null)
         stopInternalFull()
         networkRootShell.close()
@@ -492,70 +488,6 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
         unregisterReceiverBestEffort(displayStateReceiver, "cluster display state")
         displayStateReceiver = null
         displayStateReceiverRegistered = false
-    }
-
-    private fun registerUsbMediaReceiver() {
-        registerManagedReceiver(
-            isRegistered = { usbMediaReceiverRegistered },
-            setReceiver = { usbMediaReceiver = it },
-            setRegistered = { usbMediaReceiverRegistered = it },
-            createReceiver = {
-                object : BroadcastReceiver() {
-                    override fun onReceive(context: Context, intent: Intent) {
-                        val action = intent.action.orEmpty()
-                        val path = intent.data?.path.orEmpty()
-                        when (action) {
-                            Intent.ACTION_MEDIA_MOUNTED -> {
-                                if (!UsbStoragePathMatcher.isUsbStoragePath(path)) {
-                                    Timber.tag(TAG).i("Пропускаю runtime mount не-USB носителя: $path")
-                                    return
-                                }
-                                startDetachedWorker("UsbMountedRefresh") {
-                                    updateCoordinator.refreshUsbUpdateServer()
-                                    Timber.tag(TAG).i("USB вставлен во время работы приложения: $path, FTP обновлён")
-                                }
-                            }
-
-                            Intent.ACTION_MEDIA_REMOVED,
-                            Intent.ACTION_MEDIA_UNMOUNTED,
-                            Intent.ACTION_MEDIA_EJECT -> {
-                                if (path.isNotBlank() && !UsbStoragePathMatcher.isUsbStoragePath(path)) {
-                                    Timber.tag(TAG).i("Пропускаю runtime remove не-USB носителя: $path")
-                                    return
-                                }
-                                startDetachedWorker("UsbRemovedRefresh") {
-                                    updateCoordinator.refreshAfterUsbRemoved()
-                                    Timber.tag(TAG).i("USB извлечён во время работы приложения: $path, FTP обновлён")
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            register = { receiver ->
-                val filter = IntentFilter().apply {
-                    addAction(Intent.ACTION_MEDIA_MOUNTED)
-                    addAction(Intent.ACTION_MEDIA_UNMOUNTED)
-                    addAction(Intent.ACTION_MEDIA_REMOVED)
-                    addAction(Intent.ACTION_MEDIA_EJECT)
-                    addDataScheme("file")
-                }
-                if (Build.VERSION.SDK_INT >= 33) {
-                    registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-                } else {
-                    @Suppress("DEPRECATION")
-                    registerReceiver(receiver, filter)
-                }
-            },
-            failureMessage = "Не удалось зарегистрировать USB media receiver",
-        )
-    }
-
-    private fun unregisterUsbMediaReceiver() {
-        if (!usbMediaReceiverRegistered) return
-        unregisterReceiverBestEffort(usbMediaReceiver, "usb media")
-        usbMediaReceiver = null
-        usbMediaReceiverRegistered = false
     }
 
     private fun attemptRestart(reason: String?) {
@@ -1002,6 +934,14 @@ class UdpStreamService : Service(), VideoEncoder.RestartCallback {
 
     private fun handleRestartPipelineAction(cfg: StreamConfig): Int {
         synchronized(serviceLock) {
+            val currentComponent = lastCfg?.launchComponent
+            val newComponent = cfg.launchComponent
+            if (currentComponent == newComponent && lastCfg != null) {
+                Timber.tag(TAG).i("Pipeline-restart пропущен: режим не изменился (component=$currentComponent)")
+                return START_STICKY
+            }
+            restartController.cancel()
+            restartInProgress = true
             val bindIp = lastBindIp
             val host = targetHost ?: cfg.ip
             val port = targetPort.takeIf { it in 1..65535 } ?: cfg.port
