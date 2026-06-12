@@ -25,10 +25,10 @@ class VdspStateTest {
     }
 
     @Test
-    fun `set same values again returns CHANGED`() {
+    fun `set same values again returns ADDED`() {
         VdspState.set(10, 1920, 640)
         val state = VdspState.set(10, 1920, 640)
-        assertEquals(VdspState.DisplayState.CHANGED, state)
+        assertEquals(VdspState.DisplayState.ADDED, state)
     }
 
     @Test

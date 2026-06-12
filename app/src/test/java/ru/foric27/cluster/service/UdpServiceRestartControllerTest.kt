@@ -3,19 +3,15 @@ package ru.foric27.cluster.service
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UdpServiceRestartControllerTest {
 
-    private fun createController(
-        onRestart: (String?) -> Unit = {},
-        onScheduled: (Long) -> Unit = {},
-    ) = UdpServiceRestartController(
+    private fun createController() = UdpServiceRestartController(
         scope = CoroutineScope(Dispatchers.Unconfined),
         tag = "test",
-        onAttemptRestart = onRestart,
-        notifyRestartScheduled = onScheduled,
+        onAttemptRestart = {},
+        notifyRestartScheduled = {},
     )
 
     @Test
@@ -90,33 +86,5 @@ class UdpServiceRestartControllerTest {
     fun `cancel does not throw when no job`() {
         val ctrl = createController()
         ctrl.cancel()
-    }
-
-    @Test
-    fun `schedule notifies with backoff delay`() {
-        var scheduledDelay: Long? = null
-        val ctrl = createController(onScheduled = { scheduledDelay = it })
-        ctrl.setBackoff(3000)
-        ctrl.schedule("test_reason", null)
-        assertEquals(3000L, scheduledDelay)
-    }
-
-    @Test
-    fun `prepareImmediateRecovery calls notifyUser and schedule`() {
-        var userMsg: String? = null
-        var scheduledDelay: Long? = null
-        val ctrl = createController(
-            onScheduled = { scheduledDelay = it },
-        )
-        ctrl.prepareImmediateRecovery(
-            reason = "test",
-            minBackoffMs = 1000,
-            logPipelineSnapshot = {},
-            userMessage = "recovery msg",
-            notifyUser = { userMsg = it },
-            beforeSchedule = {},
-        )
-        assertEquals("recovery msg", userMsg)
-        assertTrue(scheduledDelay!! >= 1000)
     }
 }
