@@ -76,7 +76,7 @@ object RuntimeConfig {
         const val VIDEO_IFRAME_INTERVAL_SEC = "video_iframe_interval_sec"
         const val VIDEO_ENCODER_PROFILE = "video_encoder_profile"
         const val VIDEO_ENCODER_LEVEL = "video_encoder_level"
-        const val VIDEO_BLACK_BOTTOM_PX = "video_black_bottom_px"
+        const val VIDEO_BOTTOM_CROP_PX = "video_bottom_crop_px"
 
         const val NETWORK_TARGET_IP = "network_target_ip"
         const val NETWORK_VIDEO_PORT = "network_video_port"
@@ -280,7 +280,7 @@ object RuntimeConfig {
         val IFRAME_INTERVAL_SEC: Int get() = int(Keys.VIDEO_IFRAME_INTERVAL_SEC, ProductConfig.Video.IFRAME_INTERVAL_SEC)
         val ENCODER_PROFILE: Int get() = int(Keys.VIDEO_ENCODER_PROFILE, ProductConfig.Video.ENCODER_PROFILE)
         val ENCODER_LEVEL: Int get() = int(Keys.VIDEO_ENCODER_LEVEL, ProductConfig.Video.ENCODER_LEVEL)
-        val BLACK_BOTTOM_PX: Int get() = int(Keys.VIDEO_BLACK_BOTTOM_PX, ProductConfig.Video.BLACK_BOTTOM_PX)
+        val BOTTOM_CROP_PX: Int get() = int(Keys.VIDEO_BOTTOM_CROP_PX, ProductConfig.Video.BOTTOM_CROP_PX)
     }
 
     object Network {

@@ -52,3 +52,9 @@ val OemClusterSeekbarBg = Color(0xFF333333)
 
 /** Цвет заглушки обложки на кластерном дисплее. */
 val OemClusterPlaceholder = Color(0xFF1e1d1d)
+
+/** Фон навигации на кластерном дисплее (OEM darkBlue). */
+val OemClusterNavBg = Color(0xFF2B2B77)
+
+/** Текст на кластерном дисплее (OEM white). */
+val OemClusterText = Color(0xFFFFFFFF)

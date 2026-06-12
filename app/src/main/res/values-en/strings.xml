@@ -193,7 +193,7 @@
     <string name="runtime_field_video_default_dpi">DPI density</string>
     <string name="runtime_field_video_bitrate">Bitrate</string>
     <string name="runtime_field_video_iframe_interval_sec">I-frame interval, sec</string>
-    <string name="runtime_field_video_black_bottom_px">Black mask bottom, px</string>
+    <string name="runtime_field_video_bottom_crop_px">Bottom crop, px</string>
     <string name="runtime_field_network_target_ip">Target IP</string>
     <string name="runtime_field_network_video_port">Video UDP port</string>
     <string name="runtime_field_network_status_port">Status UDP port</string>

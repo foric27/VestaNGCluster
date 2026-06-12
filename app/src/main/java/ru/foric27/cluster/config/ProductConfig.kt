@@ -35,8 +35,8 @@ object ProductConfig {
         /** Правая граница `unobscured / visibleArea` в пикселях. */
         const val RIGHT: Int = 1208
 
-        /** Нижняя граница `unobscured / visibleArea` в пикселях. Оставляет нижнюю зарезервированную полосу прозрачной. */
-        const val BOTTOM: Int = 524
+        /** Нижняя граница `unobscured / visibleArea` в пикселях. Контент заполняет весь дисплей. */
+        const val BOTTOM: Int = 640
 
         /** Короткая строка для логов и диагностики. */
         val SHORT: String = "Rect($LEFT, $TOP, $RIGHT, $BOTTOM)"
@@ -73,8 +73,8 @@ object ProductConfig {
         /** Уровень H.264: AVCLevel3=0x200, AVCLevel31=0x400, AVCLevel32=0x800, AVCLevel4=0x1000. */
         const val ENCODER_LEVEL: Int = android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel3
 
-        /** Высота прозрачной маски снизу кадра в пикселях (= Video.HEIGHT - VisibleArea.BOTTOM). */
-        const val BLACK_BOTTOM_PX: Int = 116
+        /** Высота обрезки снизу кадра в пикселях (= Video.HEIGHT - VisibleArea.BOTTOM). 0 = контент на весь дисплей. */
+        const val BOTTOM_CROP_PX: Int = 0
     }
 
     object Network {

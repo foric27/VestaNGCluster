@@ -193,7 +193,7 @@
     <string name="runtime_field_video_default_dpi">Плотность DPI</string>
     <string name="runtime_field_video_bitrate">Битрейт</string>
     <string name="runtime_field_video_iframe_interval_sec">Интервал I-кадров, сек</string>
-    <string name="runtime_field_video_black_bottom_px">Чёрная маска снизу, px</string>
+    <string name="runtime_field_video_bottom_crop_px">Обрезка снизу, px</string>
     <string name="runtime_field_network_target_ip">Целевой IP</string>
     <string name="runtime_field_network_video_port">Видео UDP-порт</string>
     <string name="runtime_field_network_status_port">UDP-порт статуса</string>

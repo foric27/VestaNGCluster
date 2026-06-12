@@ -1,5 +1,6 @@
 package ru.foric27.cluster.ui
 import ru.foric27.cluster.R
+import ru.foric27.cluster.config.*
 import ru.foric27.cluster.util.*
 
 import android.app.Activity
@@ -55,7 +56,7 @@ class ClusterLaunchProxyActivity : Activity() {
                 null
             }
             startActivity(targetIntent, options)
-            Timber.tag(TAG).i("Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, blackBottomMask=encoder, display=$displayId, own=$isOwnComponent",
+            Timber.tag(TAG).i("Proxy: cluster-activity запущена, visibleArea=${YandexLaunchTarget.CLUSTER_VISIBLE_AREA_SHORT}, bottomCropPx=${RuntimeConfig.Video.BOTTOM_CROP_PX}, display=$displayId, own=$isOwnComponent",
             )
         } catch (e: ActivityNotFoundException) {
             val msg = getString(R.string.msg_target_app_not_found_fmt, targetComponent)

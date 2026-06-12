@@ -17,8 +17,8 @@ import java.nio.FloatBuffer
  * Инициализирует EGL-контекст с recordable-флагом, создаёт external OES-текстуру
  * и выполняет отрисовку полноэкранного прямоугольника через vertex/fragment shader.
  *
- * Поддерживает маскирование нижней полосы [RuntimeConfig.Video.BLACK_BOTTOM_PX]
- * через GL_SCISSOR_TEST.
+ * Поддерживает обрезку нижней части кадра [RuntimeConfig.Video.BOTTOM_CROP_PX]
+ * через GL_SCISSOR_TEST (при значении > 0).
  */
 internal class GlFrameComposer(
     outputSurface: Surface,
@@ -142,15 +142,14 @@ internal class GlFrameComposer(
 
         GLES20.glViewport(0, 0, width, height)
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
-        GLES20.glClearColor(0f, 0f, 0f, 0f)
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        // Маска нижней полосы: не рисуем туда контент VirtualDisplay,
-        // оставляя прозрачный clear-color для пустой нижней зоны.
-        val blackBottomPx = RuntimeConfig.Video.BLACK_BOTTOM_PX
-        if (blackBottomPx in 1 until height) {
+        // Обрезка нижней части: не рисуем контент в zone crop (при BOTTOM_CROP_PX > 0).
+        val bottomCropPx = RuntimeConfig.Video.BOTTOM_CROP_PX
+        if (bottomCropPx in 1 until height) {
             GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
-            GLES20.glScissor(0, blackBottomPx, width, height - blackBottomPx)
+            GLES20.glScissor(0, bottomCropPx, width, height - bottomCropPx)
         }
 
         GLES20.glUseProgram(program)
@@ -168,7 +167,7 @@ internal class GlFrameComposer(
         GLES20.glDisableVertexAttribArray(positionLoc)
         GLES20.glDisableVertexAttribArray(texCoordLoc)
 
-        if (blackBottomPx in 1 until height) {
+        if (bottomCropPx in 1 until height) {
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
         }
 
