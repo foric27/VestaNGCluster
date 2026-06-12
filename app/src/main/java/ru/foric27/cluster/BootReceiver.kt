@@ -1,4 +1,7 @@
 package ru.foric27.cluster
+import ru.foric27.cluster.config.*
+import ru.foric27.cluster.service.*
+import ru.foric27.cluster.util.*
 
 import android.app.AlarmManager
 import android.app.PendingIntent

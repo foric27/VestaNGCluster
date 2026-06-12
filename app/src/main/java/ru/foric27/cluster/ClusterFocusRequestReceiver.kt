@@ -1,4 +1,7 @@
 package ru.foric27.cluster
+import ru.foric27.cluster.config.*
+import ru.foric27.cluster.service.*
+import ru.foric27.cluster.ui.*
 
 import android.content.BroadcastReceiver
 import android.content.Context

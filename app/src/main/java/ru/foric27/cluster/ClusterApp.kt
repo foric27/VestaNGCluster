@@ -1,4 +1,6 @@
 package ru.foric27.cluster
+import ru.foric27.cluster.config.*
+import ru.foric27.cluster.util.*
 
 import android.app.Application
 import android.content.Context

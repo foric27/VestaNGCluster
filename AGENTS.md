@@ -35,12 +35,20 @@
 
 ## Краткая карта проекта
 
-- `app/` — Android-приложение (single-module, Kotlin + XML/ViewBinding, без Compose).
-- `app/src/main/java/ru/foric27/cluster/` — основная runtime-логика приложения.
-- `app/src/main/res/` — XML layout/resources и локализация `ru` + `values-en`.
-- `app/src/test/java/ru/foric27/cluster/` — JVM unit tests.
+- `app/` — Android-приложение (single-module, Kotlin + Compose).
+- `app/src/main/java/ru/foric27/cluster/` — bootstrap: `ClusterApp`, `ClusterMode`, receivers.
+- `app/src/main/java/ru/foric27/cluster/service/` — `UdpStreamService`, координаторы, контроллеры.
+- `app/src/main/java/ru/foric27/cluster/video/` — video pipeline: `VideoEncoder`, `GlFrameComposer`.
+- `app/src/main/java/ru/foric27/cluster/network/` — root networking: `RootNetUtil`, `NetworkRootShell`.
+- `app/src/main/java/ru/foric27/cluster/config/` — `ProductConfig`, `RuntimeConfig`, `AppSettings`.
+- `app/src/main/java/ru/foric27/cluster/update/` — OTA/FTP + app self-update.
+- `app/src/main/java/ru/foric27/cluster/ui/` — Activities (Compose), `YandexLaunchTarget`.
+- `app/src/main/java/ru/foric27/cluster/util/` — утилиты: логирование, `VdspState`, `Sha256Util`.
+- `app/src/main/res/` — XML resources и локализация `ru` + `values-en`.
+- `app/src/test/java/ru/foric27/cluster/` — JVM unit tests (зеркальная структура).
 - `test-client/` — Python-утилиты для UDP-диагностики.
 - `oem/` — read-only OEM reference material; использовать для сравнения, не редактировать.
+- Build: Kotlin DSL (`build.gradle.kts`, `settings.gradle.kts`).
 
 ## Ключевые домены
 
@@ -53,7 +61,7 @@
 ## Локальные AGENTS
 
 - `app/src/main/java/ru/foric27/cluster/AGENTS.md` — архитектура Kotlin/runtime.
-- `app/src/main/res/AGENTS.md` — layouts/resources/localization.
+- `app/src/main/res/AGENTS.md` — resources/localization.
 - `app/src/test/java/ru/foric27/cluster/AGENTS.md` — unit tests.
 - `test-client/AGENTS.md` — Python UDP tools.
 

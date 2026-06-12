@@ -4,17 +4,16 @@
 
 Только JVM unit tests. Здесь нет instrumentation/UI tests.
 
-## Где искать
+## Структура
 
-- Network/root: `RootNetUtilTest.kt`, `RootNetworkAddressingTest.kt`, `NetworkInterfaceSelectorTest.kt`
-- Launch/display: `VideoDisplayLauncherTest.kt`, `YandexLaunchTargetTest.kt`
-- Config/sync: `RuntimeConfigTest.kt`, `SyncHandlerTest.kt`, `SyncHandlerPayloadPolicyTest.kt`
-- Video helpers: `VideoCodecOutputProcessorTest.kt`, `VideoFrameTimingControllerTest.kt`, `H264AnnexBUtilTest.kt`
-- Video encoder: `VideoEncoderTest.kt`
-- OTA: `UpdateFileLocatorTest.kt`, `Sha256VerifierTest.kt`
-- App update: `AppUpdateManagerTest.kt`, `AppUpdateReleaseParsingTest.kt`, `AppUpdateVersionPolicyTest.kt`
-- Virtual display: `PersistentVirtualDisplayTest.kt`
-- App update: при добавлении тестов держать их pure-JVM и изолировать от реального GitHub/PackageInstaller.
+Тесты зеркально отражают пакеты main source:
+- `network/` — `RootNetUtilTest`, `RootNetworkAddressingTest`, `NetworkInterfaceSelectorTest`, `NetworkRootShellTest`, `RoutePreparationResultTest`
+- `video/` — `VideoEncoderTest`, `VideoDisplayLauncherTest`, `VideoCodecOutputProcessorTest`, `VideoFrameTimingControllerTest`, `H264AnnexBUtilTest`, `PersistentVirtualDisplayTest`, `VideoCaptureLifecycleStateMachineTest`
+- `config/` — `RuntimeConfigTest`, `AppSettingsUiStreamModeTest`, `AppSettingsUpdateChannelTest`
+- `service/` — `SyncHandlerTest`, `SyncHandlerPayloadPolicyTest`, `UdpPipelineStartCoordinatorTest`, `UdpStartupFlowCoordinatorTest`
+- `update/` — `AppUpdateManagerTest`, `AppUpdateReleaseParsingTest`, `AppUpdateVersionPolicyTest`, `EmbeddedFtpServerFactoryTest`, `Sha256VerifierTest`, `UpdateFileLocatorTest`
+- `ui/` — `YandexLaunchTargetTest`
+- `util/` — `AppWarningCenterTest`, `ClusterModeTest`, `ConnectivityHealthTest`, `LogSanitizerTest`
 
 ## Локальные правила
 

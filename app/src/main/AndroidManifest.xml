@@ -36,7 +36,7 @@
         android:theme="@style/Theme.Foric27Cluster">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.MainActivity"
             android:excludeFromRecents="true"
             android:exported="true">
             <intent-filter>
@@ -46,7 +46,7 @@
         </activity>
 
         <activity
-            android:name=".DeveloperActivity"
+            android:name=".ui.DeveloperActivity"
             android:exported="false" />
 
         <provider
@@ -60,7 +60,7 @@
         </provider>
 
         <activity
-            android:name=".ClusterLaunchProxyActivity"
+            android:name=".ui.ClusterLaunchProxyActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:finishOnTaskLaunch="true"
@@ -68,14 +68,14 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
         <activity
-            android:name=".UpdateAlertActivity"
+            android:name=".ui.UpdateAlertActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity
-            android:name=".MediaCoverActivity"
+            android:name=".ui.MediaCoverActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:finishOnTaskLaunch="true"
@@ -84,7 +84,7 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
         <activity
-            android:name=".ClusterBlackScreenActivity"
+            android:name=".ui.ClusterBlackScreenActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:finishOnTaskLaunch="true"
@@ -94,12 +94,12 @@
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
 
         <service
-            android:name=".UdpStreamService"
+            android:name=".service.UdpStreamService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
         <service
-            android:name=".MediaNotificationListenerService"
+            android:name=".util.MediaNotificationListenerService"
             android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
@@ -146,7 +146,7 @@
             android:exported="false" />
 
         <receiver
-            android:name=".AppUpdateInstallReceiver"
+            android:name=".update.AppUpdateInstallReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
