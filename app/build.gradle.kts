@@ -119,6 +119,10 @@ android {
     lint {
         disable += listOf("ProtectedPermissions")
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -142,4 +146,5 @@ dependencies {
     }
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

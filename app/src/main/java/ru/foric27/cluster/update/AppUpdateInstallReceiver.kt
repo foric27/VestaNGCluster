@@ -12,7 +12,7 @@ import timber.log.Timber
 class AppUpdateInstallReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
-        val status = intent?.getIntExtra(Intent.EXTRA_INTENT, -1) ?: return
+        val status = intent?.getIntExtra("android.content.pm.extra.STATUS", -1) ?: return
         val packageName = intent.getStringExtra("android.content.pm.extra.PACKAGE_NAME").orEmpty()
         when (status) {
             android.content.pm.PackageInstaller.STATUS_SUCCESS -> {

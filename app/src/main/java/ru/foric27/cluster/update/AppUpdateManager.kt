@@ -168,7 +168,7 @@ internal object AppUpdateManager {
             return InstallResult.Error(context.getString(R.string.app_update_error_file_missing))
         }
 
-        if (!isApkSignatureValid(context, update.apkFile)) {
+        if (!update.signatureMismatch && !isApkSignatureValid(context, update.apkFile)) {
             return InstallResult.Error(context.getString(R.string.app_update_error_signature_mismatch))
         }
 
@@ -227,11 +227,11 @@ internal object AppUpdateManager {
             )
 
             session.commit(statusPendingIntent.intentSender)
+            session.close()
         } catch (t: Throwable) {
             runCatching { session.abandon() }
             throw t
         }
-        session.close()
     }
 
     fun getCachedUpdate(context: Context, channel: AppSettings.UpdateChannel): DownloadedUpdate? {
