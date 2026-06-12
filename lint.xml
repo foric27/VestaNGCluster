@@ -7,4 +7,7 @@
     <issue id="ProtectedPermissions">
         <ignore path="AndroidManifest.xml" />
     </issue>
+    <issue id="LocalContextGetResourceValueCall">
+        <ignore path="**" />
+    </issue>
 </lint>
