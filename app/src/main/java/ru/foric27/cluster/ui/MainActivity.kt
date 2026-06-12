@@ -557,8 +557,6 @@ private fun TitleSection() {
 
 @Composable
 private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> Unit) {
-    @Suppress("unused")
-    val triggerSnapshot = trigger
     if (noticeLog.isEmpty()) return
     val hasErrors = noticeLog.hasErrors()
     Card(
