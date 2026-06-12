@@ -20,6 +20,12 @@ import java.util.Locale
  * Устанавливает глобальный [Thread.UncaughtExceptionHandler], записывает
  * crash-логи и планирует перезапуск через [AlarmManager] с защитой от crash-петли.
  */
+/**
+ * Менеджер автоматического восстановления процесса после crash.
+ *
+ * Устанавливает обработчик необработанных исключений, записывает crash-лог
+ * и планирует перезапуск приложения через AlarmManager с учётом защиты от crash loop.
+ */
 internal object ProcessRecoveryManager {
 
     private const val TAG = "ProcessRecovery"
@@ -34,6 +40,11 @@ internal object ProcessRecoveryManager {
         val timestamps: List<Long>,
     )
 
+    /**
+     * Устанавливает глобальный обработчик необработанных исключений.
+     *
+     * @param context контекст приложения
+     */
     fun install(context: Context) {
         val appContext = context.applicationContext
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
@@ -59,6 +70,12 @@ internal object ProcessRecoveryManager {
         }
     }
 
+    /**
+     * Возвращает текущее состояние восстановления для диагностики.
+     *
+     * @param context контекст приложения
+     * @return состояние crash-окна и подавления
+     */
     fun readDebugState(context: Context): RecoveryDebugState {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val now = SystemClock.elapsedRealtime()
@@ -73,6 +90,12 @@ internal object ProcessRecoveryManager {
         )
     }
 
+    /**
+     * Проверяет, нужно ли планировать восстановление, и обновляет crash-окно.
+     *
+     * @param context контекст приложения
+     * @return true, если восстановление должно быть запланировано
+     */
     private fun shouldScheduleRecovery(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val now = SystemClock.elapsedRealtime()
@@ -128,6 +151,12 @@ internal object ProcessRecoveryManager {
         }.onFailure { Timber.tag(TAG).e(it, "Не удалось записать crash log") }
     }
 
+    /**
+     * Планирует перезапуск приложения через AlarmManager.
+     *
+     * @param context контекст приложения
+     * @param reason причина восстановления
+     */
     private fun scheduleRecovery(context: Context, reason: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {

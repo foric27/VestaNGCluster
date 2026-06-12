@@ -17,11 +17,26 @@ import timber.log.Timber
  */
 internal class AppTimberTree : Timber.Tree() {
 
+    /**
+     * Проверяет, нужно ли логировать сообщение с данным приоритетом.
+     *
+     * @param tag тег лога
+     * @param priority уровень приоритета (Log.VERBOSE, Log.DEBUG и т.д.)
+     * @return true, если сообщение должно быть залогировано
+     */
     override fun isLoggable(tag: String?, priority: Int): Boolean {
         if (BuildConfig.DEBUG) return true
         return priority >= Log.INFO || RuntimeConfig.Logging.VERBOSE_ENABLED
     }
 
+    /**
+     * Записывает лог-сообщение в системный log и RAM-буфер.
+     *
+     * @param priority уровень приоритета
+     * @param tag тег лога
+     * @param message текст сообщения
+     * @param t необязательное исключение
+     */
     override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
         if (!isLoggable(tag, priority)) return
         val safeMessage = LogSanitizer.sanitize(message)

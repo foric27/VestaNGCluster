@@ -9,6 +9,12 @@ import timber.log.Timber
  * Создаёт [UdpSender], назначает его, запускает UDP probe в фоне
  * и при успехе вызывает callback запуска pipeline.
  */
+/**
+ * Координатор стартового потока UDP streaming.
+ *
+ * Управляет созданием [UdpSender], выполнением UDP probe и передачей
+ * управления в [UdpPipelineStartCoordinator] при успешной готовности.
+ */
 internal class UdpStartupFlowCoordinator(
     private val tag: String,
     private val createSender: (String, Int, String?) -> UdpSender,
@@ -22,6 +28,20 @@ internal class UdpStartupFlowCoordinator(
     private val handleRoutePreparationNotReady: (String, Long) -> Unit,
 ) {
 
+    /**
+     * Запускает стартовый поток: создание sender, UDP probe и запуск pipeline.
+     *
+     * Если маршрут не готов — сразу вызывает [handleRoutePreparationNotReady].
+     * При успешном probe передаёт управление в [onReadyPipeline] на main thread.
+     *
+     * @param hostValue целевой хост
+     * @param port целевой порт
+     * @param bindIp локальный IP для привязки или null
+     * @param routeReady готов ли маршрут (результат сетевой подготовки)
+     * @param routeWaitTimeoutMs таймаут ожидания UDP probe
+     * @param noRouteRestartBackoffMinMs минимальный backoff при отсутствии маршрута
+     * @param onReadyPipeline callback для запуска готового pipeline
+     */
     fun start(
         hostValue: String,
         port: Int,

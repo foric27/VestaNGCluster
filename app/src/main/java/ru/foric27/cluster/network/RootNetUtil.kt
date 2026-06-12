@@ -128,6 +128,12 @@ internal object RootNetUtil {
         val shouldApplyIptables: Boolean,
     )
 
+    /**
+     * Сбрасывает все кеши состояния интерфейса и маршрута.
+     *
+     * Вызывается при изменении конфигурации сети или при необходимости
+     * принудительного перепробывания.
+     */
     @Synchronized
     fun clearCaches() {
         cachedIfaceName = null
@@ -140,14 +146,34 @@ internal object RootNetUtil {
         cachedRouteCheckAtMs = 0L
     }
 
+    /**
+     * Подключает [NetworkRootCommandExecutor] для выполнения root-скриптов.
+     *
+     * @param shell persistent root shell для сетевых команд
+     */
     fun attachNetworkRootShell(shell: NetworkRootCommandExecutor) {
         networkRootShell = shell
     }
 
+    /**
+     * Подключает кастомный [RootRoutePlanner] для построения маршрутов.
+     *
+     * @param planner планировщик маршрутов
+     */
     fun attachRoutePlanner(planner: RootRoutePlanner) {
         routePlanner = planner
     }
 
+    /**
+     * Применяет статический IP, маршруты и iptables к выбранному интерфейсу.
+     *
+     * Порядок: probe -> interface setup -> routing -> iptables -> verify.
+     * Каждый этап при ошибке возвращает [ApplyResult] с деталями.
+     *
+     * @param localCidr локальный IP в формате CIDR (например, "192.168.1.10/24")
+     * @param gateway IP шлюза или null
+     * @return результат применения настройки
+     */
     @Synchronized
     fun applyStaticIfaceNetwork(localCidr: String, gateway: String?): ApplyResult {
         return try {
@@ -215,8 +241,20 @@ internal object RootNetUtil {
          }
     }
 
+    /**
+     * Возвращает текущее состояние probe выбранного интерфейса.
+     *
+     * @param force принудительный probe вне кеша
+     * @return состояние: имя, наличие, link-up, root-доступ, детали
+     */
     fun getIfaceProbeState(force: Boolean = false): ProbeState = probeIfaceState(force = force)
 
+    /**
+     * Проверяет, присутствует ли выбранный интерфейс в системе.
+     *
+     * @param force принудительный probe вне кеша
+     * @return true если интерфейс существует
+     */
     fun isIfacePresent(force: Boolean = false): Boolean = getIfaceProbeState(force = force).exists
 
     /**
@@ -227,6 +265,15 @@ internal object RootNetUtil {
         return checkRouteTo(dstIp, expectedSrcIp, forceProbe).ok
     }
 
+    /**
+     * Проверяет, что маршрут до приёмника проходит через нужный интерфейс и,
+     * при необходимости, с ожидаемым source IP.
+     *
+     * @param dstIp IP назначения
+     * @param expectedSrcIp ожидаемый source IP или null
+     * @param forceProbe принудительный probe вне кеша
+     * @return результат проверки маршрута
+     */
     fun checkRouteTo(dstIp: String, expectedSrcIp: String? = null, forceProbe: Boolean = false): RouteCheckResult {
         val ip = dstIp.trim()
         if (!isNetworkRootAvailable()) {
@@ -315,8 +362,21 @@ internal object RootNetUtil {
         )
     }
 
+    /**
+     * Возвращает имя выбранного сетевого интерфейса.
+     *
+     * @param force принудительный переселект вне кеша
+     * @return имя интерфейса или null
+     */
     fun getSelectedIfaceName(force: Boolean = false): String? = resolveSelection(force = force).name
 
+    /**
+     * Логирует выбранный интерфейс с заданным тегом и префиксом.
+     *
+     * @param tag тег для Timber
+     * @param prefix текстовый префикс сообщения
+     * @param force принудительный переселект
+     */
     fun logSelectedIface(tag: String, prefix: String, force: Boolean = false) {
         NetworkInterfaceSelector.logSelection(tag, prefix, resolveSelection(force = force))
     }
@@ -424,6 +484,12 @@ internal object RootNetUtil {
 
     private fun buildIfaceLinkLabel(iface: String): String = "${iface}_link_up"
 
+    /**
+     * Проверяет, что интерфейс поднят (link up / running).
+     *
+     * @param output вывод команды `ip link show`
+     * @return true если интерфейс в состоянии UP
+     */
     internal fun isIfaceLinkUp(output: String): Boolean {
         val normalized = output.lowercase(Locale.US)
         if (normalized.contains("lower_up") || normalized.contains("running")) return true
@@ -432,6 +498,13 @@ internal object RootNetUtil {
             .any { it == "1" }
     }
 
+    /**
+     * Строит batch-команды для настройки интерфейса: удаление старого IP, up, добавление нового IP.
+     *
+     * @param iface имя интерфейса
+     * @param cidr локальный IP в формате CIDR
+     * @return список shell-команд
+     */
     internal fun buildInterfaceSetupBatch(iface: String, cidr: Ipv4Cidr): List<String> {
         return listOf(
             "ip addr del ${cidr.ip}/${cidr.prefix} dev $iface",
@@ -441,6 +514,15 @@ internal object RootNetUtil {
         )
     }
 
+    /**
+     * Строит batch-команды для настройки маршрутизации через [RootRoutePlanner].
+     *
+     * @param iface имя интерфейса
+     * @param cidr локальный IP в формате CIDR
+     * @param gatewayIp IP шлюза
+     * @param includeFwmarkRule включить fwmark-правило
+     * @return список shell-команд
+     */
     internal fun buildRoutingBatch(
         iface: String,
         cidr: Ipv4Cidr,
@@ -483,6 +565,12 @@ internal object RootNetUtil {
         return result.ok
     }
 
+    /**
+     * Строит batch-команды iptables для маркировки исходящего трафика к шлюзу.
+     *
+     * @param gatewayIp IP шлюза
+     * @return список shell-команд
+     */
     internal fun buildIptablesBatch(gatewayIp: String): List<String> {
         return listOf(
             "iptables -t mangle -D OUTPUT -d $gatewayIp -j MARK --set-mark ${Constants.FWMARK_VALUE}",

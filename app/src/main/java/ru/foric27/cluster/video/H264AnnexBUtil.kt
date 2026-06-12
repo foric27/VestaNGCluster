@@ -17,12 +17,27 @@ internal object H264AnnexBUtil {
 
     private val startCode4 = byteArrayOf(0, 0, 0, 1)
 
+    /**
+     * Проверяет, содержит ли буфер Annex B-стартовые префиксы (00 00 00 01 или 00 00 01).
+     *
+     * @param data буфер для проверки
+     * @return true если буфер похож на Annex B
+     */
     fun looksLikeAnnexB(data: ByteArray?): Boolean {
         if (data == null || data.size < 4) return false
         return (data[0].toInt() == 0 && data[1].toInt() == 0 && data[2].toInt() == 0 && data[3].toInt() == 1) ||
             (data[0].toInt() == 0 && data[1].toInt() == 0 && data[2].toInt() == 1)
     }
 
+    /**
+     * Гарантирует, что буфер содержит Annex B-стартовые префиксы.
+     *
+     * Если буфер уже в Annex B — возвращает как есть. Иначе нормализует
+     * через [normalizeToAnnexB].
+     *
+     * @param input входной буфер
+     * @return нормализованный Annex B буфер или null при null/пустом входе
+     */
     fun ensureAnnexB(input: ByteArray?): ByteArray? {
         if (input == null || input.isEmpty()) return input
         return normalizeToAnnexB(input)

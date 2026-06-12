@@ -13,6 +13,9 @@ import timber.log.Timber
  */
 internal class OomScoreAdjuster(private val rootShell: NetworkRootShell) {
 
+    /**
+     * Защищает текущий процесс от OOM killer, установив oom_score_adj в -1000.
+     */
     fun protectProcess() {
         if (!rootShell.isAvailable()) {
             Timber.tag(TAG).i("ROOT недоступен — пропускаю OOM-защиту")

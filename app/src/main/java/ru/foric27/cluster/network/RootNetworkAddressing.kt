@@ -1,11 +1,7 @@
-package ru.foric27.cluster.network
-
 /**
- * IPv4 CIDR-адрес с префиксом и сетевым адресом.
+ * Утилиты для работы с IPv4-адресацией и CIDR.
  *
- * @property ip IPv4-адрес в dotted-decimal нотации
- * @property prefix длина префикса (0..32)
- * @property network вычисленный сетевой адрес
+ * Предоставляет парсинг CIDR, валидацию IPv4 и расчёт network-адреса.
  */
 internal data class Ipv4Cidr(
     val ip: String,
@@ -13,15 +9,14 @@ internal data class Ipv4Cidr(
     val network: String,
 )
 
-/**
- * Парсинг и валидация IPv4 CIDR.
- *
- * Предоставляет [parseIpv4Cidr] для разбора строк вида "192.168.1.0/24",
- * [isValidIpv4] для проверки формата и [calculateNetworkAddress] для
- * вычисления сетевого адреса по маске префикса.
- */
 internal object RootNetworkAddressing {
 
+    /**
+     * Парсит строку CIDR в [Ipv4Cidr].
+     *
+     * @param value строка в формате "ip/prefix" или просто "ip" (prefix=24 по умолчанию)
+     * @return структурированный CIDR или null при невалидном формате
+     */
     fun parseIpv4Cidr(value: String): Ipv4Cidr? {
         val raw = value.trim()
         if (raw.isEmpty()) return null
@@ -32,6 +27,14 @@ internal object RootNetworkAddressing {
         return Ipv4Cidr(ip = ip, prefix = prefix, network = calculateNetworkAddress(ip, prefix))
     }
 
+    /**
+     * Проверяет валидность IPv4-адреса.
+     *
+     * Отклоняет адреса с ведущими нулями в октетах.
+     *
+     * @param value строка для проверки
+     * @return true если адрес валиден
+     */
     fun isValidIpv4(value: String): Boolean {
         val parts = value.split('.')
         if (parts.size != IPV4_OCTETS) return false
@@ -42,6 +45,13 @@ internal object RootNetworkAddressing {
         }
     }
 
+    /**
+     * Вычисляет network-адрес по IP и префиксу.
+     *
+     * @param ip IPv4-адрес
+     * @param prefix длина префикса (0-32)
+     * @return network-адрес в формате dotted-decimal
+     */
     private fun calculateNetworkAddress(ip: String, prefix: Int): String {
         val bytes = ip.split('.').map { it.toInt() }
         val address =

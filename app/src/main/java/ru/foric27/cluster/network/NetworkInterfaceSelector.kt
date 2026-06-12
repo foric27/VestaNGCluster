@@ -37,6 +37,13 @@ object NetworkInterfaceSelector {
     )
     private val KNOWN_USB_PREFIXES = listOf("usb", "rndis", "enx", "enp", "eth", "cdc", "ncm", "ecm")
 
+    /**
+     * Результат выбора сетевого интерфейса.
+     *
+     * @param name выбранное имя интерфейса или null
+     * @param source источник выбора (configured, auto_usb, configured_missing и т.д.)
+     * @param available список всех доступных интерфейсов
+     */
     data class Selection(
         val name: String?,
         val source: String,
@@ -48,11 +55,27 @@ object NetworkInterfaceSelector {
         }
     }
 
+    /**
+     * Выбирает сетевой интерфейс на основе предпочтительного имени.
+     *
+     * При `auto` или пустом значении ищет известный USB-интерфейс.
+     * Если предпочтительный интерфейс отсутствует — fallback на auto-поиск.
+     *
+     * @param preferredName предпочтительное имя интерфейса или "auto"
+     * @return выбор с именем, источником и списком доступных
+     */
     fun select(preferredName: String = RuntimeConfig.Root.IFACE): Selection {
         val available = discoverInterfaces()
         return selectFromAvailable(available, preferredName)
     }
 
+    /**
+     * Выбирает интерфейс из предоставленного списка доступных.
+     *
+     * @param availableNames список доступных интерфейсов
+     * @param preferredName предпочтительное имя или "auto"
+     * @return выбор с именем, источником и списком доступных
+     */
     internal fun selectFromAvailable(
         availableNames: Collection<String>,
         preferredName: String = RuntimeConfig.Root.IFACE,
@@ -98,6 +121,14 @@ object NetworkInterfaceSelector {
         }
     }
 
+    /**
+     * Ищет известный USB-интерфейс в списке доступных.
+     *
+     * Сначала проверяет точные совпадения, затем — по префиксам.
+     *
+     * @param available список доступных интерфейсов
+     * @return имя найденного USB-интерфейса или null
+     */
     private fun findKnownUsbInterface(available: List<String>): String? {
         KNOWN_USB_EXACT_NAMES.firstNotNullOfOrNull { candidate ->
             available.firstOrNull { it.equals(candidate, ignoreCase = true) }
@@ -109,10 +140,22 @@ object NetworkInterfaceSelector {
         }
     }
 
+    /**
+     * Логирует выбор интерфейса через Timber.
+     *
+     * @param tag тег для Timber
+     * @param prefix текстовый префикс сообщения
+     * @param selection результат выбора интерфейса
+     */
     fun logSelection(tag: String, prefix: String, selection: Selection) {
         Timber.tag(tag).i("$prefix: ${selection.summary()}")
     }
 
+    /**
+     * Обнаруживает все сетевые интерфейсы системы через [NetworkInterface].
+     *
+     * @return отсортированный список имён интерфейсов
+     */
     private fun discoverInterfaces(): List<String> {
         val names = TreeSet<String>(String.CASE_INSENSITIVE_ORDER)
 

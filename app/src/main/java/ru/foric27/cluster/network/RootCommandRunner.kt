@@ -21,14 +21,32 @@ internal object RootCommandRunner : RootCommandExecutor {
 
     private const val TAG = "RootCommandRunner"
 
+    /**
+     * Результат выполнения root-команды.
+     *
+     * @param code код возврата
+     * @param out stdout
+     * @param err stderr
+     * @param timedOut true если команда превысила таймаут
+     */
     data class Result(
         val code: Int,
         val out: String,
         val err: String,
         val timedOut: Boolean = false,
     ) {
+        /**
+         * Проверяет успешность выполнения.
+         *
+         * @return true если [code] == 0 и не было таймаута
+         */
         fun ok(): Boolean = code == 0 && !timedOut
 
+        /**
+         * Объединяет stdout и stderr в одну строку.
+         *
+         * @return конкатенация out и err через newline
+         */
         fun combinedText(): String {
             return buildString {
                 append(out)
@@ -37,6 +55,11 @@ internal object RootCommandRunner : RootCommandExecutor {
             }
         }
 
+        /**
+         * Проверяет, связана ли ошибка с отсутствием root-доступа.
+         *
+         * @return true если в выводе есть признаки denied/missing root
+         */
         fun isRootDeniedOrMissing(): Boolean {
             val text = combinedText().lowercase(Locale.US)
             return text.contains("cannot run program \"su\"") ||
@@ -53,6 +76,17 @@ internal object RootCommandRunner : RootCommandExecutor {
     private val runnerLock = Any()
     @Volatile private var shellAlive: Boolean = true
 
+    /**
+     * Выполняет список root-команд через libsu с таймаутом.
+     *
+     * При timeout закрывает мёртвый shell и возвращает [Result] с [timedOut]=true.
+     * При отсутствии root публикует warning через [AppWarningCenter].
+     *
+     * @param cmds список shell-команд
+     * @param logOnFailure логировать ли ошибку
+     * @param timeoutMs таймаут в миллисекундах
+     * @return результат выполнения
+     */
     override fun run(
         cmds: List<String>,
         logOnFailure: Boolean,
@@ -111,10 +145,23 @@ internal object RootCommandRunner : RootCommandExecutor {
         }
     }
 
+    /**
+     * Выполняет список команд с дефолтным таймаутом и логированием ошибок.
+     *
+     * @param cmds список shell-команд
+     * @return результат выполнения
+     */
     fun run(cmds: List<String>): Result {
         return run(cmds = cmds, logOnFailure = true, timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS)
     }
 
+    /**
+     * Выполняет список команд с дефолтным таймаутом.
+     *
+     * @param cmds список shell-команд
+     * @param logOnFailure логировать ли ошибку
+     * @return результат выполнения
+     */
     fun run(cmds: List<String>, logOnFailure: Boolean): Result {
         return run(cmds = cmds, logOnFailure = logOnFailure, timeoutMs = RuntimeConfig.Root.SU_TIMEOUT_MS)
     }

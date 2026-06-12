@@ -5,6 +5,14 @@ package ru.foric27.cluster.network
  * проверять без libsu и реального `su`.
  */
 internal fun interface RootCommandExecutor {
+    /**
+     * Выполняет список root-команд.
+     *
+     * @param cmds список shell-команд
+     * @param logOnFailure логировать ли ошибку
+     * @param timeoutMs таймаут в миллисекундах
+     * @return результат выполнения
+     */
     fun run(
         cmds: List<String>,
         logOnFailure: Boolean,

@@ -21,6 +21,13 @@ import java.util.concurrent.atomic.AtomicLong
  * Ключевые поля отправляются по таймеру или при изменении.
  * Слушает broadcast времени и языка для дедупликации.
  */
+/**
+ * Координатор периодической синхронизации статуса с кластером.
+ *
+ * Отправляет JSON-пакеты (vid, time, lang) на порт 5001 через UDP.
+ * Регистрирует broadcast receiver для отслеживания изменений времени,
+ * часового пояса и локали.
+ */
 internal class UdpStatusSyncCoordinator(
     private val context: Context,
     private val tag: String,
@@ -36,7 +43,7 @@ internal class UdpStatusSyncCoordinator(
 ) {
 
     /**
-     * Снимок статистики отправки status-пакетов.
+     * Снимок статистики отправки status sync.
      *
      * @property packetsSent количество отправленных пакетов
      * @property bytesSent количество отправленных байт
@@ -58,6 +65,15 @@ internal class UdpStatusSyncCoordinator(
     private val statusBytesSent = AtomicLong(0)
     private val statusSendErrors = AtomicLong(0)
 
+    /**
+     * Запускает поток отправки статуса.
+     *
+     * Создаёт [SyncHandler], регистрирует receiver для системных событий
+     * и запускает фоновый поток с периодической отправкой.
+     *
+     * @param bindIp локальный IP для привязки сокета или null
+     * @param hostValue целевой хост для отправки статуса
+     */
     fun start(bindIp: String?, hostValue: String) {
         try {
             stop()
@@ -136,6 +152,11 @@ internal class UdpStatusSyncCoordinator(
         }
     }
 
+    /**
+     * Останавливает поток отправки статуса и освобождает ресурсы.
+     *
+     * Закрывает сокет, снимает receiver и прерывает поток.
+     */
     fun stop() {
         statusStop.set(true)
         interruptThreadQuietly(statusThread, "status sync")
@@ -157,6 +178,11 @@ internal class UdpStatusSyncCoordinator(
         syncHandler = null
     }
 
+    /**
+     * Возвращает снимок текущей статистики отправки статуса.
+     *
+     * @return [StatsSnapshot] с актуальными счётчиками
+     */
     fun snapshot(): StatsSnapshot {
         return StatsSnapshot(
             packetsSent = statusPacketsSent.get(),

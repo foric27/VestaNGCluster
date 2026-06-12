@@ -14,6 +14,16 @@ import java.util.Locale
  */
 internal class NetworkRootShell : NetworkRootCommandExecutor {
 
+    /**
+     * Выполняет список network-команд через persistent root shell.
+     *
+     * Команды нормализуются, проверяются на injection и фильтруются по
+     * разрешённым префиксам. При неактивном shell выполняется пересоздание
+     * с exponential backoff до [MAX_ATTEMPTS] попыток.
+     *
+     * @param commands список однострочных shell-команд
+     * @return Result с stdout при успехе или исключение при ошибке
+     */
     override fun execScript(commands: List<String>): Result<String> {
         val normalizedCommands = try {
             normalizeCommands(commands)
@@ -83,6 +93,11 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
         }
     }
 
+    /**
+     * Проверяет доступность root shell.
+     *
+     * @return true если shell создан, root и активен
+     */
     override fun isAvailable(): Boolean {
         synchronized(lock) {
             if (closed) return false
@@ -108,6 +123,11 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
         }
     }
 
+    /**
+     * Закрывает persistent shell и помечает executor как закрытый.
+     *
+     * После вызова все последующие [execScript] вернут ошибку.
+     */
     override fun close() {
         synchronized(lock) {
             closed = true
@@ -161,6 +181,13 @@ internal class NetworkRootShell : NetworkRootCommandExecutor {
         }
     }
 
+    /**
+     * Проверяет команду на наличие опасных shell-конструкций (pipe, redirect, subshell).
+     *
+     * @param command команда для проверки
+     * @param index индекс команды в batch (для сообщения об ошибке)
+     * @throws IllegalArgumentException если обнаружен опасный токен
+     */
     internal fun validateNoCommandInjection(command: String, index: Int = 0) {
         val blockedToken = BLOCKED_SHELL_TOKENS.firstOrNull { token -> command.contains(token) }
         require(blockedToken == null) {

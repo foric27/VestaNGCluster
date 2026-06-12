@@ -46,6 +46,13 @@ internal enum class VideoCaptureLifecycleEvent {
 
 internal object VideoCaptureLifecycleStateMachine {
 
+    /**
+     * Выполняет переход из текущего состояния по событию.
+     *
+     * @param current текущее состояние
+     * @param event событие перехода
+     * @return новое состояние или null если переход недопустим
+     */
     fun transition(
         current: VideoCaptureLifecycleState,
         event: VideoCaptureLifecycleEvent,
@@ -110,6 +117,12 @@ internal object VideoCaptureLifecycleStateMachine {
         }
     }
 
+    /**
+     * Проверяет, допустим ли запуск из текущего состояния.
+     *
+     * @param current текущее состояние
+     * @return true если [VideoCaptureLifecycleEvent.START_REQUESTED] приведёт к валидному переходу
+     */
     fun canStart(current: VideoCaptureLifecycleState): Boolean =
         transition(current, VideoCaptureLifecycleEvent.START_REQUESTED) != null
 }

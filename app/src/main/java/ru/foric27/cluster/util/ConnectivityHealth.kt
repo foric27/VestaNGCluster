@@ -1,14 +1,16 @@
 package ru.foric27.cluster.util
 
 /**
- * Снимок состояния runtime для диагностики связности.
+ * Снимок состояния здоровья runtime-подсистем.
  *
- * @property streamActive стрим активен
- * @property startInProgress запуск в процессе
- * @property senderReady UDP sender готов
- * @property displayReady VirtualDisplay создан
- * @property recentVideoTraffic недавняя видеотрафика
- * @property routeReady маршрут настроен
+ * Используется для принятия решений о восстановлении после wake.
+ *
+ * @property streamActive активен ли поток
+ * @property startInProgress идёт ли запуск
+ * @property senderReady готов ли UDP sender
+ * @property displayReady готов ли VirtualDisplay
+ * @property recentVideoTraffic был ли недавно видео-трафик
+ * @property routeReady готов ли сетевой маршрут
  */
 internal data class RuntimeHealthSnapshot(
     val streamActive: Boolean,
@@ -20,13 +22,16 @@ internal data class RuntimeHealthSnapshot(
 )
 
 /**
- * Диагностика состояния сетевого стрима.
- *
- * Проверяет health-check после wake, watchdog-мониторинг
- * и принимает решения о необходимости recovery.
+ * Проверка здоровья connectivity и принятие решений о восстановлении.
  */
 internal object ConnectivityHealth {
 
+    /**
+     * Проверяет, здоров ли поток после wake.
+     *
+     * @param snapshot текущий снимок состояния
+     * @return true, если все подсистемы в норме
+     */
     fun isWakeStreamHealthy(snapshot: RuntimeHealthSnapshot): Boolean {
         return snapshot.streamActive &&
             !snapshot.startInProgress &&
@@ -36,6 +41,12 @@ internal object ConnectivityHealth {
             snapshot.routeReady
     }
 
+    /**
+     * Определяет, требуется ли полное восстановление после wake.
+     *
+     * @param snapshot текущий снимок состояния
+     * @return true, если нужен полный перезапуск потока
+     */
     fun requiresWakeFullRecovery(snapshot: RuntimeHealthSnapshot): Boolean {
         // После wake проверка до peer может кратковременно не успевать, хотя route уже живой
         // и видео продолжает уходить. Не эскалируем такой случай сразу в full recovery.
@@ -49,6 +60,12 @@ internal object ConnectivityHealth {
             !snapshot.routeReady
     }
 
+    /**
+     * Возвращает текстовое описание снимка состояния.
+     *
+     * @param snapshot текущий снимок состояния
+     * @return строка с перечислением флагов
+     */
     fun describeWakeSnapshot(snapshot: RuntimeHealthSnapshot): String {
         return buildString {
             append("streamActive=").append(snapshot.streamActive)
@@ -60,6 +77,12 @@ internal object ConnectivityHealth {
         }
     }
 
+    /**
+     * Возвращает текстовое описание решения о восстановлении.
+     *
+     * @param snapshot текущий снимок состояния
+     * @return строка с решением и причиной
+     */
     fun describeWakeDecision(snapshot: RuntimeHealthSnapshot): String {
         val streamHealthy = isWakeStreamHealthy(snapshot)
         val fullRecovery = requiresWakeFullRecovery(snapshot)
@@ -86,6 +109,14 @@ internal object ConnectivityHealth {
             snapshot.recentVideoTraffic
     }
 
+    /**
+     * Проверяет здоровье соединения для watchdog.
+     *
+     * @param recentVideoTraffic был ли недавно видео-трафик
+     * @param routeReady готов ли маршрут
+     * @param udpProbeOk успешен ли UDP probe
+     * @return true, если соединение считается здоровым
+     */
     fun isWatchdogConnectionHealthy(
         recentVideoTraffic: Boolean,
         routeReady: Boolean,

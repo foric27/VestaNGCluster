@@ -24,6 +24,11 @@ internal object AppWarningCenter {
     private val queue = ArrayDeque<String>()
     private val listeners = LinkedHashSet<WeakReference<WarningListener>>()
 
+    /**
+     * Публикует предупреждение в очередь и рассылает активным слушателям.
+     *
+     * @param message текст предупреждения
+     */
     fun publish(message: String) {
         val normalized = message.trim()
         if (normalized.isEmpty()) return
@@ -48,12 +53,22 @@ internal object AppWarningCenter {
         }
     }
 
+    /**
+     * Регистрирует слушателя предупреждений.
+     *
+     * @param listener слушатель для получения уведомлений
+     */
     fun registerListener(listener: WarningListener) {
         synchronized(lock) {
             listeners.add(WeakReference(listener))
         }
     }
 
+    /**
+     * Удаляет слушателя предупреждений.
+     *
+     * @param listener слушатель для удаления
+     */
     fun unregisterListener(listener: WarningListener) {
         synchronized(lock) {
             listeners.removeAll { it.get() === listener || it.get() == null }
@@ -66,6 +81,11 @@ internal object AppWarningCenter {
         return synchronized(lock) { queue.contains(normalized) }
     }
 
+    /**
+     * Извлекает и очищает все накопленные предупреждения.
+     *
+     * @return список извлечённых сообщений
+     */
     fun consumeAll(): List<String> {
         synchronized(lock) {
             if (queue.isEmpty()) return emptyList()
@@ -83,6 +103,11 @@ internal object AppWarningCenter {
         }
     }
 
+    /**
+     * Удаляет предупреждения, соответствующие предикату.
+     *
+     * @param predicate условие удаления
+     */
     fun removeMatching(predicate: (String) -> Boolean) {
         synchronized(lock) {
             queue.removeAll(predicate)

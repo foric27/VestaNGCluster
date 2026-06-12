@@ -1,6 +1,8 @@
 package ru.foric27.cluster.util
 
-/** Удаляет из диагностических логов значения, похожие на чувствительные данные. */
+/**
+ * Удаляет из диагностических логов значения, похожие на чувствительные данные.
+ */
 internal object LogSanitizer {
 
     private val sensitivePatterns = listOf(
@@ -18,6 +20,12 @@ internal object LogSanitizer {
 
     private val macPattern = Regex("(?i)(\\b[0-9a-f]{2}[:\\-]){5}[0-9a-f]{2}\\b")
 
+    /**
+     * Заменяет чувствительные данные в строке на `<redacted>`.
+     *
+     * @param value исходная строка
+     * @return очищенная строка
+     */
     fun sanitize(value: String): String {
         val partiallySanitized = sensitivePatterns.fold(value) { current, pattern ->
             pattern.replace(current) { match -> "${match.groupValues[1]}<redacted>" }

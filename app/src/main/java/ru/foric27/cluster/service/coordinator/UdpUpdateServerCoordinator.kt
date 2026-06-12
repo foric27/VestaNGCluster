@@ -77,6 +77,11 @@ internal class UdpUpdateServerCoordinator(
         }
     }
 
+    /**
+     * Перезапускает FTP-сервер с указанной политикой поиска файла.
+     *
+     * @param searchPolicy политика поиска update-файла (по умолчанию USB_ONLY)
+     */
     fun restartUpdateServer(searchPolicy: UpdateFileLocator.SearchPolicy = UpdateFileLocator.SearchPolicy.USB_ONLY) {
         if (!StorageAccessManager.isAllFilesAccessGranted()) {
             Timber.tag(TAG).i("Пропускаю перезапуск FTP обновления: нет разрешения MANAGE_EXTERNAL_STORAGE")
@@ -111,6 +116,11 @@ internal class UdpUpdateServerCoordinator(
         }
     }
 
+    /**
+     * Обновляет FTP-сервер при подключении USB-накопителя.
+     *
+     * Дедуплицирует вызовы через throttle (2 секунды).
+     */
     fun refreshUsbUpdateServer() {
         if (!StorageAccessManager.isAllFilesAccessGranted()) {
             Timber.tag(TAG).i("Пропускаю USB-обновление FTP: нет разрешения MANAGE_EXTERNAL_STORAGE")
@@ -154,6 +164,11 @@ internal class UdpUpdateServerCoordinator(
         }
     }
 
+    /**
+     * Обновляет FTP-сервер после извлечения USB-накопителя.
+     *
+     * Сбрасывает состояние обнаруженного обновления и закрывает диалог.
+     */
     fun refreshAfterUsbRemoved() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastUsbRefreshTime < USB_REFRESH_THROTTLE_MS) {
@@ -188,6 +203,9 @@ internal class UdpUpdateServerCoordinator(
         cancelFtpRetry()
     }
 
+    /**
+     * Останавливает FTP-сервер и отменяет запланированные retry.
+     */
     fun stop() {
         cancelFtpRetry()
     }

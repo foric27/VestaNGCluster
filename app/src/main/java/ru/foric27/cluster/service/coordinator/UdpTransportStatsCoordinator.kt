@@ -16,6 +16,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * [UdpStatusSyncCoordinator], считает дельту по кадрам/пакетам/байтам
  * и логирует Mbps, ошибки и probe-статистику.
  */
+/**
+ * Координатор сбора и логирования статистики UDP-транспорта.
+ *
+ * Запускает фоновый поток, который каждые 5 секунд считает дельты
+ * по видео, пробам, status sync и ошибкам, логируя их через Timber.
+ */
 internal class UdpTransportStatsCoordinator(
     private val context: Context,
     private val tag: String,
@@ -29,6 +35,11 @@ internal class UdpTransportStatsCoordinator(
     @Volatile private var statsThread: Thread? = null
     private val statsStop = AtomicBoolean(false)
 
+    /**
+     * Запускает поток сбора статистики.
+     *
+     * Останавливает предыдущий поток перед запуском нового.
+     */
     fun start() {
         stop()
         statsStop.set(false)
@@ -135,6 +146,11 @@ internal class UdpTransportStatsCoordinator(
         }
     }
 
+    /**
+     * Останавливает поток сбора статистики.
+     *
+     * Прерывает и ожидает завершения потока через [joinThreadQuietly].
+     */
     fun stop() {
         statsStop.set(true)
         interruptThreadQuietly(statsThread, "статистики")

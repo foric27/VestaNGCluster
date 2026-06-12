@@ -23,6 +23,12 @@ internal object LogcatExporter {
         val systemCleared: Boolean,
     )
 
+    /**
+     * Экспортирует logcat в файл и возвращает URI для share.
+     *
+     * @param context контекст приложения
+     * @return результат экспорта с файлом и URI
+     */
     fun export(context: Context): Result {
         val appContext = context.applicationContext
         val logDir = File(appContext.cacheDir, LOG_DIR_NAME).apply { mkdirs() }
@@ -38,6 +44,11 @@ internal object LogcatExporter {
         )
     }
 
+    /**
+     * Экспортирует logcat при падении процесса (без возврата результата).
+     *
+     * @param context контекст приложения
+     */
     fun exportOnCrash(context: Context) {
         val appContext = context.applicationContext
         val logDir = File(appContext.cacheDir, LOG_DIR_NAME).apply { mkdirs() }
@@ -48,6 +59,12 @@ internal object LogcatExporter {
         }
     }
 
+    /**
+     * Очищает системный logcat и локальные файлы логов.
+     *
+     * @param context контекст приложения
+     * @return результат очистки
+     */
     fun clear(context: Context): ClearResult {
         val appContext = context.applicationContext
         val logDir = File(appContext.cacheDir, LOG_DIR_NAME).apply { mkdirs() }

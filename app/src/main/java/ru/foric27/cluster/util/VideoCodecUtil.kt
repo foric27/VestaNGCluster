@@ -7,8 +7,17 @@ import android.media.MediaCodec
  *
  * Игнорирует ошибки при остановке, когда буфер уже может быть недоступен.
  */
+/**
+ * Утилиты для работы с MediaCodec видео.
+ */
 internal object VideoCodecUtil {
 
+    /**
+     * Освобождает output buffer, подавляя любые исключения.
+     *
+     * @param codec экземпляр MediaCodec
+     * @param index индекс буфера
+     */
     fun releaseOutputBufferQuietly(codec: MediaCodec, index: Int) {
         try {
             codec.releaseOutputBuffer(index, false)

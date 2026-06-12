@@ -64,6 +64,10 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
             promoteBestController(activeControllers.orEmpty())
         }
 
+    /**
+     * Вызывается при подключении слушателя уведомлений.
+     * Регистрирует слушатель MediaSession и обрабатывает активные уведомления.
+     */
     override fun onListenerConnected() {
         super.onListenerConnected()
         Timber.tag(TAG).i("NotificationListener подключён")
@@ -98,6 +102,12 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         startNotificationScan()
     }
 
+    /**
+     * Вызывается при публикации нового уведомления.
+     * Обрабатывает медиа-уведомления и извлекает MediaSession token.
+     *
+     * @param sbn статус-бар уведомление
+     */
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         if (!isMediaNotification(sbn)) return
@@ -111,6 +121,12 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
     }
 
+    /**
+     * Вызывается при удалении уведомления.
+     * Очищает состояние медиа, если удалено активное уведомление.
+     *
+     * @param sbn статус-бар уведомление
+     */
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         sbn ?: return
         if (!isMediaNotification(sbn)) return
@@ -134,6 +150,9 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
     }
 
+    /**
+     * Сканирует все активные уведомления и публикует лучшее медиа-содержимое.
+     */
     private fun processActiveNotifications() {
         val best = activeNotifications
             ?.asSequence()
@@ -247,10 +266,21 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
             ?: extras.getParcelable(EXTRA_MEDIA_SESSION_LEGACY) as? MediaSession.Token
     }
 
+    /**
+     * Подписывается на MediaController для получения metadata и playback state.
+     *
+     * @param controller MediaController для подписки
+     */
     private fun attachToMediaController(controller: MediaController) {
         attachToMediaController(controller, controller.packageName)
     }
 
+    /**
+     * Подписывается на MediaController с указанным package name.
+     *
+     * @param controller MediaController для подписки
+     * @param packageName имя пакета приложения-источника
+     */
     private fun attachToMediaController(controller: MediaController, packageName: String) {
         val existing = controllers[packageName]
         if (existing?.controller?.sessionToken == controller.sessionToken) {
@@ -387,6 +417,12 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
     }
 
+    /**
+     * Публикует snapshot с debounce для подавления частых обновлений.
+     *
+     * @param snapshot данные медиа-трека
+     * @param source источник обновления (notification / media-session)
+     */
     private fun publishSnapshot(snapshot: TrackSnapshot, source: String) {
         val mergedSnapshot = snapshot.withProgressFrom(lastPublishedSnapshot)
         if (!mergedSnapshot.isPlaying && activePackage != null && mergedSnapshot.packageName != activePackage) return
@@ -423,6 +459,12 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
     }
 
+    /**
+     * Немедленно публикует snapshot в [MediaCoverState].
+     *
+     * @param snapshot данные медиа-трека
+     * @param source источник обновления
+     */
     private fun doPublishSnapshot(snapshot: TrackSnapshot, source: String) {
         lastPublishTimeMs = SystemClock.elapsedRealtime()
         lastPublishedKey = snapshot.publishKey
@@ -463,6 +505,10 @@ internal class MediaNotificationListenerService : NotificationListenerService() 
         }
     }
 
+    /**
+     * Вызывается при отключении слушателя уведомлений.
+     * Очищает состояние и отменяет корутины.
+     */
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         cleanupListenerState()

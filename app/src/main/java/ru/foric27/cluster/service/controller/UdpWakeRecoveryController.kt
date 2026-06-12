@@ -14,6 +14,12 @@ import timber.log.Timber
  * Регистрирует receiver экранного события, останавливает стрим при screen off
  * и перезапускает при пробуждении.
  */
+/**
+ * Контроллер восстановления стрима после sleep/wake.
+ *
+ * Регистрирует broadcast receiver для событий экрана (SCREEN_OFF, SCREEN_ON,
+ * USER_PRESENT) и управляет остановкой/перезапуском стрима при сне устройства.
+ */
 internal class UdpWakeRecoveryController(
     private val context: Context,
     private val registerLocalReceiver: (BroadcastReceiver, IntentFilter) -> Unit,
@@ -26,6 +32,11 @@ internal class UdpWakeRecoveryController(
     private var screenStateReceiverRegistered = false
     private var screenSleepStartedAtMs = 0L
 
+    /**
+     * Регистрирует receiver для отслеживания событий экрана.
+     *
+     * Дедуплицирует вызовы через [screenStateReceiverRegistered].
+     */
     fun register() {
         if (screenStateReceiverRegistered) return
 
@@ -59,6 +70,9 @@ internal class UdpWakeRecoveryController(
         }
     }
 
+    /**
+     * Снимает receiver экранных событий и сбрасывает состояние сна.
+     */
     fun unregister() {
         if (!screenStateReceiverRegistered) return
         unregisterReceiverBestEffort(screenStateReceiver, "экранных событий")
@@ -67,16 +81,29 @@ internal class UdpWakeRecoveryController(
         clearPendingState()
     }
 
+    /**
+     * Сбрасывает метку времени начала сна.
+     *
+     * Вызывается при unregister или после обработки wake-события.
+     */
     fun clearPendingState() {
         screenSleepStartedAtMs = 0L
     }
 
+    /**
+     * Обрабатывает выключение экрана: останавливает стрима.
+     */
     private fun handleScreenOff() {
         screenSleepStartedAtMs = SystemClock.elapsedRealtime()
         stopStream()
         Timber.tag(TAG).i("Экран выключен; сервис остановлен до явного запуска пользователем")
     }
 
+    /**
+     * Обрабатывает событие пробуждения устройства: перезапускает стрима.
+     *
+     * @param action строковое представление intent action (для логов)
+     */
     private fun handleWakeEvent(action: String) {
         val sleptAt = screenSleepStartedAtMs
         if (sleptAt == 0L) return

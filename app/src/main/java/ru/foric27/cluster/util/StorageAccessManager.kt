@@ -14,6 +14,11 @@ import androidx.core.net.toUri
  */
 internal object StorageAccessManager {
 
+    /**
+     * Проверяет, выдано ли разрешение MANAGE_ALL_FILES_ACCESS.
+     *
+     * @return true, если доступ ко всем файлам разрешён
+     */
     fun isAllFilesAccessGranted(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
@@ -22,6 +27,12 @@ internal object StorageAccessManager {
         }
     }
 
+    /**
+     * Создаёт Intent для открытия настроек доступа ко всем файлам.
+     *
+     * @param context контекст приложения
+     * @return Intent для запуска настроек
+     */
     fun buildManageAllFilesAccessIntent(context: Context): Intent {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -41,6 +52,12 @@ internal object StorageAccessManager {
         return buildManageAllFilesAccessFallbackIntentApi30()
     }
 
+    /**
+     * Возвращает сообщение для пользователя о недостающем доступе к файлам.
+     *
+     * @param context контекст приложения
+     * @return локализованное сообщение
+     */
     fun buildMissingAccessMessage(context: Context): String {
         return context.getString(R.string.storage_access_missing_message)
     }

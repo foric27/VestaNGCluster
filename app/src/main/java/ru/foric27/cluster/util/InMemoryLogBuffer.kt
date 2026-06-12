@@ -28,7 +28,11 @@ internal object InMemoryLogBuffer {
     }
 
     /**
-     * Добавляет строку если priority >= INFO.
+     * Добавляет строку в буфер если priority >= INFO.
+     *
+     * @param priority уровень приоритета (Log.INFO и выше)
+     * @param tag тег лога
+     * @param message текст сообщения
      */
     fun append(priority: Int, tag: String, message: String) {
         if (priority < Log.INFO) return
@@ -47,7 +51,9 @@ internal object InMemoryLogBuffer {
     }
 
     /**
-     * Возвращает копию текущего содержимого.
+     * Возвращает копию текущего содержимого буфера.
+     *
+     * @return список строк логов
      */
     fun toList(): List<LogLine> = synchronized(buffer) { ArrayList(buffer) }
 
@@ -59,7 +65,9 @@ internal object InMemoryLogBuffer {
     }
 
     /**
-     * Размер буфера.
+     * Возвращает текущий размер буфера.
+     *
+     * @return количество строк в буфере
      */
     fun size(): Int = synchronized(buffer) { buffer.size }
 

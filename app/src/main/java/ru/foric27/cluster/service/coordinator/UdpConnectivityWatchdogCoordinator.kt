@@ -16,6 +16,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * При превышении порога ошибок маршрута запрашивает immediate recovery.
  * Отслеживает grace-период после смены маршрута.
  */
+/**
+ * Координатор watchdog мониторинга сетевой связности.
+ *
+ * Периодически проверяет состояние интерфейса, маршрута и UDP-отправки.
+ * При обнаружении проблем запрашивает немедленное восстановление стрима.
+ */
 internal class UdpConnectivityWatchdogCoordinator(
     private val tag: String,
     private val launchWorker: (String, Int, () -> Unit) -> Thread,
@@ -41,6 +47,12 @@ internal class UdpConnectivityWatchdogCoordinator(
     private val watchdogStop = AtomicBoolean(false)
     @Volatile private var routeFailureStreak = 0
     @Volatile private var ifaceMissingGraceLogged = false
+
+    /**
+     * Запускает фоновый поток watchdog.
+     *
+     * Останавливает предыдущий поток перед запуском нового.
+     */
     fun start() {
         stop()
         ifaceMissingGraceLogged = false
@@ -195,6 +207,11 @@ internal class UdpConnectivityWatchdogCoordinator(
         }
     }
 
+    /**
+     * Останавливает фоновый поток watchdog.
+     *
+     * Прерывает и ожидает завершения потока.
+     */
     fun stop() {
         watchdogStop.set(true)
         interruptThreadQuietly(watchdogThread, "watchdog")
@@ -202,9 +219,19 @@ internal class UdpConnectivityWatchdogCoordinator(
         watchdogThread = null
     }
 
+    /**
+     * Сбрасывает счётчик последовательных ошибок маршрута.
+     *
+     * Вызывается при остановке стрима или успешном восстановлении.
+     */
     fun resetRouteFailureStreak() {
         routeFailureStreak = 0
     }
 
+    /**
+     * Возвращает текущее количество последовательных ошибок маршрута.
+     *
+     * @return текущий streak ошибок
+     */
     fun currentRouteFailureStreak(): Int = routeFailureStreak
 }

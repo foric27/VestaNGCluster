@@ -28,6 +28,19 @@ internal data class RootNetworkRoutePlan(
  */
 internal object RootNetworkRoutePlanner {
 
+    /**
+     * Строит план маршрутизации с валидацией параметров.
+     *
+     * Проверяет: имя интерфейса, корректность CIDR, валидность gateway IP,
+     * что gateway находится внутри подсети, и что это не зарезервированный адрес.
+     *
+     * @param iface имя сетевого интерфейса
+     * @param localCidr локальная подсеть в формате CIDR
+     * @param gatewayIp IP шлюза
+     * @param routingTable имя или номер routing table
+     * @param includeFwmarkRule включить fwmark-правило
+     * @return Result с планом или исключение при невалидных параметрах
+     */
     fun plan(
         iface: String,
         localCidr: String,
@@ -73,6 +86,19 @@ internal object RootNetworkRoutePlanner {
         )
     }
 
+    /**
+     * Строит список shell-команд для применения policy-route.
+     *
+     * Включает idempotent cleanup и основные команды: network route, host route,
+     * policy rules (fwmark, gateway, local).
+     *
+     * @param iface имя интерфейса
+     * @param cidr локальная подсеть
+     * @param gatewayIp IP шлюза
+     * @param routingTable имя routing table
+     * @param includeFwmarkRule включить fwmark-правило
+     * @return список shell-команд
+     */
     private fun buildCommands(
         iface: String,
         cidr: Ipv4Cidr,
@@ -103,6 +129,13 @@ internal object RootNetworkRoutePlanner {
         }
     }
 
+    /**
+     * Проверяет, находится ли IP внутри заданной подсети.
+     *
+     * @param ip IP для проверки
+     * @param cidr подсеть в формате CIDR
+     * @return true если IP внутри подсети
+     */
     private fun isHostInCidr(ip: String, cidr: Ipv4Cidr): Boolean {
         val mask = maskForPrefix(cidr.prefix)
         val maskedIp = toIpv4Int(ip) and mask
@@ -110,6 +143,13 @@ internal object RootNetworkRoutePlanner {
         return maskedIp == maskedCidrIp
     }
 
+    /**
+     * Проверяет, является ли IP зарезервированным адресом подсети (network или broadcast).
+     *
+     * @param ip IP для проверки
+     * @param cidr подсеть в формате CIDR
+     * @return true если IP зарезервирован
+     */
     private fun isReservedSubnetAddress(ip: String, cidr: Ipv4Cidr): Boolean {
         if (cidr.prefix >= HOSTLESS_PREFIX_START) return false
         val mask = maskForPrefix(cidr.prefix)
@@ -119,6 +159,12 @@ internal object RootNetworkRoutePlanner {
         return address == network || address == broadcast
     }
 
+    /**
+     * Проверяет валидность имени routing table.
+     *
+     * @param value имя таблицы
+     * @return true если таблица валидна
+     */
     private fun isValidRoutingTable(value: String): Boolean {
         if (value == DEFAULT_ROUTING_TABLE) return true
         return value.toIntOrNull() in ROUTING_TABLE_RANGE

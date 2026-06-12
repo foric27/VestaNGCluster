@@ -25,6 +25,14 @@ internal object VdspState {
     @Volatile private var height: Int = RuntimeConfig.Video.HEIGHT
     @Volatile private var state: DisplayState = DisplayState.UNKNOWN
 
+    /**
+     * Устанавливает параметры VirtualDisplay и возвращает новое состояние.
+     *
+     * @param displayId идентификатор дисплея
+     * @param width ширина дисплея
+     * @param height высота дисплея
+     * @return состояние дисплея после изменения
+     */
     fun set(displayId: Int, width: Int, height: Int): DisplayState {
         val previousDisplayId = this.displayId
         val previousWidth = this.width
@@ -40,6 +48,9 @@ internal object VdspState {
         return state
     }
 
+    /**
+     * Сбрасывает состояние VirtualDisplay.
+     */
     fun clear() {
         displayId = -1
         width = RuntimeConfig.Video.WIDTH
@@ -47,6 +58,17 @@ internal object VdspState {
         state = DisplayState.REMOVED
     }
 
+    /**
+     * Возвращает текущий идентификатор дисплея.
+     *
+     * @return displayId или -1, если дисплей не создан
+     */
     fun getDisplayId(): Int = displayId
+
+    /**
+     * Возвращает текущее состояние дисплея.
+     *
+     * @return состояние (UNKNOWN, ADDED, CHANGED, REMOVED)
+     */
     fun getDisplayState(): DisplayState = state
 }

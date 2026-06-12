@@ -35,6 +35,10 @@ internal class MainAccessPreflight(
     private var notificationsPermissionPending = false
     private var readStoragePermissionPending = false
 
+    /**
+     * Запускает последовательную проверку всех необходимых разрешений.
+     * При непрохождении показывает notice и блокирует дальнейший запуск.
+     */
     fun run() {
         if (notificationsPermissionPending) return
         if (readStoragePermissionPending) return
@@ -47,6 +51,11 @@ internal class MainAccessPreflight(
         showNotice(activity.getString(R.string.main_permissions_all_set), false)
     }
 
+    /**
+     * Обрабатывает результат запроса разрешения на уведомления.
+     *
+     * @param granted true, если разрешение выдано
+     */
     fun handleNotificationsPermissionResult(granted: Boolean) {
         notificationsPermissionPending = false
         if (granted) {
@@ -71,6 +80,11 @@ internal class MainAccessPreflight(
         }
     }
 
+    /**
+     * Обрабатывает результат запроса разрешения на чтение внешнего хранилища.
+     *
+     * @param granted true, если разрешение выдано
+     */
     fun handleReadStoragePermissionResult(granted: Boolean) {
         readStoragePermissionPending = false
         if (granted) {
@@ -81,12 +95,25 @@ internal class MainAccessPreflight(
         showNotice(activity.getString(R.string.main_read_storage_missing), true)
     }
 
+    /**
+     * Обрабатывает результат возврата из activity настроек.
+     */
     fun handleSettingsActivityResult() {
         run()
     }
 
+    /**
+     * Проверяет, ожидается ли в данный момент результат запроса разрешения на уведомления.
+     *
+     * @return true, если запрос в процессе
+     */
     fun isNotificationsPermissionPending(): Boolean = notificationsPermissionPending
 
+    /**
+     * Проверяет, все ли необходимые разрешения получены для перехода в background.
+     *
+     * @return true, если можно сворачивать задачу
+     */
     fun isReadyToBackground(): Boolean {
         if (notificationsPermissionPending) return false
         if (readStoragePermissionPending) return false

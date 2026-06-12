@@ -10,6 +10,12 @@ import timber.log.Timber
  * Ждёт ответа probe-пакета с таймаутом, планирует backoff-рестарт
  * при неудаче, логирует прогресс ожидания маршрута.
  */
+/**
+ * Координатор проверки готовности UDP перед запуском pipeline.
+ *
+ * Выполняет пробную отправку UDP-пакетов и ожидает успешного результата
+ * в течение заданного таймаута. При неудаче планирует backoff-перезапуск.
+ */
 internal class UdpStartupProbeCoordinator(
     private val tag: String,
     private val routeWaitStepMs: Long,
@@ -22,6 +28,17 @@ internal class UdpStartupProbeCoordinator(
     private val scheduleRestart: (String, Throwable?) -> Unit,
 ) {
 
+    /**
+     * Ожидает готовности UDP-отправки через пробные пакеты.
+     *
+     * Повторяет [UdpSender.probe] с интервалом [routeWaitStepMs] до
+     * успеха или исчерпания [timeoutMs].
+     *
+     * @param sender UDP sender для проверки
+     * @param dstHost целевой хост (для логов)
+     * @param timeoutMs максимальное время ожидания в миллисекундах
+     * @return true если UDP готов к отправке, false при таймауте или закрытии sender
+     */
     fun waitForUdpReady(
         sender: UdpSender,
         dstHost: String,
@@ -62,6 +79,15 @@ internal class UdpStartupProbeCoordinator(
         }
     }
 
+    /**
+     * Обрабатывает ситуацию, когда UDP probe не прошёл в течение таймаута.
+     *
+     * Закрывает sender, увеличивает backoff и планирует перезапуск.
+     *
+     * @param localSender UDP sender для закрытия
+     * @param hostValue целевой хост (для логов и уведомлений)
+     * @param noRouteRestartBackoffMinMs минимальный backoff при отсутствии маршрута
+     */
     fun handleRouteNotReady(
         localSender: UdpSender,
         hostValue: String,
@@ -72,6 +98,14 @@ internal class UdpStartupProbeCoordinator(
         handleRoutePreparationNotReady(hostValue, noRouteRestartBackoffMinMs)
     }
 
+    /**
+     * Обрабатывает ситуацию, когда сетевая подготовка не завершена.
+     *
+     * Устанавливает startInProgress=false, увеличивает backoff и планирует перезапуск.
+     *
+     * @param hostValue целевой хост (для логов и уведомлений)
+     * @param noRouteRestartBackoffMinMs минимальный backoff при отсутствии маршрута
+     */
     fun handleRoutePreparationNotReady(
         hostValue: String,
         noRouteRestartBackoffMinMs: Long,
