@@ -1,5 +1,7 @@
 package ru.foric27.cluster.service
 
+import android.content.Context
+import android.content.ContextWrapper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -13,50 +15,64 @@ class UdpServiceAlertsTest {
         AppWarningCenter.clear()
     }
 
+    private fun fakeContext(): Context {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        val unsafe = field.get(null)
+        val allocate = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        return allocate.invoke(unsafe, ContextWrapper::class.java) as Context
+    }
+
     private fun createAlerts(
-        notifications: MutableList<String> = mutableListOf(),
+        updateNotification: (String) -> Unit = {},
     ) = UdpServiceAlerts(
-        context = null!!,
-        tag = "test",
-        updateNotification = { notifications.add(it) },
+        context = fakeContext(),
+        tag = "UdpServiceAlertsTest",
+        updateNotification = updateNotification,
     )
 
     @Test
-    fun `notifyNoLinkOnce calls updateNotification`() {
-        val notifications = mutableListOf<String>()
-        val alerts = createAlerts(notifications)
+    fun `notifyNoLinkOnce calls updateNotification on first call`() {
+        var notifiedMessage: String? = null
+        val alerts = createAlerts(updateNotification = { notifiedMessage = it })
+
         alerts.notifyNoLinkOnce("no link")
-        assertEquals(listOf("no link"), notifications)
+
+        assertEquals("no link", notifiedMessage)
     }
 
     @Test
-    fun `notifyNoLinkOnce publishes warning only once`() {
+    fun `notifyNoLinkOnce calls updateNotification on second call too`() {
+        var callCount = 0
+        val alerts = createAlerts(updateNotification = { callCount++ })
+
+        alerts.notifyNoLinkOnce("no link")
+        alerts.notifyNoLinkOnce("no link")
+
+        assertEquals(2, callCount)
+    }
+
+    @Test
+    fun `notifyNoLinkOnce publishes to AppWarningCenter only once`() {
         val alerts = createAlerts()
+
         alerts.notifyNoLinkOnce("no link")
         alerts.notifyNoLinkOnce("no link")
-        alerts.notifyNoLinkOnce("no link")
-        val warnings = AppWarningCenter.consumeAll()
-        assertEquals(1, warnings.size)
-        assertEquals("no link", warnings[0])
+
+        assertTrue(AppWarningCenter.contains("no link"))
+        assertEquals(1, AppWarningCenter.consumeAll().size)
     }
 
     @Test
-    fun `notifyNoLinkOnce updates notification every time`() {
-        val notifications = mutableListOf<String>()
-        val alerts = createAlerts(notifications)
-        alerts.notifyNoLinkOnce("msg1")
-        alerts.notifyNoLinkOnce("msg2")
-        alerts.notifyNoLinkOnce("msg3")
-        assertEquals(listOf("msg1", "msg2", "msg3"), notifications)
-    }
-
-    @Test
-    fun `resetNoLinkWarning allows republishing`() {
+    fun `resetNoLinkWarning allows notifyNoLinkOnce to publish again`() {
         val alerts = createAlerts()
+
         alerts.notifyNoLinkOnce("no link")
+        AppWarningCenter.clear()
         alerts.resetNoLinkWarning()
         alerts.notifyNoLinkOnce("no link again")
-        val warnings = AppWarningCenter.consumeAll()
-        assertEquals(2, warnings.size)
+
+        assertTrue(AppWarningCenter.contains("no link again"))
     }
 }

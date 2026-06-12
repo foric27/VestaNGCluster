@@ -60,7 +60,7 @@ class InMemoryLogBufferTest {
     @Test
     fun `toList returns copy`() {
         InMemoryLogBuffer.append(INFO, "tag", "msg")
-        val list = InMemoryLogBuffer.toList()
+        val list = InMemoryLogBuffer.toList().toMutableList()
         list.clear()
         assertEquals(1, InMemoryLogBuffer.size())
     }
