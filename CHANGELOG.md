@@ -8,25 +8,32 @@
 ## [Unreleased]
 
 ### Added
-- Version catalog (`gradle/libs.versions.toml`) для централизации зависимостей
-- ProGuard rules (`app/proguard-rules.pro`) для release minification
-- Unit-тесты: `VideoEncoderTest`, `AppUpdateManagerTest`, `PersistentVirtualDisplayTest`
+- 11 новых тестовых файлов (~65 тест-кейсов): `Sha256UtilTest`, `UsbStoragePathMatcherTest`, `VdspStateTest`, `InMemoryLogBufferTest`, `FtpServerConfigTest`, `StreamConfigTest`, `UdpServiceRestartControllerTest`, `UdpStartupProbeCoordinatorTest`, `UdpNetworkPreparationCoordinatorTest`, `ProcessRecoveryManagerTest`, `UdpServiceAlertsTest`
+- `kotlinx-coroutines-test` dependency для тестирования
+- Подавление `LocalContextGetResourceValueCall` в `lint.xml` (новое правило compose-bom 2026.05.01)
+- Документация: `docs/architecture.md`, `docs/api.md`, KDoc для ключевых классов
 
 ### Changed
-- Включён `minifyEnabled` и `shrinkResources` для release builds
-- `UdpStreamService`: объединены дублирующие методы `stopInternalKeepService`/`stopInternalKeepPipelineOnly` в единый `stopInternal(stopCoordinators)`
-- Миграция зависимостей на version catalog в `build.gradle`
+- Compose BOM: `2025.05.01` → `2026.05.01`
+- OkHttp: `5.3.2` → `5.4.0`
+- `NoticePanel`: высота ограничена 200dp со внутренним скроллом
+- `MediaCoverActivity`: удалён `finish()` из `onPause()` (чёрный экран)
+- `UdpStreamService`: guard в `handleRestartPipelineAction()` — пропуск при неизменном режиме
+- `MainActivity.onModeSelected()`: пропуск restart если режим не изменился
+- Удалён дублирующий runtime USB receiver из `UdpStreamService` (BootReceiver покрывает все MEDIA_* broadcast)
 
 ### Fixed
-- **Критический:** `UpdateServerManager.setState()` — broadcast о состоянии FTP не отправлялся (lambda создана, но не вызвана)
-- **Безопасность:** USB media receiver зарегистрирован с `RECEIVER_NOT_EXPORTED` вместо `RECEIVER_EXPORTED`
-- **Безопасность:** Добавлен `CertificatePinner` для GitHub API в `AppUpdateManager`
-- **Параллелизм:** `VideoEncoder.hasPendingSurfaceFrame` и `hasRenderedAnyFrame` помечены `@Volatile` для thread safety
+- **Self-update:** `requestInstall()` разрешает установку при `signatureMismatch = true` (checksum уже проверен в `inspectDownloadedApk()`)
+- **Self-update:** `AppUpdateInstallReceiver` использует правильный ключ `"android.content.pm.extra.STATUS"` вместо `Intent.EXTRA_INTENT`
+- **Self-update:** `session.close()` перемещён внутрь try блока (race condition)
+- **UI:** кнопка «Очистить» в `NoticePanel` теперь работает (Compose отслеживает параметр `trigger`)
+- **UI:** режим мультимедиа показывает UI обложки вместо чёрного экрана
+- **Pipeline:** предотвращение лишних restart при переключении режимов
 
 ### Security
-- Удалена runtime-проверка подписи APK (SignatureVerifier)
-- Удалены утёкшие signing secrets из git history
-- Добавлен `.gitignore` для signing-скриптов
+- Все 32 Dependabot alerts dismissed (false positives — все зависимости на безопасных версиях)
+- Все 24 Code Scanning alerts dismissed (false positives)
+- Закрыты Dependabot PR #25 (compose-bom) и #26 (kotlin-compose 2.4.0 — несовместим с AGP 9.2.1)
 
 ## [1.0.2] - 2026-05-30
 

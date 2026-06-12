@@ -5,6 +5,17 @@ import ru.foric27.cluster.video.*
 
 import timber.log.Timber
 
+/**
+ * Координатор запуска video pipeline.
+ *
+ * Отвечает за:
+ * - создание и запуск [VideoEncoder]
+ * - запуск status sync, transport stats, connectivity watchdog
+ * - обработку ошибок запуска encoder (backoff + restart)
+ * - управление streamActive/startInProgress флагами
+ *
+ * Все зависимости передаются через lambda seams для тестирования.
+ */
 internal class UdpPipelineStartCoordinator(
     private val tag: String,
     private val createVideoEncoder: (StreamConfig, String?, UdpSender) -> VideoEncoder,

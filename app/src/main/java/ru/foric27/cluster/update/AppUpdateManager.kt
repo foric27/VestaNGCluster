@@ -18,6 +18,26 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
 
+/**
+ * Менеджер self-update приложения из GitHub Releases.
+ *
+ * Поддерживает два канала обновления:
+ * - **Rolling** (`main-latest` tag) — всегда последняя версия
+ * - **Stable** (`latest` release) — стабильные релизы
+ *
+ * Флоу обновления:
+ * 1. [queryUpdate] — проверка наличия нового релиза через GitHub API
+ * 2. [downloadUpdate] — скачивание APK + SHA-256 checksum
+ * 3. [requestInstall] — запуск системного установщика
+ *
+ * Проверки при скачивании:
+ * - SHA-256 checksum файла
+ * - Package name совпадает с текущим приложением
+ * - VersionCode больше текущего
+ * - Build SHA (для rolling канала)
+ *
+ * Установка через PackageInstaller Session API (без root).
+ */
 internal object AppUpdateManager {
 
     private const val TAG = "AppUpdateManager"

@@ -8,6 +8,13 @@ import java.io.Serializable
 
 /**
  * Рабочая конфигурация потока, собираемая из ProductConfig и runtime-настроек.
+ *
+ * Содержит все параметры, необходимые для запуска video pipeline:
+ * - сетевые параметры (ip, port, cidr, gateway, bindIp)
+ * - параметры видео (width, height, dpi, fps, bitrate, iframeInterval)
+ * - launch component для target activity на secondary display
+ *
+ * Создаётся через [fixedConfig] из [RuntimeConfig].
  */
 internal data class StreamConfig(
     val ip: String,
@@ -25,6 +32,15 @@ internal data class StreamConfig(
 ) : Serializable {
 
     companion object {
+        /**
+         * Создаёт [StreamConfig] из текущих значений [RuntimeConfig].
+         *
+         * @param context контекст (не используется в текущей реализации, зарезервирован)
+         * @param mode режим работы — определяет launch component:
+         *   - [AppSettings.UiStreamMode.MED] → `MediaCoverActivity`
+         *   - все остальные → `RuntimeConfig.TargetApp.CLUSTER_COMPONENT`
+         * @return конфигурация потока, готовая к запуску pipeline
+         */
         fun fixedConfig(context: Context? = null, mode: AppSettings.UiStreamMode = AppSettings.UiStreamMode.NAV): StreamConfig {
             val dpiValue = RuntimeConfig.Video.DPI
             val component = when (mode) {
