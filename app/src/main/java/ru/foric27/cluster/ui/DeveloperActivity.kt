@@ -356,7 +356,7 @@ private fun UpdateChannelCard(
                     onClick = { onSelect(AppSettings.UpdateChannel.ROLLING) },
                 )
                 Text(stringResource(R.string.app_update_channel_rolling), color = TextPrimary, fontSize = bodySize.value.sp)
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(dimensionResource(R.dimen.screen_mode_spacing)))
                 RadioButton(
                     selected = selected == AppSettings.UpdateChannel.STABLE,
                     onClick = { onSelect(AppSettings.UpdateChannel.STABLE) },

@@ -191,14 +191,14 @@ private fun MediaCoverScreen() {
                     contentDescription = null,
                     modifier = Modifier
                         .size(artSize)
-                        .clip(RoundedCornerShape(4.dp)),
+                        .clip(RoundedCornerShape(dimensionResource(R.dimen.developer_value_radius))),
                     contentScale = ContentScale.Crop,
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .size(artSize)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(dimensionResource(R.dimen.developer_value_radius)))
                         .background(OemClusterPlaceholder),
                 )
             }
