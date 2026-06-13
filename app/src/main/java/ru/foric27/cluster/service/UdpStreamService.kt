@@ -30,8 +30,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -96,22 +99,8 @@ import timber.log.Timber
     private lateinit var networkPreparationCoordinator: UdpNetworkPreparationCoordinator
     private lateinit var oomScoreAdjuster: OomScoreAdjuster
 
-    private val wakeLockReacquireRunnable: Runnable = Runnable {
-        if (!serviceRunning) return@Runnable
-        if (streamActive || streamStoppedForSleep) {
-            updateStreamWakeLock(held = false)
-            updateStreamWakeLock(held = true)
-            Timber.tag(TAG).i("Wake lock перезахвачен (периодический)")
-        }
-        mainHandler.postDelayed(wakeLockReacquireRunnable, WAKE_LOCK_REACQUIRE_MS)
-    }
-
-    private val heartbeatRunnable: Runnable = Runnable {
-        if (!serviceRunning) return@Runnable
-        startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
-        Timber.tag(TAG).i("Heartbeat: foreground service обновлён")
-        mainHandler.postDelayed(heartbeatRunnable, HEARTBEAT_INTERVAL_MS)
-    }
+    private var heartbeatJob: Job? = null
+    private var wakeLockReacquireJob: Job? = null
 
     /**
      * Готовит сервисный runtime: wake lock, coordinators, receivers и канал
@@ -325,9 +314,8 @@ import timber.log.Timber
     private fun initUpdateCoordinator() {
         updateCoordinator = UdpUpdateServerCoordinator(
             context = applicationContext,
-            mainHandler = mainHandler,
+            scope = serviceScope,
             isServiceRunning = { serviceRunning },
-            startDetachedWorker = ::startDetachedWorker,
             publishWarning = { AppWarningCenter.publish(it) },
         )
     }
@@ -336,30 +324,24 @@ import timber.log.Timber
         statusSyncCoordinator = UdpStatusSyncCoordinator(
             context = applicationContext,
             tag = TAG,
+            scope = serviceScope,
             statusKeySyncInterval = STATUS_KEY_SYNC_INTERVAL,
             statusPort = STATUS_PORT,
             statusPeriodMs = STATUS_PERIOD_MS,
             statusErrorLogEvery = STATUS_ERROR_LOG_EVERY,
             registerLocalReceiver = ::registerLocalReceiver,
             unregisterReceiverBestEffort = ::unregisterReceiverBestEffort,
-            launchWorker = ::launchWorker,
-            interruptThreadQuietly = ::interruptThreadQuietly,
-            joinThreadQuietly = ::joinThreadQuietly,
         )
         transportStatsCoordinator = UdpTransportStatsCoordinator(
             context = applicationContext,
             tag = TAG,
+            scope = serviceScope,
             senderSnapshotProvider = { sender?.snapshot() },
             statusSnapshotProvider = statusSyncCoordinator::snapshot,
-            launchWorker = ::launchWorker,
-            interruptThreadQuietly = ::interruptThreadQuietly,
-            joinThreadQuietly = ::joinThreadQuietly,
         )
         connectivityWatchdogCoordinator = UdpConnectivityWatchdogCoordinator(
             tag = TAG,
-            launchWorker = ::launchWorker,
-            interruptThreadQuietly = ::interruptThreadQuietly,
-            joinThreadQuietly = ::joinThreadQuietly,
+            scope = serviceScope,
             configProvider = { lastCfg },
             senderProvider = { sender },
             hostProvider = { targetHost },
@@ -393,6 +375,7 @@ import timber.log.Timber
                     preferredLaunchComponent = launchComponent,
                     udpSender = localSender,
                     restartCallback = this,
+                    scope = serviceScope,
                 )
             },
             closeSenderQuietly = ::closeSenderQuietly,
@@ -462,7 +445,7 @@ import timber.log.Timber
             setStartInProgress = { startInProgress = it },
             scheduleRestart = restartController::schedule,
             launchUdpProbe = { block ->
-                launchWorker("UdpProbe", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
+                CoroutineWorker.launchWorker(serviceScope, "UdpProbe", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
                     block()
                 }
             },
@@ -504,11 +487,30 @@ import timber.log.Timber
     }
 
     private fun scheduleHeartbeat() {
-        mainHandler.postDelayed(heartbeatRunnable, HEARTBEAT_INTERVAL_MS)
+        heartbeatJob?.cancel()
+        heartbeatJob = serviceScope.launch {
+            while (isActive) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                if (!serviceRunning) break
+                startForegroundCompat(FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, buildNotification())
+                Timber.tag(TAG).i("Heartbeat: foreground service обновлён")
+            }
+        }
     }
 
     private fun scheduleWakeLockReacquire() {
-        mainHandler.postDelayed(wakeLockReacquireRunnable, WAKE_LOCK_REACQUIRE_MS)
+        wakeLockReacquireJob?.cancel()
+        wakeLockReacquireJob = serviceScope.launch {
+            while (isActive) {
+                delay(WAKE_LOCK_REACQUIRE_MS)
+                if (!serviceRunning) break
+                if (streamActive || streamStoppedForSleep) {
+                    updateStreamWakeLock(held = false)
+                    updateStreamWakeLock(held = true)
+                    Timber.tag(TAG).i("Wake lock перезахвачен (периодический)")
+                }
+            }
+        }
     }
 
     private fun registerDisplayStateReceiver() {
@@ -567,7 +569,7 @@ import timber.log.Timber
         stopInternalKeepService()
         RootNetUtil.clearCaches()
 
-        startDetachedWorker("RestartWorker") {
+        serviceScope.launch(Dispatchers.Default) {
             try {
                 val cfg = lastCfg ?: StreamConfig.fixedConfig(this@UdpStreamService, getCurrentStreamMode())
                 val requestedTargetHost = targetHost ?: cfg.ip
@@ -579,7 +581,7 @@ import timber.log.Timber
                         startInProgress = false
                         serviceAlerts.notifyRootRequiredOnce()
                     }
-                    return@startDetachedWorker
+                    return@launch
                 }
 
                 if (!networkPrep.ifacePresent) {
@@ -587,7 +589,7 @@ import timber.log.Timber
                         if (!serviceRunning) return@post
                         handleMissingInterface(scheduleRestart = true)
                     }
-                    return@startDetachedWorker
+                    return@launch
                 }
 
                 mainHandler.post {
@@ -686,8 +688,8 @@ import timber.log.Timber
         minBackoffMs: Long,
         userMessage: String,
     ) {
-        startDetachedWorker("ImmediateRecovery") {
-            if (!serviceRunning) return@startDetachedWorker
+        serviceScope.launch(Dispatchers.Default) {
+            if (!serviceRunning) return@launch
             restartController.prepareImmediateRecovery(
                 reason = reason,
                 minBackoffMs = minBackoffMs,
@@ -761,44 +763,11 @@ import timber.log.Timber
         }
     }
 
-    private fun launchWorker(
-        name: String,
-        threadPriority: Int = Process.THREAD_PRIORITY_DEFAULT,
-        block: () -> Unit,
-    ): Thread {
-        return Thread(
-            {
-                applyThreadPriority(threadPriority, name)
-                block()
-            },
-            name,
-        ).apply {
-            isDaemon = true
-            start()
-        }
-    }
-
-    private fun startDetachedWorker(name: String, block: () -> Unit) {
-        serviceScope.launch(Dispatchers.Default) {
-            block()
-        }
-    }
-
-    private fun applyThreadPriority(threadPriority: Int, name: String) {
-        try {
-            Process.setThreadPriority(threadPriority)
-            if (threadPriority != Process.THREAD_PRIORITY_DEFAULT) {
-                Timber.tag(TAG).i("Приоритет потока повышен: $name -> $threadPriority")
-            }
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось изменить приоритет потока $name")
-        }
-    }
-
     private fun startTcpHandshakeServer() {
         if (tcpHandshakeServer?.isRunning() == true) return
         try {
             val server = TcpHandshakeServer(
+                scope = serviceScope,
                 onClientConnected = {
                     Timber.tag(TAG).i("TCP handshake: приёмник подключился")
                     sender?.resendLastIframe()
@@ -857,22 +826,6 @@ import timber.log.Timber
             receiver?.let { unregisterReceiver(it) }
         } catch (t: Throwable) {
             Timber.tag(TAG).w(t, "Не удалось снять receiver $label")
-        }
-    }
-
-    private fun interruptThreadQuietly(thread: Thread?, label: String) {
-        try {
-            thread?.interrupt()
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось прервать поток $label")
-        }
-    }
-
-    private fun joinThreadQuietly(thread: Thread?, label: String) {
-        try {
-            thread?.join(THREAD_JOIN_TIMEOUT_MS)
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Не удалось дождаться завершения потока $label")
         }
     }
 
@@ -1114,7 +1067,7 @@ import timber.log.Timber
             startInProgress = true
         }
 
-        startDetachedWorker("StartupWorker") {
+        serviceScope.launch(Dispatchers.Default) {
             try {
                 val networkPrep = networkPreparationCoordinator.prepare(cfg)
                 if (networkPrep.rootRequired) {
@@ -1123,11 +1076,11 @@ import timber.log.Timber
                         startInProgress = false
                         serviceAlerts.notifyRootRequiredOnce()
                     }
-                    return@startDetachedWorker
+                    return@launch
                 }
                 if (!networkPrep.ifacePresent) {
                     handleMissingInterface(scheduleRestart = false)
-                    return@startDetachedWorker
+                    return@launch
                 }
 
                 mainHandler.post {
@@ -1164,7 +1117,7 @@ import timber.log.Timber
     }
 
     private fun launchUpdateRefreshWorker(name: String, errorMessage: String, action: () -> Unit) {
-        startDetachedWorker(name) {
+        serviceScope.launch(Dispatchers.Default) {
             runCatching { action() }
                 .onFailure { t -> Timber.tag(TAG).e(t, errorMessage) }
         }
