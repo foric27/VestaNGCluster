@@ -122,6 +122,9 @@ internal object ProcessRecoveryManager {
     @android.annotation.SuppressLint("NewApi")
     @Suppress("DEPRECATION")
     private fun writeCrashLog(context: Context, thread: Thread, throwable: Throwable) {
+        // Отправляем crash в AppMetrica
+        CrashAnalytics.captureException(throwable, "Uncaught exception in ${thread.name}")
+
         val crashFile = java.io.File(context.cacheDir, "logs/crash-log.txt")
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
         val content = buildString {

@@ -52,6 +52,10 @@ internal class AppTimberTree : Timber.Tree() {
             Log.println(priority, safeTag, "$safeMessage\n${Log.getStackTraceString(t)}")
         }
         InMemoryLogBuffer.append(priority, safeTag, fullMessage)
+
+        if (t != null && priority >= Log.WARN) {
+            CrashAnalytics.captureException(t, "[$safeTag] $safeMessage")
+        }
     }
 
     private companion object {
