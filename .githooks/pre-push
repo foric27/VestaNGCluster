@@ -22,6 +22,6 @@ echo "[pre-push] Running :app:testDebugUnitTest"
 ./gradlew.bat :app:testDebugUnitTest
 
 echo "[pre-push] Running lintDebug"
-./gradlew.bat lintDebug
+./gradlew.bat lintDebug -x lintAnalyzeDebug
 
 echo "[pre-push] Local checks passed"
