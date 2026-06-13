@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.palette.graphics.Palette
@@ -149,6 +150,17 @@ private fun MediaCoverScreen() {
         }
     }
 
+    val artSize = dimensionResource(R.dimen.media_cover_art_size)
+    val timeWidth = dimensionResource(R.dimen.media_cover_time_width)
+    val progressHeight = dimensionResource(R.dimen.media_cover_progress_height)
+    val progressPadding = dimensionResource(R.dimen.media_cover_progress_padding)
+    val spacingSmall = dimensionResource(R.dimen.media_cover_spacing_small)
+    val spacingMedium = dimensionResource(R.dimen.media_cover_spacing_medium)
+    val spacingLarge = dimensionResource(R.dimen.media_cover_spacing_large)
+    val titleSize = dimensionResource(R.dimen.media_cover_title_size)
+    val subtitleSize = dimensionResource(R.dimen.media_cover_subtitle_size)
+    val sourceSize = dimensionResource(R.dimen.media_cover_source_size)
+
     Box(
         modifier = Modifier
             .offset(x = visibleArea.left.dp, y = visibleArea.top.dp)
@@ -159,18 +171,18 @@ private fun MediaCoverScreen() {
     ) {
         Column(
             modifier = Modifier
-                .width(380.dp)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .fillMaxWidth()
+                .padding(horizontal = spacingLarge, vertical = spacingMedium),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = sourceLabel,
                 color = OemClusterSubtitle,
-                fontSize = 12.sp,
+                fontSize = sourceSize.value.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacingMedium))
 
             if (coverBitmap != null) {
                 val resized = remember(coverBitmap) { resizeBitmap(coverBitmap, 960, 640) }
@@ -178,36 +190,36 @@ private fun MediaCoverScreen() {
                     bitmap = resized.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
-                        .size(96.dp)
+                        .size(artSize)
                         .clip(RoundedCornerShape(4.dp)),
                     contentScale = ContentScale.Crop,
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(96.dp)
+                        .size(artSize)
                         .clip(RoundedCornerShape(4.dp))
                         .background(OemClusterPlaceholder),
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacingMedium))
             Text(
                 text = trackTitle.ifEmpty { stringResource(R.string.media_cover_no_media_title) },
                 color = OemClusterTitle,
-                fontSize = 14.sp,
+                fontSize = titleSize.value.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(spacingSmall))
             Text(
                 text = artist.ifEmpty { stringResource(R.string.media_cover_no_media_subtitle) },
                 color = OemClusterSubtitle,
-                fontSize = 12.sp,
+                fontSize = subtitleSize.value.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacingMedium))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -216,8 +228,8 @@ private fun MediaCoverScreen() {
                 Text(
                     text = formatTime(positionMs ?: 0L),
                     color = OemClusterTitle,
-                    fontSize = 12.sp,
-                    modifier = Modifier.width(40.dp),
+                    fontSize = subtitleSize.value.sp,
+                    modifier = Modifier.width(timeWidth),
                 )
                 LinearProgressIndicator(
                     progress = {
@@ -227,16 +239,16 @@ private fun MediaCoverScreen() {
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 6.dp)
-                        .height(4.dp),
+                        .padding(horizontal = progressPadding)
+                        .height(progressHeight),
                     color = Color(dominantColor),
                     trackColor = OemClusterSeekbarBg,
                 )
                 Text(
                     text = formatTime(durationMs ?: 0L),
                     color = OemClusterTitle,
-                    fontSize = 12.sp,
-                    modifier = Modifier.width(40.dp),
+                    fontSize = subtitleSize.value.sp,
+                    modifier = Modifier.width(timeWidth),
                 )
             }
         }

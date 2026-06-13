@@ -16,4 +16,14 @@
     <dimen name="screen_footer_text_size">14sp</dimen>
     <dimen name="screen_link_text_size">15sp</dimen>
     <dimen name="developer_title_size">26sp</dimen>
+    <dimen name="media_cover_art_size">104dp</dimen>
+    <dimen name="media_cover_time_width">44dp</dimen>
+    <dimen name="media_cover_progress_height">5dp</dimen>
+    <dimen name="media_cover_progress_padding">7dp</dimen>
+    <dimen name="media_cover_spacing_small">2dp</dimen>
+    <dimen name="media_cover_spacing_medium">9dp</dimen>
+    <dimen name="media_cover_spacing_large">13dp</dimen>
+    <dimen name="media_cover_title_size">15sp</dimen>
+    <dimen name="media_cover_subtitle_size">13sp</dimen>
+    <dimen name="media_cover_source_size">13sp</dimen>
 </resources>

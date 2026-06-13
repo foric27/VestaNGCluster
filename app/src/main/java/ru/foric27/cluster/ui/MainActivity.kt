@@ -28,7 +28,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -541,89 +542,121 @@ private fun MainScreen(
     onTelegramTap: () -> Unit,
     onClearNotice: () -> Unit,
 ) {
-    val configuration = LocalConfiguration.current
-    val isWide = configuration.screenWidthDp >= 600
+    val contentPadding = dimensionResource(R.dimen.screen_content_padding)
+    val sectionSpacing = dimensionResource(R.dimen.screen_section_spacing)
+    val blockSpacing = dimensionResource(R.dimen.screen_block_spacing)
 
-    if (isWide) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                TitleSection()
-                Spacer(Modifier.height(16.dp))
-                NoticePanel(noticeTrigger, noticeLog, onClearNotice)
-                Spacer(Modifier.height(16.dp))
-                StatusSection(screenState)
-                Spacer(Modifier.height(16.dp))
-                ModeSelector(screenState.selectedMode, onModeSelected)
-                Spacer(Modifier.height(16.dp))
-                RestartButton(onRestartStream)
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding),
+    ) {
+        val isWide = maxWidth >= 600.dp
+        if (isWide) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(blockSpacing),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TitleSection()
+                    Spacer(Modifier.height(sectionSpacing))
+                    NoticePanel(noticeTrigger, noticeLog, onClearNotice)
+                    Spacer(Modifier.height(sectionSpacing))
+                    StatusSection(screenState)
+                    Spacer(Modifier.height(sectionSpacing))
+                    ModeSelector(screenState.selectedMode, onModeSelected)
+                    Spacer(Modifier.height(sectionSpacing))
+                    RestartButton(onRestartStream)
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    FtpStatusCard(ftpState)
+                    Spacer(Modifier.height(sectionSpacing))
+                    AppUpdateCard(appUpdateState, onCheckUpdate, onInstallUpdate)
+                    Spacer(Modifier.weight(1f))
+                    Footer(onVersionTap, onTelegramTap)
+                }
             }
-            Column(modifier = Modifier.weight(1f)) {
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(sectionSpacing),
+            ) {
+                TitleSection()
+                NoticePanel(noticeTrigger, noticeLog, onClearNotice)
+                StatusSection(screenState)
+                ModeSelector(screenState.selectedMode, onModeSelected)
+                RestartButton(onRestartStream)
                 FtpStatusCard(ftpState)
-                Spacer(Modifier.height(16.dp))
                 AppUpdateCard(appUpdateState, onCheckUpdate, onInstallUpdate)
-                Spacer(Modifier.weight(1f))
                 Footer(onVersionTap, onTelegramTap)
             }
-        }
-    } else {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            TitleSection()
-            NoticePanel(noticeTrigger, noticeLog, onClearNotice)
-            StatusSection(screenState)
-            ModeSelector(screenState.selectedMode, onModeSelected)
-            RestartButton(onRestartStream)
-            FtpStatusCard(ftpState)
-            AppUpdateCard(appUpdateState, onCheckUpdate, onInstallUpdate)
-            Footer(onVersionTap, onTelegramTap)
         }
     }
 }
 
 @Composable
 private fun TitleSection() {
+    val titleSize = dimensionResource(R.dimen.screen_title_size)
     Text(
         text = stringResource(R.string.app_name),
         color = MaterialTheme.colorScheme.primary,
-        fontSize = 28.sp,
+        fontSize = titleSize.value.sp,
         fontWeight = FontWeight.Bold,
     )
 }
 
 @Composable
 private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> Unit) {
-    if (noticeLog.isEmpty()) return
     val hasErrors = noticeLog.hasErrors()
+    val isEmpty = noticeLog.isEmpty()
+    val cardPadding = dimensionResource(R.dimen.screen_card_padding)
+    val noticeSpacing = dimensionResource(R.dimen.screen_notice_spacing)
+    val logHeight = dimensionResource(R.dimen.screen_notice_log_height)
+    val bodySize = dimensionResource(R.dimen.screen_body_size)
+    val captionSize = dimensionResource(R.dimen.screen_caption_size)
+    val sublineSize = dimensionResource(R.dimen.screen_subline_size)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (hasErrors) stringResource(R.string.inline_notice_title_warning) else stringResource(R.string.inline_notice_title_info),
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 14.sp,
+                    color = if (hasErrors) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    fontSize = bodySize.value.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onClear) {
-                    Text(stringResource(R.string.inline_notice_clear), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                TextButton(
+                    onClick = onClear,
+                    enabled = !isEmpty,
+                ) {
+                    Text(
+                        stringResource(R.string.inline_notice_clear),
+                        color = if (isEmpty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                        fontSize = captionSize.value.sp,
+                    )
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Box(modifier = Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
-                Text(text = noticeLog.renderText(), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+            Spacer(Modifier.height(noticeSpacing))
+            Box(modifier = Modifier.heightIn(max = logHeight).verticalScroll(rememberScrollState())) {
+                Text(
+                    text = if (isEmpty) stringResource(R.string.inline_notice_empty_placeholder) else noticeLog.renderText(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = sublineSize.value.sp,
+                )
             }
         }
     }
@@ -631,39 +664,48 @@ private fun NoticePanel(trigger: Int, noticeLog: MainNoticeLog, onClear: () -> U
 
 @Composable
 private fun StatusSection(state: ScreenState) {
+    val cardPadding = dimensionResource(R.dimen.screen_card_padding)
+    val headlineSize = dimensionResource(R.dimen.screen_headline_size)
+    val sublineSize = dimensionResource(R.dimen.screen_subline_size)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = state.headline, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Column(modifier = Modifier.padding(cardPadding)) {
+            Text(text = state.headline, color = MaterialTheme.colorScheme.onSurface, fontSize = headlineSize.value.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text(text = state.subline, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Text(text = state.subline, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = sublineSize.value.sp)
         }
     }
 }
 
 @Composable
 private fun ModeSelector(selected: UiStreamMode, onSelect: (UiStreamMode) -> Unit) {
+    val cardPadding = dimensionResource(R.dimen.screen_card_padding)
+    val bodySize = dimensionResource(R.dimen.screen_body_size)
+    val modeSpacing = dimensionResource(R.dimen.screen_mode_spacing)
+    val modeItemPadding = dimensionResource(R.dimen.screen_mode_item_padding)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Text(
                 text = stringResource(R.string.stream_mode_title),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
+                fontSize = bodySize.value.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(modeSpacing))
             UiStreamMode.entries.forEach { mode ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(mode) }
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = modeItemPadding),
                 ) {
                     RadioButton(selected = selected == mode, onClick = null)
                     Spacer(Modifier.width(8.dp))
@@ -674,7 +716,7 @@ private fun ModeSelector(selected: UiStreamMode, onSelect: (UiStreamMode) -> Uni
                             UiStreamMode.ABS -> stringResource(R.string.stream_mode_abs)
                         },
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 14.sp,
+                        fontSize = bodySize.value.sp,
                     )
                 }
             }
@@ -684,29 +726,34 @@ private fun ModeSelector(selected: UiStreamMode, onSelect: (UiStreamMode) -> Uni
 
 @Composable
 private fun RestartButton(onRestart: () -> Unit) {
+    val bodySize = dimensionResource(R.dimen.screen_body_size)
     Button(
         onClick = onRestart,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(stringResource(R.string.main_restart_stream_button), fontSize = 14.sp)
+        Text(stringResource(R.string.main_restart_stream_button), fontSize = bodySize.value.sp)
     }
 }
 
 @Composable
 private fun FtpStatusCard(ftpState: String) {
+    val cardPadding = dimensionResource(R.dimen.screen_card_padding)
+    val bodySize = dimensionResource(R.dimen.screen_body_size)
+    val captionSize = dimensionResource(R.dimen.screen_caption_size)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Text(
                 text = stringResource(R.string.ftp_title),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
+                fontSize = bodySize.value.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
-            Text(text = ftpState, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Text(text = ftpState, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = captionSize.value.sp)
         }
     }
 }
@@ -717,19 +764,23 @@ private fun AppUpdateCard(
     onCheck: () -> Unit,
     onInstall: () -> Unit,
 ) {
+    val cardPadding = dimensionResource(R.dimen.screen_card_padding)
+    val bodySize = dimensionResource(R.dimen.screen_body_size)
+    val captionSize = dimensionResource(R.dimen.screen_caption_size)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Text(
                 text = stringResource(R.string.app_update_title),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
+                fontSize = bodySize.value.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
-            Text(text = state.statusText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Text(text = state.statusText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = captionSize.value.sp)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -737,14 +788,14 @@ private fun AppUpdateCard(
                     enabled = state.checkEnabled,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.app_update_check_button), fontSize = 12.sp)
+                    Text(stringResource(R.string.app_update_check_button), fontSize = captionSize.value.sp)
                 }
                 Button(
                     onClick = onInstall,
                     enabled = state.installEnabled,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(state.installButtonText.ifEmpty { stringResource(R.string.app_update_download_button) }, fontSize = 12.sp)
+                    Text(state.installButtonText.ifEmpty { stringResource(R.string.app_update_download_button) }, fontSize = captionSize.value.sp)
                 }
             }
         }
@@ -753,6 +804,9 @@ private fun AppUpdateCard(
 
 @Composable
 private fun Footer(onVersionTap: () -> Unit, onTelegramTap: () -> Unit) {
+    val footerTextSize = dimensionResource(R.dimen.screen_footer_text_size)
+    val noticeSpacing = dimensionResource(R.dimen.screen_notice_spacing)
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -760,14 +814,14 @@ private fun Footer(onVersionTap: () -> Unit, onTelegramTap: () -> Unit) {
         Text(
             text = stringResource(R.string.app_version_fmt, BuildConfig.VERSION_NAME),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
+            fontSize = footerTextSize.value.sp,
             modifier = Modifier.clickable { onVersionTap() },
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(noticeSpacing))
         Text(
             text = stringResource(R.string.developer_telegram),
             color = MaterialTheme.colorScheme.secondary,
-            fontSize = 12.sp,
+            fontSize = footerTextSize.value.sp,
             modifier = Modifier.clickable { onTelegramTap() },
         )
     }

@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -117,12 +118,19 @@ private fun DeveloperScreen(onBack: () -> Unit) {
     var exportEnabled by remember { mutableStateOf(true) }
     var clearEnabled by remember { mutableStateOf(true) }
 
+    val cardTopMargin = dimensionResource(R.dimen.developer_card_top_margin)
+    val cardFirstTopMargin = dimensionResource(R.dimen.developer_card_first_top_margin)
+    val titleSize = dimensionResource(R.dimen.developer_title_size)
+    val cardTextSize = dimensionResource(R.dimen.developer_card_text_size)
+    val captionSize = dimensionResource(R.dimen.screen_caption_size)
+    val contentPadding = dimensionResource(R.dimen.screen_content_padding)
+
     Scaffold(
         topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(dimensionResource(R.dimen.developer_card_padding)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onBack) {
@@ -131,7 +139,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                 Text(
                     text = stringResource(R.string.developer_title),
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 20.sp,
+                    fontSize = dimensionResource(R.dimen.developer_title_size).value.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -150,14 +158,14 @@ private fun DeveloperScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = dimensionResource(R.dimen.developer_card_padding)),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.developer_card_top_margin)),
         ) {
             item {
                 Text(
                     text = stringResource(R.string.app_version_fmt, BuildConfig.VERSION_NAME),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp,
+                    fontSize = dimensionResource(R.dimen.screen_body_size).value.sp,
                 )
             }
 
@@ -228,7 +236,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.screen_block_spacing)),
                 ) {
                     Button(
                         onClick = {
@@ -243,7 +251,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.developer_reset_all), color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        Text(stringResource(R.string.developer_reset_all), color = MaterialTheme.colorScheme.onSurface, fontSize = captionSize.value.sp)
                     }
 
                     Button(
@@ -269,7 +277,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.developer_export_logcat), color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        Text(stringResource(R.string.developer_export_logcat), color = MaterialTheme.colorScheme.onSurface, fontSize = captionSize.value.sp)
                     }
 
                     Button(
@@ -301,7 +309,7 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.developer_clear_logcat), color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        Text(stringResource(R.string.developer_clear_logcat), color = MaterialTheme.colorScheme.onSurface, fontSize = captionSize.value.sp)
                     }
                 }
             }
@@ -311,8 +319,8 @@ private fun DeveloperScreen(onBack: () -> Unit) {
                     Text(
                         text = statusText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        fontSize = captionSize.value.sp,
+                        modifier = Modifier.padding(bottom = contentPadding),
                     )
                 }
             }
@@ -325,30 +333,35 @@ private fun UpdateChannelCard(
     selected: AppSettings.UpdateChannel,
     onSelect: (AppSettings.UpdateChannel) -> Unit,
 ) {
+    val cardPadding = dimensionResource(R.dimen.developer_card_padding)
+    val cardTextSize = dimensionResource(R.dimen.developer_card_text_size)
+    val bodySize = dimensionResource(R.dimen.screen_body_size)
+    val modeSpacing = dimensionResource(R.dimen.screen_mode_spacing)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Text(
                 text = stringResource(R.string.developer_update_channel_title),
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = cardTextSize.value.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(modeSpacing))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = selected == AppSettings.UpdateChannel.ROLLING,
                     onClick = { onSelect(AppSettings.UpdateChannel.ROLLING) },
                 )
-                Text(stringResource(R.string.app_update_channel_rolling), color = TextPrimary, fontSize = 14.sp)
+                Text(stringResource(R.string.app_update_channel_rolling), color = TextPrimary, fontSize = bodySize.value.sp)
                 Spacer(Modifier.width(16.dp))
                 RadioButton(
                     selected = selected == AppSettings.UpdateChannel.STABLE,
                     onClick = { onSelect(AppSettings.UpdateChannel.STABLE) },
                 )
-                Text(stringResource(R.string.app_update_channel_stable), color = TextPrimary, fontSize = 14.sp)
+                Text(stringResource(R.string.app_update_channel_stable), color = TextPrimary, fontSize = bodySize.value.sp)
             }
         }
     }
@@ -359,18 +372,21 @@ private fun CollapseOnLaunchCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val cardPadding = dimensionResource(R.dimen.developer_card_padding)
+    val cardTextSize = dimensionResource(R.dimen.developer_card_text_size)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(cardPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = stringResource(R.string.developer_collapse_on_launch_title),
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = cardTextSize.value.sp,
                 modifier = Modifier.weight(1f),
             )
             Checkbox(checked = checked, onCheckedChange = onCheckedChange)
@@ -387,18 +403,22 @@ private fun RuntimeSectionCard(
     onBooleanChanged: (RuntimeConfig.FieldSpec, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val cardPadding = dimensionResource(R.dimen.developer_card_padding)
+    val cardTextSize = dimensionResource(R.dimen.developer_card_text_size)
+    val valueTopMargin = dimensionResource(R.dimen.developer_value_top_margin)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Text(
                 text = sectionTitle,
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = cardTextSize.value.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(valueTopMargin))
             fields.forEach { spec ->
                 val value = fieldValues[spec.key] ?: ""
                 val title = fieldTitle(context, spec)
@@ -419,7 +439,7 @@ private fun RuntimeSectionCard(
                         onDone = { raw -> onFieldChanged(spec, raw) },
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(valueTopMargin))
             }
         }
     }
@@ -431,18 +451,22 @@ private fun BooleanField(
     value: String,
     onChanged: (Boolean) -> Unit,
 ) {
+    val valuePadding = dimensionResource(R.dimen.developer_value_padding)
+    val valuePaddingTop = dimensionResource(R.dimen.developer_value_padding_top)
+    val valueTextSize = dimensionResource(R.dimen.developer_value_text_size)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = valuePadding, vertical = valuePaddingTop),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
+                fontSize = valueTextSize.value.sp,
                 modifier = Modifier.weight(1f),
             )
             Checkbox(
@@ -462,11 +486,12 @@ private fun TextInputField(
 ) {
     var text by remember(value) { mutableStateOf(value) }
     var isError by remember { mutableStateOf(false) }
+    val valueTextSize = dimensionResource(R.dimen.developer_value_text_size)
 
     OutlinedTextField(
         value = text,
         onValueChange = { text = it; isError = false },
-        label = { Text(title, fontSize = 12.sp) },
+        label = { Text(title, fontSize = valueTextSize.value.sp) },
         singleLine = true,
         isError = isError,
         keyboardOptions = KeyboardOptions(

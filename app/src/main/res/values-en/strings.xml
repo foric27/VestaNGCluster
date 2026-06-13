@@ -86,6 +86,12 @@
     <string name="inline_notice_title_info">State</string>
     <string name="inline_notice_clear">Clear</string>
     <string name="inline_notice_item_fmt">• %1$s</string>
+    <string name="inline_notice_empty_placeholder">No notifications</string>
+    <string name="update_alert_title">Update available</string>
+    <string name="update_alert_message_fmt">Update detected: %1$s</string>
+    <string name="update_alert_confirm">Update</string>
+    <string name="update_alert_dismiss">Cancel</string>
+
     <string name="developer_title">For developers</string>
     <string name="developer_back">Back</string>
     <string name="developer_hint">Screen opens by repeatedly tapping the app version.</string>
@@ -278,11 +284,6 @@
 
     <string name="main_read_storage_granted">Storage read permission granted</string>
     <string name="main_read_storage_missing">Storage read permission required for internal memory and USB drives</string>
-
-    <string name="update_alert_title">Update available</string>
-    <string name="update_alert_message_fmt">New update detected: %1$s\n\nUpdate now?</string>
-    <string name="update_alert_update">Update</string>
-    <string name="update_alert_cancel">Cancel</string>
 
     <string name="media_cover_desc">Album cover</string>
     <string name="media_cover_no_media_title">No media stream</string>

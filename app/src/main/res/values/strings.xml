@@ -86,6 +86,12 @@
     <string name="inline_notice_title_info">Состояние</string>
     <string name="inline_notice_clear">Очистить</string>
     <string name="inline_notice_item_fmt">• %1$s</string>
+    <string name="inline_notice_empty_placeholder">Нет уведомлений</string>
+    <string name="update_alert_title">Доступно обновление</string>
+    <string name="update_alert_message_fmt">Обнаружено обновление: %1$s</string>
+    <string name="update_alert_confirm">Обновить</string>
+    <string name="update_alert_dismiss">Отмена</string>
+
     <string name="developer_title">Для разработчиков</string>
     <string name="developer_back">Назад</string>
     <string name="developer_hint">Экран открывается по многократному нажатию на версию приложения.</string>
@@ -278,11 +284,6 @@
 
     <string name="main_read_storage_granted">Разрешение на чтение памяти получено</string>
     <string name="main_read_storage_missing">Требуется разрешение на чтение внутренней памяти и USB-накопителей</string>
-
-    <string name="update_alert_title">Доступно обновление</string>
-    <string name="update_alert_message_fmt">Обнаружено новое обновление: %1$s\n\nОбновить сейчас?</string>
-    <string name="update_alert_update">Обновить</string>
-    <string name="update_alert_cancel">Отмена</string>
 
     <string name="media_cover_desc">Обложка альбома</string>
     <string name="media_cover_no_media_title">Нет медиапотока</string>

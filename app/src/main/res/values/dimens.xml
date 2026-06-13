@@ -27,4 +27,16 @@
     <dimen name="developer_value_stroke">1dp</dimen>
     <dimen name="developer_value_top_margin">12dp</dimen>
     <dimen name="media_playback_progress_top_margin">6dp</dimen>
+    <dimen name="screen_mode_spacing">8dp</dimen>
+    <dimen name="screen_mode_item_padding">4dp</dimen>
+    <dimen name="media_cover_art_size">96dp</dimen>
+    <dimen name="media_cover_time_width">40dp</dimen>
+    <dimen name="media_cover_progress_height">4dp</dimen>
+    <dimen name="media_cover_progress_padding">6dp</dimen>
+    <dimen name="media_cover_spacing_small">2dp</dimen>
+    <dimen name="media_cover_spacing_medium">8dp</dimen>
+    <dimen name="media_cover_spacing_large">12dp</dimen>
+    <dimen name="media_cover_title_size">14sp</dimen>
+    <dimen name="media_cover_subtitle_size">12sp</dimen>
+    <dimen name="media_cover_source_size">12sp</dimen>
 </resources>
