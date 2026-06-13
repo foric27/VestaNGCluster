@@ -7,10 +7,8 @@ if [ -n "${SKIP_LOCAL_PRE_PUSH_TESTS:-}" ]; then
 fi
 
 if [ -z "${JAVA_HOME:-}" ]; then
-  if [ -d "/c/Program Files/Java/jdk-21" ]; then
-    JAVA_HOME="/c/Program Files/Java/jdk-21"
-  elif [ -d "/c/my_soft/android/VestaNGClusterFlowStudio/.tools/jdk-21.0.10" ]; then
-    JAVA_HOME="/c/my_soft/android/VestaNGClusterFlowStudio/.tools/jdk-21.0.10"
+  if [ -d "/c/Program Files/Java/jdk-26" ]; then
+    JAVA_HOME="/c/Program Files/Java/jdk-26"
   fi
   export JAVA_HOME
 fi

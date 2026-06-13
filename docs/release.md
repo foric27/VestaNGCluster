@@ -59,14 +59,14 @@ Rolling release оформляется единообразно:
 
 ### Предварительные требования
 
-- JDK 21
+- JDK 26
 - Android SDK
 - Настроенный `keystore.properties` или env secrets (см. [signing.md](signing.md))
 
 ### Сборка
 
 ```bash
-export JAVA_HOME=/path/to/jdk-21
+export JAVA_HOME=/path/to/jdk-26
 ./gradlew assembleRelease
 ```
 

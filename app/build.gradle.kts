@@ -21,6 +21,22 @@ val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: signing
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: signingProps.getProperty("keyAlias")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: signingProps.getProperty("keyPassword")
 
+val appmetricaApiKey: String = run {
+    // 1. Из переменной окружения (для CI)
+    val envKey = System.getenv("APPMETRICA_API_KEY")
+    if (!envKey.isNullOrBlank()) return@run envKey
+
+    // 2. Из local.properties (для локальной разработки)
+    val localProps = Properties().apply {
+        val file = rootProject.file("local.properties")
+        if (file.exists()) file.reader(Charsets.UTF_8).use { load(it) }
+    }
+    val localKey = localProps.getProperty("appmetrica.api.key")
+    if (!localKey.isNullOrBlank()) return@run localKey
+
+    ""
+}
+
 val currentGitSha: String = run {
     val envSha = System.getenv("SOURCE_SHA") ?: System.getenv("GITHUB_SHA")
     if (!envSha.isNullOrBlank()) return@run envSha.trim().take(7)
@@ -62,6 +78,7 @@ android {
         versionCode = 3
         versionName = "1.0.2"
         buildConfigField("String", "GIT_SHA", "\"$currentGitSha\"")
+        buildConfigField("String", "APPMETRICA_API_KEY", "\"$appmetricaApiKey\"")
     }
 
     signingConfigs {
@@ -125,6 +142,8 @@ dependencies {
     implementation(libs.bundles.androidx)
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
+    implementation(libs.bundles.koin)
+    implementation(libs.bundles.appmetrica)
     implementation(libs.ftpserver.core)
     implementation(libs.mina.core)
     implementation(libs.slf4j.nop)
