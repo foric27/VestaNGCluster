@@ -37,6 +37,7 @@
 
 - `app/` — Android-приложение (single-module, Kotlin + Compose + Material3).
 - `app/src/main/java/ru/foric27/cluster/` — bootstrap: `ClusterApp`, `ClusterMode`, receivers.
+- `app/src/main/java/ru/foric27/cluster/di/` — Koin DI-модули: `AppModule`, `VideoModule`, `UpdateModule`, `UiModule`.
 - `app/src/main/java/ru/foric27/cluster/service/` — `UdpStreamService`, координаторы, контроллеры, `TcpHandshakeServer`.
 - `app/src/main/java/ru/foric27/cluster/video/` — video pipeline: `VideoEncoder`, `GlFrameComposer`, I-frame buffer.
 - `app/src/main/java/ru/foric27/cluster/network/` — root networking: `RootNetUtil`, `NetworkRootShell`.
@@ -49,6 +50,9 @@
 - `test-client/` — Python-утилиты для UDP-диагностики.
 - `oem/` — read-only OEM reference material (HUMAX/AvtoVAZ); использовать для сравнения, не редактировать.
 - Build: Kotlin DSL (`build.gradle.kts`, `settings.gradle.kts`).
+- DI: Koin 4.1.0 — модули в `di/`, инициализация в `ClusterApp.onCreate()`.
+- Threading: корутины (`CoroutineWorker`) для координаторов, `Handler` для codec thread, `synchronized` для блокировок.
+- Crash analytics: AppMetrica 8.3.0 — `CrashAnalytics` в `util/`, инициализация в `ClusterApp.onCreate()`. Timber integration для автоматического захвата логов.
 
 ## Ключевые домены
 
@@ -71,9 +75,8 @@
 ## Команды
 
 ```powershell
-# Требование: JDK 21 LTS. Предпочтительно system JDK 21;
-# repo `.tools/jdk-21.0.10` использовать только как fallback.
-$env:JAVA_HOME="C:\Program Files\Java\jdk-21"; $env:PATH="$env:JAVA_HOME/bin;$env:PATH"
+# Требование: JDK 26 (поддерживается Gradle 9.4.0+).
+# Системный JDK 26 используется по умолчанию.
 ./gradlew.bat assembleDebug
 ./gradlew.bat :app:testDebugUnitTest
 ./gradlew.bat lintDebug
