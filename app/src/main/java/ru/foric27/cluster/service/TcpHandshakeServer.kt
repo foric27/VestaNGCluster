@@ -1,5 +1,11 @@
 package ru.foric27.cluster.service
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.net.ServerSocket
 import java.net.SocketException
@@ -15,28 +21,25 @@ import java.net.SocketException
  */
 internal class TcpHandshakeServer(
     private val port: Int = DEFAULT_PORT,
+    private val scope: CoroutineScope,
     private val onClientConnected: () -> Unit = {},
     private val onClientDisconnected: () -> Unit = {},
 ) {
 
     private var serverSocket: ServerSocket? = null
-    private var serverThread: Thread? = null
+    private var serverJob: Job? = null
     @Volatile private var running = false
 
     /**
-     * Запускает TCP-сервер в фоновом потоке.
+     * Запускает TCP-сервер в фоновой корутине.
      *
      * Если порт уже занят — логирует ошибку и не падает.
      */
     fun start() {
         if (running) return
         running = true
-        serverThread = Thread({
+        serverJob = scope.launch(Dispatchers.IO) {
             runServer()
-        }, "TcpHandshake").apply {
-            isDaemon = true
-            priority = Thread.NORM_PRIORITY - 1
-            start()
         }
         Timber.tag(TAG).i("TCP handshake сервер запущен на порту $port")
     }
@@ -49,14 +52,14 @@ internal class TcpHandshakeServer(
         try {
             serverSocket?.close()
         } catch (_: Throwable) {}
-        serverThread?.interrupt()
-        serverThread = null
+        serverJob?.cancel()
+        serverJob = null
         Timber.tag(TAG).i("TCP handshake сервер остановлен")
     }
 
     fun isRunning(): Boolean = running
 
-    private fun runServer() {
+    private suspend fun runServer() {
         try {
             serverSocket = ServerSocket(port)
             serverSocket?.reuseAddress = true
@@ -66,7 +69,7 @@ internal class TcpHandshakeServer(
             return
         }
 
-        while (running) {
+        while (running && currentCoroutineContext().isActive) {
             try {
                 val clientSocket = serverSocket?.accept() ?: break
                 val clientAddr = clientSocket.inetAddress?.hostAddress ?: "unknown"

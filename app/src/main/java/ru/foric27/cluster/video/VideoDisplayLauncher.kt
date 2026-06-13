@@ -5,6 +5,8 @@ import ru.foric27.cluster.network.*
 import ru.foric27.cluster.ui.*
 
 import android.os.SystemClock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 // Импорт BuildConfig для проверки принадлежности компонента к пакету приложения
@@ -34,6 +36,7 @@ import timber.log.Timber
  */
 internal class VideoDisplayLauncher(
     private val preferredLaunchComponent: String?,
+    private val scope: CoroutineScope,
     private val rootActivityStarter: RootActivityStarter = RootCommandActivityStarter,
     private val clock: () -> Long = { safeElapsedRealtime() },
 ) {
@@ -113,13 +116,13 @@ internal class VideoDisplayLauncher(
 
         // Cleanup старых overlay — fire-and-forget в фоне, чтобы не блокировать
         // основной запуск навигатора.
-        Thread({
+        scope.launch {
             try {
                 closeOwnClusterOverlays()
             } catch (t: Throwable) {
                 Timber.tag(TAG).w(t, "closeOwnClusterOverlays: непредвиденная ошибка")
             }
-        }, "LauncherCleanup").start()
+        }
 
         val isOwnComponent = component != null && component.startsWith(BuildConfig.APPLICATION_ID)
 

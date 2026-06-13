@@ -3,6 +3,9 @@ import ru.foric27.cluster.BuildConfig
 import ru.foric27.cluster.config.*
 import ru.foric27.cluster.ui.*
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -10,6 +13,8 @@ import org.junit.Before
 import org.junit.Test
 
 class VideoDisplayLauncherTest {
+
+    private val testScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     @Before
     fun resetState() {
@@ -36,6 +41,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -59,6 +65,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -84,6 +91,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = null,
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -103,6 +111,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = null,
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -122,6 +131,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -150,6 +160,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -175,6 +186,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -200,6 +212,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = false)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -221,6 +234,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "${BuildConfig.APPLICATION_ID}/.MediaCoverActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
         )
 
@@ -243,6 +257,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
             clock = clock,
         )
@@ -271,6 +286,7 @@ class VideoDisplayLauncherTest {
         val rootStarter = RecordingRootActivityStarter(success = true)
         val launcher = VideoDisplayLauncher(
             preferredLaunchComponent = "ru.yandex.yandexnavi/.CustomClusterActivity",
+            scope = testScope,
             rootActivityStarter = rootStarter,
             clock = clock,
         )
@@ -332,3 +348,5 @@ class VideoDisplayLauncherTest {
         }
     }
 }
+
+

@@ -16,6 +16,7 @@ import android.os.HandlerThread
 import android.os.Process
 import android.os.SystemClock
 import android.view.Surface
+import kotlinx.coroutines.CoroutineScope
 import timber.log.Timber
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
@@ -196,6 +197,7 @@ internal class VideoEncoder(
     private val preferredLaunchComponent: String?,
     private val udpSender: UdpSender,
     private val restartCallback: RestartCallback,
+    private val scope: CoroutineScope,
 ) {
 
     /**
@@ -209,7 +211,7 @@ internal class VideoEncoder(
     private val height: Int = streamConfig.height
     private val dpi: Int = streamConfig.dpi
     private val frameIntervalNs: Long = (1_000_000_000L / streamConfig.fps.coerceAtLeast(1)).coerceAtLeast(1L)
-    private val displayLauncher = VideoDisplayLauncher(preferredLaunchComponent)
+    private val displayLauncher = VideoDisplayLauncher(preferredLaunchComponent, scope)
     private val outputProcessor = VideoCodecOutputProcessor(udpSender, ::logFpsStats, streamConfig)
     private val frameTimingController = VideoFrameTimingController(streamConfig.fps)
 

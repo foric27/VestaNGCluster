@@ -1,17 +1,21 @@
 package ru.foric27.cluster.service.coordinator
 import ru.foric27.cluster.service.*
+import ru.foric27.cluster.util.CoroutineWorker
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Process
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -21,25 +25,16 @@ import java.util.concurrent.atomic.AtomicLong
  * Ключевые поля отправляются по таймеру или при изменении.
  * Слушает broadcast времени и языка для дедупликации.
  */
-/**
- * Координатор периодической синхронизации статуса с кластером.
- *
- * Отправляет JSON-пакеты (vid, time, lang) на порт 5001 через UDP.
- * Регистрирует broadcast receiver для отслеживания изменений времени,
- * часового пояса и локали.
- */
 internal class UdpStatusSyncCoordinator(
     private val context: Context,
     private val tag: String,
+    private val scope: CoroutineScope,
     private val statusKeySyncInterval: Int,
     private val statusPort: Int,
     private val statusPeriodMs: Int,
     private val statusErrorLogEvery: Int,
     private val registerLocalReceiver: (BroadcastReceiver, IntentFilter) -> Unit,
     private val unregisterReceiverBestEffort: (BroadcastReceiver?, String) -> Unit,
-    private val launchWorker: (String, Int, () -> Unit) -> Thread,
-    private val interruptThreadQuietly: (Thread?, String) -> Unit,
-    private val joinThreadQuietly: (Thread?, String) -> Unit,
 ) {
 
     /**
@@ -55,8 +50,7 @@ internal class UdpStatusSyncCoordinator(
         val sendErrors: Long,
     )
 
-    @Volatile private var statusThread: Thread? = null
-    private val statusStop = AtomicBoolean(false)
+    private var statusJob: Job? = null
     @Volatile private var syncHandler: SyncHandler? = null
     @Volatile private var statusSocket: DatagramSocket? = null
     @Volatile private var statusReceiver: BroadcastReceiver? = null
@@ -66,10 +60,10 @@ internal class UdpStatusSyncCoordinator(
     private val statusSendErrors = AtomicLong(0)
 
     /**
-     * Запускает поток отправки статуса.
+     * Запускает корутину отправки статуса.
      *
      * Создаёт [SyncHandler], регистрирует receiver для системных событий
-     * и запускает фоновый поток с периодической отправкой.
+     * и запускает фоновую корутину с периодической отправкой.
      *
      * @param bindIp локальный IP для привязки сокета или null
      * @param hostValue целевой хост для отправки статуса
@@ -101,7 +95,6 @@ internal class UdpStatusSyncCoordinator(
             statusPacketsSent.set(0)
             statusBytesSent.set(0)
             statusSendErrors.set(0)
-            statusStop.set(false)
 
             val socket = if (!bindIp.isNullOrBlank()) {
                 try {
@@ -118,29 +111,26 @@ internal class UdpStatusSyncCoordinator(
             statusSocket = socket
             val destinationHost = InetAddress.getByName(hostValue)
 
-            statusThread = launchWorker("StatusSync", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
+            statusJob = CoroutineWorker.launchPeriodicWorker(
+                scope = scope,
+                name = "StatusSync",
+                intervalMs = statusPeriodMs.toLong(),
+                threadPriority = Process.THREAD_PRIORITY_URGENT_DISPLAY,
+            ) {
                 var consecutiveErrors = 0
-                while (!statusStop.get()) {
-                    try {
-                        val payload = syncHandler?.sync()?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
-                        val packet = DatagramPacket(payload, payload.size, destinationHost, statusPort)
-                        socket.send(packet)
-                        statusPacketsSent.incrementAndGet()
-                        statusBytesSent.addAndGet(payload.size.toLong())
-                        consecutiveErrors = 0
+                try {
+                    val payload = syncHandler?.sync()?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
+                    val packet = DatagramPacket(payload, payload.size, destinationHost, statusPort)
+                    socket.send(packet)
+                    statusPacketsSent.incrementAndGet()
+                    statusBytesSent.addAndGet(payload.size.toLong())
+                    consecutiveErrors = 0
                 } catch (t: Throwable) {
                     statusSendErrors.incrementAndGet()
                     consecutiveErrors++
                     if (consecutiveErrors == 1 || consecutiveErrors % statusErrorLogEvery == 0) {
                         val suppressed = if (consecutiveErrors > 1) " (подавлено ${consecutiveErrors - 1})" else ""
                         Timber.tag(tag).w(t, "Ошибка отправки status sync (ошибок подряд=$consecutiveErrors)$suppressed")
-                    }
-                }
-
-                    try {
-                        Thread.sleep(statusPeriodMs.toLong())
-                    } catch (_: InterruptedException) {
-                        break
                     }
                 }
             }
@@ -153,15 +143,13 @@ internal class UdpStatusSyncCoordinator(
     }
 
     /**
-     * Останавливает поток отправки статуса и освобождает ресурсы.
+     * Останавливает корутину отправки статуса и освобождает ресурсы.
      *
-     * Закрывает сокет, снимает receiver и прерывает поток.
+     * Закрывает сокет, снимает receiver и отменяет корутину.
      */
     fun stop() {
-        statusStop.set(true)
-        interruptThreadQuietly(statusThread, "status sync")
-        joinThreadQuietly(statusThread, "status sync")
-        statusThread = null
+        statusJob?.cancel()
+        statusJob = null
 
         try {
             statusSocket?.close()

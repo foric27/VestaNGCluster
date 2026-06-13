@@ -6,27 +6,21 @@ import ru.foric27.cluster.util.*
 
 import android.os.Process
 import android.os.SystemClock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import timber.log.Timber
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Координатор watchdog-мониторинга связности стрима.
  *
- * В фоновом потоке проверяет link/interface/route/encoder.
+ * В фоновой корутине проверяет link/interface/route/encoder.
  * При превышении порога ошибок маршрута запрашивает immediate recovery.
  * Отслеживает grace-период после смены маршрута.
  */
-/**
- * Координатор watchdog мониторинга сетевой связности.
- *
- * Периодически проверяет состояние интерфейса, маршрута и UDP-отправки.
- * При обнаружении проблем запрашивает немедленное восстановление стрима.
- */
 internal class UdpConnectivityWatchdogCoordinator(
     private val tag: String,
-    private val launchWorker: (String, Int, () -> Unit) -> Thread,
-    private val interruptThreadQuietly: (Thread?, String) -> Unit,
-    private val joinThreadQuietly: (Thread?, String) -> Unit,
+    private val scope: CoroutineScope,
     private val configProvider: () -> StreamConfig?,
     private val senderProvider: () -> UdpSender?,
     private val hostProvider: () -> String?,
@@ -43,32 +37,27 @@ internal class UdpConnectivityWatchdogCoordinator(
     private val defaultUsbLocalCidr: String,
 ) {
 
-    @Volatile private var watchdogThread: Thread? = null
-    private val watchdogStop = AtomicBoolean(false)
+    private var watchdogJob: Job? = null
     @Volatile private var routeFailureStreak = 0
     @Volatile private var ifaceMissingGraceLogged = false
 
     /**
-     * Запускает фоновый поток watchdog.
+     * Запускает фоновую корутину watchdog.
      *
-     * Останавливает предыдущий поток перед запуском нового.
+     * Останавливает предыдущую корутину перед запуском новой.
      */
     fun start() {
         stop()
         ifaceMissingGraceLogged = false
-        watchdogStop.set(false)
-        watchdogThread = launchWorker("ConnectivityWatchdog", Process.THREAD_PRIORITY_URGENT_DISPLAY) {
-            while (!watchdogStop.get()) {
-                try {
-                    Thread.sleep(connectivityWatchdogPeriodMs)
-                } catch (_: InterruptedException) {
-                    break
-                }
-                if (watchdogStop.get()) break
-
-                try {
-                val cfg = configProvider() ?: continue
-                val currentSender = senderProvider() ?: continue
+        watchdogJob = CoroutineWorker.launchPeriodicWorker(
+            scope = scope,
+            name = "ConnectivityWatchdog",
+            intervalMs = connectivityWatchdogPeriodMs,
+            threadPriority = Process.THREAD_PRIORITY_URGENT_DISPLAY,
+        ) {
+            try {
+                val cfg = configProvider() ?: return@launchPeriodicWorker
+                val currentSender = senderProvider() ?: return@launchPeriodicWorker
                 val snapshot = currentSender.snapshot()
                 val nowMs = SystemClock.elapsedRealtime()
                 val targetHost = hostProvider()?.takeIf { it.isNotBlank() } ?: cfg.ip
@@ -85,14 +74,14 @@ internal class UdpConnectivityWatchdogCoordinator(
                         ifaceMissingRestartBackoffMinMs,
                         "Сетевой линк ${activeProbeState.iface} потерян. Перезапускаю стрим…",
                     )
-                    continue
+                    return@launchPeriodicWorker
                 }
                 if (!activeProbeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent) {
                     if (!ifaceMissingGraceLogged) {
                         Timber.tag(tag).w("Watchdog: ${activeProbeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
                         ifaceMissingGraceLogged = true
                     }
-                    continue
+                    return@launchPeriodicWorker
                 }
                 if (!activeProbeState.rootRequired && !activeProbeState.exists) {
                     Timber.tag(tag).w("Watchdog: ${activeProbeState.iface} пропал во время активного стрима")
@@ -101,7 +90,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                         ifaceMissingRestartBackoffMinMs,
                         "${activeProbeState.iface} пропал. Ожидаю восстановление и перезапускаю стрим…",
                     )
-                    continue
+                    return@launchPeriodicWorker
                 }
 
                 val pinnedIface = activeRootIfaceProvider()?.takeIf { it.isNotBlank() }
@@ -113,7 +102,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                         ifaceMissingRestartBackoffMinMs,
                         "Сетевой интерфейс $pinnedIface отключён или сменился. Перезапускаю стрим…",
                     )
-                    continue
+                    return@launchPeriodicWorker
                 }
 
                 if (recentVideoTraffic) {
@@ -121,7 +110,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                         Timber.tag(tag).i("Watchdog: есть свежая видеопередача, сбрасываю route-failure streak")
                     }
                     routeFailureStreak = 0
-                    continue
+                    return@launchPeriodicWorker
                 }
 
                 val probeState = activeProbeState
@@ -132,14 +121,14 @@ internal class UdpConnectivityWatchdogCoordinator(
                         ifaceMissingRestartBackoffMinMs,
                         "Сетевой линк ${probeState.iface} потерян. Перезапускаю стрим…",
                     )
-                    continue
+                    return@launchPeriodicWorker
                 }
                 if (!probeState.exists && !RootNetUtil.wasSelectedIfaceEverPresent) {
                     if (!ifaceMissingGraceLogged) {
                         Timber.tag(tag).i("Watchdog: ${probeState.iface} отсутствует; восстановление не требуется — интерфейс никогда не поднимался")
                         ifaceMissingGraceLogged = true
                     }
-                    continue
+                    return@launchPeriodicWorker
                 }
                 if (!probeState.rootRequired && !probeState.exists) {
                     Timber.tag(tag).w("Watchdog: ${probeState.iface} пропал во время активного стрима")
@@ -148,7 +137,7 @@ internal class UdpConnectivityWatchdogCoordinator(
                         ifaceMissingRestartBackoffMinMs,
                         "${probeState.iface} пропал. Ожидаю восстановление и перезапускаю стрим…",
                     )
-                    continue
+                    return@launchPeriodicWorker
                 }
 
                 if (!expectedBindIp.isNullOrBlank()) {
@@ -193,30 +182,27 @@ internal class UdpConnectivityWatchdogCoordinator(
                                 "Маршрут через ${probeState.iface} потерян. Перезапуск стрима…",
                             )
 
-                            continue
+                            return@launchPeriodicWorker
                         }
                     }
                 }
                 // Для режима Dynamic FPS отсутствие новых видеокадров само по себе не считается ошибкой:
                 // при статичной картинке на VirtualDisplay кодек может долго не отдавать выходные буферы.
                 // Восстановление здесь выполняется только по проверке маршрута, probe и явным ошибкам сокета или энкодера.
-                } catch (t: Throwable) {
-                    Timber.tag(tag).e(t, "Watchdog: непредвиденная ошибка в цикле")
-                }
+            } catch (t: Throwable) {
+                Timber.tag(tag).e(t, "Watchdog: непредвиденная ошибка в цикле")
             }
         }
     }
 
     /**
-     * Останавливает фоновый поток watchdog.
+     * Останавливает фоновую корутину watchdog.
      *
-     * Прерывает и ожидает завершения потока.
+     * Отменяет job и ожидает завершения.
      */
     fun stop() {
-        watchdogStop.set(true)
-        interruptThreadQuietly(watchdogThread, "watchdog")
-        joinThreadQuietly(watchdogThread, "watchdog")
-        watchdogThread = null
+        watchdogJob?.cancel()
+        watchdogJob = null
     }
 
     /**

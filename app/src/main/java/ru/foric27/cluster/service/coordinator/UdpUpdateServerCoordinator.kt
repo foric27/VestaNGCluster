@@ -6,8 +6,11 @@ import ru.foric27.cluster.update.*
 import ru.foric27.cluster.util.*
 
 import android.content.Context
-import android.os.Handler
 import android.os.SystemClock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
@@ -19,21 +22,18 @@ import timber.log.Timber
  */
 internal class UdpUpdateServerCoordinator(
     private val context: Context,
-    private val mainHandler: Handler,
+    private val scope: CoroutineScope,
     private val isServiceRunning: () -> Boolean,
-    private val startDetachedWorker: (name: String, block: () -> Unit) -> Unit,
     private val publishWarning: (String) -> Unit,
 ) {
 
     @Volatile private var lastFtpRetryReport: String? = null
     @Volatile private var lastFtpFailureReport: String? = null
-    @Volatile private var ftpRetryScheduled = false
     @Volatile private var ftpOperationInProgress = false
     @Volatile private var lastKnownUpdateSha256: String? = null
     @Volatile private var lastAlertShownTime: Long = 0L
     @Volatile private var lastUsbRefreshTime: Long = 0L
-
-    private val ftpRetryRunnable = Runnable { performFtpRetry() }
+    private var ftpRetryJob: Job? = null
 
     /**
      * Запускает или обновляет FTP-сервер при старте сервиса.
@@ -211,69 +211,66 @@ internal class UdpUpdateServerCoordinator(
     }
 
     fun cancelFtpRetry() {
-        ftpRetryScheduled = false
-        mainHandler.removeCallbacks(ftpRetryRunnable)
+        ftpRetryJob?.cancel()
+        ftpRetryJob = null
     }
 
     private fun scheduleFtpRetry(reason: String) {
-        if (ftpRetryScheduled) return
-        ftpRetryScheduled = true
+        if (ftpRetryJob?.isActive == true) return
         Timber.tag(TAG).i("Повторный запуск FTP запланирован через ${RuntimeConfig.UpdateFtp.RETRY_DELAY_MS}мс, reason=$reason")
-        mainHandler.removeCallbacks(ftpRetryRunnable)
-        mainHandler.postDelayed(ftpRetryRunnable, RuntimeConfig.UpdateFtp.RETRY_DELAY_MS)
+        ftpRetryJob = scope.launch {
+            delay(RuntimeConfig.UpdateFtp.RETRY_DELAY_MS)
+            performFtpRetry()
+        }
     }
 
     private fun performFtpRetry() {
         if (!isServiceRunning()) {
-            ftpRetryScheduled = false
             return
         }
         if (!StorageAccessManager.isAllFilesAccessGranted()) {
             Timber.tag(TAG).i("Отменяю повторный запуск FTP: нет разрешения MANAGE_EXTERNAL_STORAGE")
-            ftpRetryScheduled = false
             return
         }
-        ftpRetryScheduled = false
 
-        startDetachedWorker("FtpRetryWorker") {
-            try {
-                val state = UpdateServerManager.getServerState()
-                if (state.status == UpdateServerManager.Status.RUNNING) {
-                    cancelFtpRetry()
-                    return@startDetachedWorker
-                }
-
-                val result = runFtpOperation("retry") { UpdateServerManager.restartServer() }
-                if (result == null) {
-                    scheduleFtpRetry("retry_busy")
-                    return@startDetachedWorker
-                }
-                val report = (if (result.success) "ok:" else "fail:") + result.message
-                if (report != lastFtpRetryReport) {
-                    lastFtpRetryReport = report
-                    if (result.success) {
-                        val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
-                        Timber.tag(TAG).i("FTP успешно поднят повторно: $address")
-                        publishWarning(context.getString(R.string.service_notification_ftp_restarted_fmt, address))
-                    } else {
-                        Timber.tag(TAG).w("Повторный запуск FTP не удался: ${result.message}")
-                    }
-                }
-
-        if (result.success) {
-            cancelFtpRetry()
-            lastFtpFailureReport = null
-        } else if (result.retrySuggested) {
-            scheduleFtpRetry("ftp_retry")
-        } else {
-            cancelFtpRetry()
-        }
-            } catch (t: Throwable) {
-                Timber.tag(TAG).e(t, "Ошибка повторного запуска FTP")
-                scheduleFtpRetry("ftp_retry_exception")
+        try {
+            val state = UpdateServerManager.getServerState()
+            if (state.status == UpdateServerManager.Status.RUNNING) {
+                cancelFtpRetry()
+                return
             }
+
+            val result = runFtpOperation("retry") { UpdateServerManager.restartServer() }
+            if (result == null) {
+                scheduleFtpRetry("retry_busy")
+                return
+            }
+            val report = (if (result.success) "ok:" else "fail:") + result.message
+            if (report != lastFtpRetryReport) {
+                lastFtpRetryReport = report
+                if (result.success) {
+                    val address = result.boundAddress?.let { "${it.host}:${it.port}" } ?: "без адреса"
+                    Timber.tag(TAG).i("FTP успешно поднят повторно: $address")
+                    publishWarning(context.getString(R.string.service_notification_ftp_restarted_fmt, address))
+                } else {
+                    Timber.tag(TAG).w("Повторный запуск FTP не удался: ${result.message}")
+                }
+            }
+
+            if (result.success) {
+                cancelFtpRetry()
+                lastFtpFailureReport = null
+            } else if (result.retrySuggested) {
+                scheduleFtpRetry("ftp_retry")
+            } else {
+                cancelFtpRetry()
+            }
+        } catch (t: Throwable) {
+            Timber.tag(TAG).e(t, "Ошибка повторного запуска FTP")
+            scheduleFtpRetry("ftp_retry_exception")
         }
     }
+
     private fun checkAndShowUpdateAlert(result: UpdateServerManager.Result) {
         val fileInfo = result.fileInfo ?: return
         val currentSha256 = fileInfo.sha256
