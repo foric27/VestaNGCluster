@@ -12,7 +12,7 @@ jobs:
   check-size:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check PR size
         uses: codelytv/pr-size-labeler@v1

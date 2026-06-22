@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Java 26
         uses: actions/setup-java@v5
@@ -37,7 +37,7 @@ jobs:
           cp "$APK_PATH" app-release-pr.apk
 
       - name: Checkout base
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.base_ref }}
           clean: false
