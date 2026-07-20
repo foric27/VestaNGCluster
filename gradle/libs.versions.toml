@@ -29,7 +29,7 @@ httpclient5 = "5.6.1"
 junit = "4.13.2"
 compose-bom = "2026.05.01"
 koin = "4.1.0"
-appmetrica = "8.3.0"
+appmetrica = "8.4.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
